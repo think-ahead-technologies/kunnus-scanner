@@ -103,9 +103,10 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 	cmdlogger.SendEverythingToStderr()
 
 	scannerAction := osvscanner.ScannerActions{
-		DirectoryPaths: dirs,
-		Recursive:      cmd.Bool("recursive"),
-		CompareOffline: cmd.Bool("offline-vulnerabilities"),
+		DirectoryPaths:  dirs,
+		Recursive:       cmd.Bool("recursive"),
+		CompareOffline:  cmd.Bool("offline-vulnerabilities"),
+		ShowAllPackages: true, // SBOMs are a full inventory — include all packages, not just vulnerable ones.
 		ExperimentalScannerActions: osvscanner.ExperimentalScannerActions{
 			HTTPClient:       client,
 			RequestUserAgent: "kunnus_sbom/" + kversion.KunnusVersion,
