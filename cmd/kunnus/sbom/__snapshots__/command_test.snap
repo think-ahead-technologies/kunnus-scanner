@@ -1,0 +1,142 @@
+
+[TestCommand/cyclonedx-1-4_format - 1]
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.4.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.4",
+  "version": 1,
+  "components": [],
+  "vulnerabilities": []
+}
+
+---
+
+[TestCommand/cyclonedx-1-4_format - 2]
+Scanning dir ./testdata/no-packages
+---Begin Directory Scan---
+---End Directory Scan---
+No package sources found in the given directories
+
+---
+
+[TestCommand/cyclonedx-1-5_format - 1]
+{
+  "$schema": "http://cyclonedx.org/schema/bom-1.5.schema.json",
+  "bomFormat": "CycloneDX",
+  "specVersion": "1.5",
+  "version": 1,
+  "components": [],
+  "vulnerabilities": []
+}
+
+---
+
+[TestCommand/cyclonedx-1-5_format - 2]
+Scanning dir ./testdata/no-packages
+---Begin Directory Scan---
+---End Directory Scan---
+No package sources found in the given directories
+
+---
+
+[TestCommand/empty_directory_produces_no-package_warning - 1]
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SCALIBR-generated SPDX",
+  "documentNamespace": "https://spdx.google/uuid-placeholder-0",
+  "creationInfo": {
+    "creators": [
+      "Tool: SCALIBR"
+    ],
+    "created": "<TIMESTAMP>"
+  },
+  "packages": [
+    {
+      "name": "main",
+      "SPDXID": "SPDXRef-Package-main-uuid-placeholder-1",
+      "versionInfo": "0",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-main-uuid-placeholder-1",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}
+
+---
+
+[TestCommand/empty_directory_produces_no-package_warning - 2]
+Scanning dir ./testdata/no-packages
+---Begin Directory Scan---
+---End Directory Scan---
+No package sources found in the given directories
+
+---
+
+[TestCommand/explicit_spdx-2-3_format - 1]
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SCALIBR-generated SPDX",
+  "documentNamespace": "https://spdx.google/uuid-placeholder-0",
+  "creationInfo": {
+    "creators": [
+      "Tool: SCALIBR"
+    ],
+    "created": "<TIMESTAMP>"
+  },
+  "packages": [
+    {
+      "name": "main",
+      "SPDXID": "SPDXRef-Package-main-uuid-placeholder-1",
+      "versionInfo": "0",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-main-uuid-placeholder-1",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}
+
+---
+
+[TestCommand/explicit_spdx-2-3_format - 2]
+Scanning dir ./testdata/no-packages
+---Begin Directory Scan---
+---End Directory Scan---
+No package sources found in the given directories
+
+---
+
+[TestCommand/unsupported_format_json_is_rejected - 1]
+
+---
+
+[TestCommand/unsupported_format_json_is_rejected - 2]
+unsupported format "json" - must be one of: spdx-2-3, cyclonedx-1-4, cyclonedx-1-5
+
+---
+
+[TestCommand/unsupported_format_table_is_rejected - 1]
+
+---
+
+[TestCommand/unsupported_format_table_is_rejected - 2]
+unsupported format "table" - must be one of: spdx-2-3, cyclonedx-1-4, cyclonedx-1-5
+
+---
