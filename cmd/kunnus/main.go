@@ -33,13 +33,15 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 	}
 
 	app := &cli.Command{
-		Name:           "kunnus",
-		Version:        version.OSVVersion,
-		Usage:          "kunnus security tooling",
-		DefaultCommand: "sbom",
-		Suggest:        true,
-		Writer:         stdout,
-		ErrWriter:      stderr,
+		Name:      "kunnus",
+		Version:   version.OSVVersion,
+		Usage:     "kunnus security tooling",
+		Suggest:   true,
+		Writer:    stdout,
+		ErrWriter: stderr,
+		Action: func(ctx context.Context, cmd *cli.Command) error {
+			return cli.ShowAppHelp(cmd)
+		},
 		Commands: []*cli.Command{
 			sbom.Command(stdout, stderr, client),
 		},
