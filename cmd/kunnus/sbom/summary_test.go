@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/google/osv-scanner/v2/pkg/models"
+	"github.com/ossf/osv-schema/bindings/go/osvschema"
 )
 
 func TestBuildFileName(t *testing.T) {
@@ -191,6 +192,111 @@ func TestBuildScanSummary(t *testing.T) {
 		}
 		if !strings.Contains(got, "SBOM saved") {
 			t.Errorf("expected 'SBOM saved' label, got: %q", got)
+		}
+	})
+
+	t.Run("no vulnerabilities shows message", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source: models.SourceInfo{Path: "/project/go.mod"},
+					Packages: []models.PackageVulns{
+						{Package: models.PackageInfo{Ecosystem: "Go"}},
+					},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"./project"}, result, "")
+		if !strings.Contains(got, "No vulnerabilities found") {
+			t.Errorf("expected no-vuln message, got: %q", got)
+		}
+	})
+
+	t.Run("vulnerability count is shown", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source: models.SourceInfo{Path: "/project/go.mod"},
+					Packages: []models.PackageVulns{
+						{
+							Package: models.PackageInfo{Ecosystem: "Go"},
+							Vulnerabilities: []*osvschema.Vulnerability{
+								{Id: "GHSA-0001"},
+								{Id: "GHSA-0002"},
+							},
+						},
+					},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"./project"}, result, "")
+		if !strings.Contains(got, "2 vulnerabilities found") {
+			t.Errorf("expected '2 vulnerabilities found', got: %q", got)
+		}
+	})
+
+	t.Run("duplicate vuln IDs are counted once", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source: models.SourceInfo{Path: "/project/go.mod"},
+					Packages: []models.PackageVulns{
+						{
+							Package:         models.PackageInfo{Ecosystem: "Go"},
+							Vulnerabilities: []*osvschema.Vulnerability{{Id: "GHSA-0001"}},
+						},
+						{
+							Package:         models.PackageInfo{Ecosystem: "Go"},
+							Vulnerabilities: []*osvschema.Vulnerability{{Id: "GHSA-0001"}},
+						},
+					},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"./project"}, result, "")
+		if !strings.Contains(got, "1 vulnerabilities found") {
+			t.Errorf("expected '1 vulnerabilities found', got: %q", got)
+		}
+	})
+
+	t.Run("multiple dirs shows all dirs when 2", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{}
+		got := buildScanSummary([]string{"./frontend", "./backend"}, result, "")
+		if !strings.Contains(got, "./frontend") || !strings.Contains(got, "./backend") {
+			t.Errorf("expected both dirs in header, got: %q", got)
+		}
+	})
+
+	t.Run("many dirs shows count", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{}
+		got := buildScanSummary([]string{"./a", "./b", "./c", "./d"}, result, "")
+		if !strings.Contains(got, "4 directories") {
+			t.Errorf("expected '4 directories' in header, got: %q", got)
+		}
+	})
+
+	t.Run("extra sources shown in row", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source:   models.SourceInfo{Path: "/project/go.mod"},
+					Packages: []models.PackageVulns{{Package: models.PackageInfo{Ecosystem: "Go"}}},
+				},
+				{
+					Source:   models.SourceInfo{Path: "/project/sub/go.mod"},
+					Packages: []models.PackageVulns{{Package: models.PackageInfo{Ecosystem: "Go"}}},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"./project"}, result, "")
+		if !strings.Contains(got, "+1 more") {
+			t.Errorf("expected '+1 more' in row, got: %q", got)
 		}
 	})
 

@@ -65,6 +65,15 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 		DefaultCommand: "sbom",
 		Writer:         &outBuf,
 		ErrWriter:      &errBuf,
+		Flags: []cli.Flag{
+			&cli.StringFlag{Name: "verbosity", Value: "warn"},
+		},
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
+				cmdlogger.SetLevel(lvl)
+			}
+			return ctx, nil
+		},
 		Commands: []*cli.Command{
 			sbom.Command(&outBuf, &errBuf, nil),
 		},
@@ -78,7 +87,7 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 
 	exitCode := 0
 	if logger.HasErrored() {
-		exitCode = 127
+		exitCode = 2
 	}
 
 	stdout := normalizeUUIDs(normalizeTimestamps(outBuf.String()))
@@ -118,12 +127,17 @@ func TestCommand(t *testing.T) {
 		{
 			name: "unsupported format json is rejected",
 			args: []string{"kunnus", "sbom", "--format=json", "./testdata/no-packages"},
-			exit: 127,
+			exit: 2,
 		},
 		{
 			name: "unsupported format table is rejected",
 			args: []string{"kunnus", "sbom", "--format=table", "./testdata/no-packages"},
-			exit: 127,
+			exit: 2,
+		},
+		{
+			name: "no-recursive flag is accepted",
+			args: []string{"kunnus", "sbom", "--no-recursive", "./testdata/no-packages"},
+			exit: 0,
 		},
 	}
 

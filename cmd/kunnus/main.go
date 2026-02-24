@@ -10,6 +10,7 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
+	"strings"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
 	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
@@ -36,12 +37,37 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 	}
 
 	app := &cli.Command{
-		Name:      "kunnus",
-		Version:   kversion.KunnusVersion,
-		Usage:     "SBOM generation and vulnerability scanning",
-		Suggest:   true,
-		Writer:    stdout,
-		ErrWriter: stderr,
+		Name:    "kunnus",
+		Version: kversion.KunnusVersion,
+		Usage:   "SBOM generation and vulnerability scanning",
+		Description: "Generate SBOMs and scan for vulnerabilities.\n\n" +
+			"Exit codes:\n" +
+			"  0  success\n" +
+			"  1  vulnerabilities found\n" +
+			"  2  error (invalid arguments, scan failure, etc.)\n" +
+			"  3  network or API request failed",
+		Suggest:              true,
+		Writer:               stdout,
+		ErrWriter:            stderr,
+		EnableShellCompletion: true,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:        "verbosity",
+				Usage:       "log verbosity level; value can be: " + strings.Join(cmdlogger.Levels(), ", "),
+				Value:       "warn",
+				DefaultText: "warn",
+				Action: func(_ context.Context, _ *cli.Command, s string) error {
+					_, err := cmdlogger.ParseLevel(s)
+					return err
+				},
+			},
+		},
+		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
+				cmdlogger.SetLevel(lvl)
+			}
+			return ctx, nil
+		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Present() {
 				return fmt.Errorf("unknown command %q — run 'kunnus --help' for usage", cmd.Args().First())
@@ -63,13 +89,13 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 			return 1
 		case errors.Is(err, osvscanner.ErrAPIFailed):
 			cmdlogger.Errorf("%v", err)
-			return 129
+			return 3
 		}
 		cmdlogger.Errorf("%v", err)
 	}
 
 	if logger.HasErrored() {
-		return 127
+		return 2
 	}
 
 	return 0

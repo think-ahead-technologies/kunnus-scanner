@@ -32,7 +32,7 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 		Name:        "sbom",
 		Usage:       "generate a Software Bill of Materials for a project's dependencies",
 		Description: "scans a project's dependencies and generates an SBOM in spdx or cyclonedx format",
-		ArgsUsage:   "[directory...]",
+		ArgsUsage:   "[directory...] (default: current directory)",
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "format",
@@ -53,7 +53,7 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 				Usage:     "save the SBOM to the given file path",
 				TakesFile: true,
 			},
-			&cli.BoolFlag{
+			&cli.BoolWithInverseFlag{
 				Name:        "recursive",
 				Aliases:     []string{"r"},
 				Usage:       "scan subdirectories",
@@ -62,26 +62,13 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 			},
 			&cli.BoolFlag{
 				Name:  "offline-vulnerabilities",
-				Usage: "check for vulnerabilities using local databases that are already cached",
+				Usage: "check for vulnerabilities using locally cached databases (errors if no cache exists)",
 			},
 			&cli.BoolFlag{
 				Name:        "all-packages",
 				Usage:       "include all scanned packages in the SBOM, not just vulnerable ones",
 				Value:       true,
 				DefaultText: "on",
-			},
-			&cli.StringFlag{
-				Name:        "verbosity",
-				Usage:       "log verbosity level; value can be: " + strings.Join(cmdlogger.Levels(), ", "),
-				Value:       "warn",
-				DefaultText: "warn",
-				Action: func(_ context.Context, _ *cli.Command, s string) error {
-					if _, err := cmdlogger.ParseLevel(s); err != nil {
-						return err
-					}
-
-					return nil
-				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -90,7 +77,7 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 	}
 }
 
-func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, client *http.Client) error {
+func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, client *http.Client) error {
 	dirs := cmd.Args().Slice()
 	if len(dirs) == 0 {
 		dirs = []string{"."}
@@ -99,11 +86,6 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 	format := cmd.String("format")
 	outputPath := cmd.String("output")
 	interactive := isTerminalWriter(stdout)
-
-	// Apply verbosity before scanning so progress messages are filtered correctly.
-	if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
-		cmdlogger.SetLevel(lvl)
-	}
 
 	// SBOM output formats need log messages on stderr to keep the SBOM on stdout clean.
 	cmdlogger.SendEverythingToStderr()
@@ -118,6 +100,9 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 			RequestUserAgent: "kunnus_sbom/" + kversion.KunnusVersion,
 		},
 	}
+
+	// ctx is intentionally unused for now: osvscanner.DoScan does not yet accept a context.
+	_ = ctx
 
 	vulnResult, err := osvscanner.DoScan(scannerAction)
 
@@ -142,7 +127,7 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 
 	if !interactive {
 		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
-		if errPrint := printSBOM(stdout, stderr, outputPath, format, &vulnResult); errPrint != nil {
+		if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
 			return fmt.Errorf("failed to write SBOM: %w", errPrint)
 		}
 
@@ -165,11 +150,13 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 
 	fmt.Fprint(stdout, buildScanSummary(dirs, &vulnResult, savedPath))
 
+	_ = stderr
+
 	return nil
 }
 
 // printSBOM writes the SBOM to stdout or to the given file path.
-func printSBOM(stdout, _ io.Writer, outputPath, format string, vulnResult *models.VulnerabilityResults) error {
+func printSBOM(stdout io.Writer, outputPath, format string, vulnResult *models.VulnerabilityResults) error {
 	termWidth := 0
 	writer := stdout
 
@@ -247,11 +234,31 @@ func primaryEcosystem(packages []models.PackageVulns) string {
 	return best
 }
 
+// countVulnerabilities returns the number of unique vulnerability IDs across all packages.
+func countVulnerabilities(result *models.VulnerabilityResults) int {
+	seen := map[string]struct{}{}
+	for _, pkgSource := range result.Results {
+		for _, pkg := range pkgSource.Packages {
+			for _, v := range pkg.Vulnerabilities {
+				seen[v.Id] = struct{}{}
+			}
+		}
+	}
+	return len(seen)
+}
+
 // buildScanSummary returns a formatted human-readable summary of the scan results.
 func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedPath string) string {
 	var sb strings.Builder
 
-	fmt.Fprintf(&sb, "Scanning %s\n\n", dirs[0])
+	switch len(dirs) {
+	case 1:
+		fmt.Fprintf(&sb, "Scanning %s\n\n", dirs[0])
+	case 2, 3:
+		fmt.Fprintf(&sb, "Scanning %s\n\n", strings.Join(dirs, ", "))
+	default:
+		fmt.Fprintf(&sb, "Scanning %d directories\n\n", len(dirs))
+	}
 
 	if len(result.Results) == 0 {
 		sb.WriteString("  No package sources found.\n")
@@ -260,9 +267,10 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 	}
 
 	type summaryRow struct {
-		ecosystem string
-		count     int
-		source    string // base filename of first source with this ecosystem
+		ecosystem    string
+		count        int
+		source       string // base filename of first source with this ecosystem
+		extraSources int    // number of additional sources merged into this row
 	}
 
 	var rows []summaryRow
@@ -277,6 +285,7 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 
 		if idx, ok := ecoIndex[eco]; ok {
 			rows[idx].count += count
+			rows[idx].extraSources++
 		} else {
 			ecoIndex[eco] = len(rows)
 			rows = append(rows, summaryRow{ecosystem: eco, count: count, source: sourceName})
@@ -284,11 +293,22 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 	}
 
 	for _, row := range rows {
-		fmt.Fprintf(&sb, "  %-12s %4d packages  (%s)\n", row.ecosystem, row.count, row.source)
+		sourceDisplay := row.source
+		if row.extraSources > 0 {
+			sourceDisplay = fmt.Sprintf("%s +%d more", row.source, row.extraSources)
+		}
+		fmt.Fprintf(&sb, "  %-12s %4d packages  (%s)\n", row.ecosystem, row.count, sourceDisplay)
 	}
 
 	sb.WriteString("  ────────────────────────────────────\n")
 	fmt.Fprintf(&sb, "  %-12s %4d packages\n", "Total", total)
+
+	vulnCount := countVulnerabilities(result)
+	if vulnCount == 0 {
+		sb.WriteString("  No vulnerabilities found.\n")
+	} else {
+		fmt.Fprintf(&sb, "  %d vulnerabilities found.\n", vulnCount)
+	}
 
 	if savedPath != "" {
 		fmt.Fprintf(&sb, "\n  SBOM saved → %s\n", savedPath)
