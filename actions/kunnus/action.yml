@@ -1,0 +1,13 @@
+name: "kunnus"
+description: "Generate an SBOM and scan for vulnerabilities with kunnus"
+inputs:
+  scan-args:
+    description: "Arguments to kunnus, separated by new line"
+    default: |-
+      sbom
+      ./
+runs:
+  using: "docker"
+  image: "docker://ghcr.io/think-ahead-technologies/kunnus-scanner-action:latest"
+  args:
+    - ${{ inputs.scan-args }}
