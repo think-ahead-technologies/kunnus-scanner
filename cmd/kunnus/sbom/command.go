@@ -54,14 +54,28 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 				TakesFile: true,
 			},
 			&cli.BoolFlag{
-				Name:    "recursive",
-				Aliases: []string{"r"},
-				Usage:   "scan subdirectories",
-				Value:   true,
+				Name:        "recursive",
+				Aliases:     []string{"r"},
+				Usage:       "scan subdirectories",
+				Value:       true,
+				DefaultText: "on",
 			},
 			&cli.BoolFlag{
 				Name:  "offline-vulnerabilities",
 				Usage: "check for vulnerabilities using local databases that are already cached",
+			},
+			&cli.StringFlag{
+				Name:        "verbosity",
+				Usage:       "log verbosity level; value can be: " + strings.Join(cmdlogger.Levels(), ", "),
+				Value:       "warn",
+				DefaultText: "warn",
+				Action: func(_ context.Context, _ *cli.Command, s string) error {
+					if _, err := cmdlogger.ParseLevel(s); err != nil {
+						return err
+					}
+
+					return nil
+				},
 			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
@@ -79,6 +93,11 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 	format := cmd.String("format")
 	outputPath := cmd.String("output")
 	interactive := isTerminalWriter(stdout)
+
+	// Apply verbosity before scanning so progress messages are filtered correctly.
+	if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
+		cmdlogger.SetLevel(lvl)
+	}
 
 	// SBOM output formats need log messages on stderr to keep the SBOM on stdout clean.
 	cmdlogger.SendEverythingToStderr()

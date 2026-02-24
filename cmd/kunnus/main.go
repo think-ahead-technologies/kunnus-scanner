@@ -5,6 +5,7 @@ package main
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
@@ -28,20 +29,23 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 	slog.SetDefault(slog.New(logger))
 
 	cli.VersionPrinter = func(cmd *cli.Command) {
-		cmdlogger.Infof("kunnus version: %s", cmd.Version)
-		cmdlogger.Infof("osv-scanner version: %s", osvversion.OSVVersion)
-		cmdlogger.Infof("commit: %s", commit)
-		cmdlogger.Infof("built at: %s", date)
+		fmt.Fprintf(stdout, "kunnus version: %s\n", cmd.Version)
+		fmt.Fprintf(stdout, "osv-scanner version: %s\n", osvversion.OSVVersion)
+		fmt.Fprintf(stdout, "commit: %s\n", commit)
+		fmt.Fprintf(stdout, "built at: %s\n", date)
 	}
 
 	app := &cli.Command{
 		Name:      "kunnus",
 		Version:   kversion.KunnusVersion,
-		Usage:     "kunnus security tooling",
+		Usage:     "SBOM generation and vulnerability scanning",
 		Suggest:   true,
 		Writer:    stdout,
 		ErrWriter: stderr,
-		Action: func(ctx context.Context, cmd *cli.Command) error {
+		Action: func(_ context.Context, cmd *cli.Command) error {
+			if cmd.Args().Present() {
+				return fmt.Errorf("unknown command %q — run 'kunnus --help' for usage", cmd.Args().First())
+			}
 			return cli.ShowAppHelp(cmd)
 		},
 		Commands: []*cli.Command{
@@ -57,9 +61,6 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 		switch {
 		case errors.Is(err, osvscanner.ErrVulnerabilitiesFound):
 			return 1
-		case errors.Is(err, osvscanner.ErrNoPackagesFound):
-			cmdlogger.Errorf("No package sources found, --help for usage information.")
-			return 128
 		case errors.Is(err, osvscanner.ErrAPIFailed):
 			cmdlogger.Errorf("%v", err)
 			return 129

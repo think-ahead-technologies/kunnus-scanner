@@ -12,9 +12,6 @@
 ---
 
 [TestCommand/cyclonedx-1-4_format - 2]
-Scanning dir ./testdata/no-packages
----Begin Directory Scan---
----End Directory Scan---
 No package sources found in the given directories
 
 ---
@@ -32,9 +29,6 @@ No package sources found in the given directories
 ---
 
 [TestCommand/cyclonedx-1-5_format - 2]
-Scanning dir ./testdata/no-packages
----Begin Directory Scan---
----End Directory Scan---
 No package sources found in the given directories
 
 ---
@@ -74,9 +68,6 @@ No package sources found in the given directories
 ---
 
 [TestCommand/empty_directory_produces_no-package_warning - 2]
-Scanning dir ./testdata/no-packages
----Begin Directory Scan---
----End Directory Scan---
 No package sources found in the given directories
 
 ---
@@ -116,9 +107,6 @@ No package sources found in the given directories
 ---
 
 [TestCommand/explicit_spdx-2-3_format - 2]
-Scanning dir ./testdata/no-packages
----Begin Directory Scan---
----End Directory Scan---
 No package sources found in the given directories
 
 ---
