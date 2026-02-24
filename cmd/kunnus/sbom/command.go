@@ -9,8 +9,11 @@ import (
 	"io"
 	"net/http"
 	"os"
+	"path/filepath"
 	"slices"
+	"sort"
 	"strings"
+	"time"
 
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	"github.com/google/osv-scanner/v2/internal/reporter"
@@ -75,6 +78,7 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 
 	format := cmd.String("format")
 	outputPath := cmd.String("output")
+	interactive := isTerminalWriter(stdout)
 
 	// SBOM output formats need log messages on stderr to keep the SBOM on stdout clean.
 	cmdlogger.SendEverythingToStderr()
@@ -91,9 +95,13 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 
 	vulnResult, err := osvscanner.DoScan(scannerAction)
 
+	noPackagesFound := errors.Is(err, osvscanner.ErrNoPackagesFound)
+
 	// No packages is not an error for SBOM generation.
-	if errors.Is(err, osvscanner.ErrNoPackagesFound) {
-		cmdlogger.Warnf("No package sources found in the given directories")
+	if noPackagesFound {
+		if !interactive {
+			cmdlogger.Warnf("No package sources found in the given directories")
+		}
 		err = nil
 	}
 
@@ -106,9 +114,30 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 		return err
 	}
 
-	if errPrint := printSBOM(stdout, stderr, outputPath, format, &vulnResult); errPrint != nil {
-		return fmt.Errorf("failed to write SBOM: %w", errPrint)
+	if !interactive {
+		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
+		if errPrint := printSBOM(stdout, stderr, outputPath, format, &vulnResult); errPrint != nil {
+			return fmt.Errorf("failed to write SBOM: %w", errPrint)
+		}
+
+		return nil
 	}
+
+	// Interactive/terminal mode: save SBOM to file and show a human-readable summary.
+	savedPath := outputPath
+	if savedPath == "" && !noPackagesFound {
+		project := projectNameFromDir(dirs[0])
+		date := time.Now().Format("2006-01-02")
+		savedPath = buildFileName(project, format, date)
+	}
+
+	if savedPath != "" {
+		if err := writeSBOMToFile(savedPath, format, &vulnResult); err != nil {
+			return fmt.Errorf("failed to write SBOM: %w", err)
+		}
+	}
+
+	fmt.Fprint(stdout, buildScanSummary(dirs, &vulnResult, savedPath))
 
 	return nil
 }
@@ -133,4 +162,122 @@ func printSBOM(stdout, _ io.Writer, outputPath, format string, vulnResult *model
 	}
 
 	return reporter.PrintResult(vulnResult, format, writer, termWidth, false)
+}
+
+// isTerminalWriter reports whether w is an *os.File connected to a terminal.
+func isTerminalWriter(w io.Writer) bool {
+	f, ok := w.(*os.File)
+	if !ok {
+		return false
+	}
+
+	return term.IsTerminal(int(f.Fd()))
+}
+
+// buildFileName constructs the auto-save filename for the SBOM.
+func buildFileName(project, format, date string) string {
+	ext := ".spdx.json"
+	if strings.HasPrefix(format, "cyclonedx") {
+		ext = ".cdx.json"
+	}
+
+	return fmt.Sprintf("sbom-%s-%s%s", project, date, ext)
+}
+
+// projectNameFromDir returns the base directory name for use in auto-generated filenames.
+func projectNameFromDir(dir string) string {
+	abs, err := filepath.Abs(dir)
+	if err != nil {
+		return filepath.Base(dir)
+	}
+
+	return filepath.Base(abs)
+}
+
+// primaryEcosystem returns the most common ecosystem across the given packages.
+// Ties are broken alphabetically by ecosystem name.
+func primaryEcosystem(packages []models.PackageVulns) string {
+	counts := map[string]int{}
+	for _, pkg := range packages {
+		counts[pkg.Package.Ecosystem]++
+	}
+
+	// Sort ecosystem names for deterministic tie-breaking.
+	ecosystems := make([]string, 0, len(counts))
+	for eco := range counts {
+		ecosystems = append(ecosystems, eco)
+	}
+	sort.Strings(ecosystems)
+
+	best := ""
+	bestCount := 0
+	for _, eco := range ecosystems {
+		if counts[eco] > bestCount {
+			best = eco
+			bestCount = counts[eco]
+		}
+	}
+
+	return best
+}
+
+// buildScanSummary returns a formatted human-readable summary of the scan results.
+func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedPath string) string {
+	var sb strings.Builder
+
+	fmt.Fprintf(&sb, "Scanning %s\n\n", dirs[0])
+
+	if len(result.Results) == 0 {
+		sb.WriteString("  No package sources found.\n")
+
+		return sb.String()
+	}
+
+	type summaryRow struct {
+		ecosystem string
+		count     int
+		source    string // base filename of first source with this ecosystem
+	}
+
+	var rows []summaryRow
+	ecoIndex := map[string]int{}
+	total := 0
+
+	for _, pkgSource := range result.Results {
+		eco := primaryEcosystem(pkgSource.Packages)
+		count := len(pkgSource.Packages)
+		total += count
+		sourceName := filepath.Base(pkgSource.Source.Path)
+
+		if idx, ok := ecoIndex[eco]; ok {
+			rows[idx].count += count
+		} else {
+			ecoIndex[eco] = len(rows)
+			rows = append(rows, summaryRow{ecosystem: eco, count: count, source: sourceName})
+		}
+	}
+
+	for _, row := range rows {
+		fmt.Fprintf(&sb, "  %-12s %4d packages  (%s)\n", row.ecosystem, row.count, row.source)
+	}
+
+	sb.WriteString("  ────────────────────────────────────\n")
+	fmt.Fprintf(&sb, "  %-12s %4d packages\n", "Total", total)
+
+	if savedPath != "" {
+		fmt.Fprintf(&sb, "\n  SBOM saved → %s\n", savedPath)
+	}
+
+	return sb.String()
+}
+
+// writeSBOMToFile writes the SBOM to the given file path.
+func writeSBOMToFile(path, format string, result *models.VulnerabilityResults) error {
+	f, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create output file: %w", err)
+	}
+	defer f.Close()
+
+	return reporter.PrintResult(result, format, f, 0, false)
 }
