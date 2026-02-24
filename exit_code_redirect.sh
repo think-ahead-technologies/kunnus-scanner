@@ -32,8 +32,8 @@ args=${@:1:$((total_args - 1))}
 # tr replaces newlines with spaces
 split_args=($(echo "$last_arg" | tr '\n' ' '))
 
-# Execute osv-scanner with the provided arguments
-osv-scanner $args "${split_args[@]}"
+# Execute kunnus with the provided arguments
+kunnus $args "${split_args[@]}"
 
 # Store the exit code
 exit_code=$?

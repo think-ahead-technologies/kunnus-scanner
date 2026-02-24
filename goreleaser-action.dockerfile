@@ -23,8 +23,7 @@ RUN git config --global --add safe.directory '*'
 
 # Built binaries provided by goreleaser
 WORKDIR /root/
-COPY ./osv-scanner-action ./osv-scanner
-COPY ./osv-reporter ./
+COPY ./kunnus ./
 COPY ./exit_code_redirect.sh ./
 
 ENV PATH="${PATH}:/root"

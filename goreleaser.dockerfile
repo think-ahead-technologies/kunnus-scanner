@@ -22,6 +22,6 @@ RUN git config --global --add safe.directory '*'
 
 WORKDIR /
 
-COPY osv-scanner ./
+COPY kunnus ./
 
-ENTRYPOINT ["/osv-scanner"]
+ENTRYPOINT ["/kunnus"]
