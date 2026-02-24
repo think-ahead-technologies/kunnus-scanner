@@ -64,6 +64,12 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 				Name:  "offline-vulnerabilities",
 				Usage: "check for vulnerabilities using local databases that are already cached",
 			},
+			&cli.BoolFlag{
+				Name:        "all-packages",
+				Usage:       "include all scanned packages in the SBOM, not just vulnerable ones",
+				Value:       true,
+				DefaultText: "on",
+			},
 			&cli.StringFlag{
 				Name:        "verbosity",
 				Usage:       "log verbosity level; value can be: " + strings.Join(cmdlogger.Levels(), ", "),
@@ -106,7 +112,7 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 		DirectoryPaths:  dirs,
 		Recursive:       cmd.Bool("recursive"),
 		CompareOffline:  cmd.Bool("offline-vulnerabilities"),
-		ShowAllPackages: true, // SBOMs are a full inventory — include all packages, not just vulnerable ones.
+		ShowAllPackages: cmd.Bool("all-packages"),
 		ExperimentalScannerActions: osvscanner.ExperimentalScannerActions{
 			HTTPClient:       client,
 			RequestUserAgent: "kunnus_sbom/" + kversion.KunnusVersion,
