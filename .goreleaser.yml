@@ -4,9 +4,9 @@ before:
   hooks:
     - go mod tidy
 builds:
-  - main: ./cmd/osv-scanner/
-    id: osv-scanner
-    binary: osv-scanner
+  - main: ./cmd/kunnus/
+    id: kunnus
+    binary: kunnus
     env:
       # goreleaser does not work with CGO, it could also complicate
       # usage by users in CI/CD systems like Terraform Cloud where
@@ -18,9 +18,9 @@ builds:
       - -trimpath
     ldflags:
       - "-s -w"
-      - "-X github.com/google/osv-scanner/v2/internal/version.OSVVersion={{.Version}}"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.commit={{.Commit}}"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.date={{.CommitDate}}"
+      - "-X github.com/google/osv-scanner/v2/cmd/kunnus/internal/version.KunnusVersion={{.Version}}"
+      - "-X main.commit={{.Commit}}"
+      - "-X main.date={{.CommitDate}}"
     goos:
       # Further testing before supporting freebsd
       # - freebsd
@@ -34,55 +34,16 @@ builds:
       # Further testing before supporting arm
       # - arm
       - arm64
-  - main: ./cmd/osv-scanner/
-    id: osv-scanner-action
-    binary: osv-scanner-action
-    env:
-      # goreleaser does not work with CGO, it could also complicate
-      # usage by users in CI/CD systems like Terraform Cloud where
-      # they are unable to install libraries.
-      - CGO_ENABLED=0
-      - GO111MODULE=on
-    mod_timestamp: "{{ .CommitTimestamp }}"
-    flags:
-      - -trimpath
-    ldflags:
-      - "-s -w"
-      - "-X github.com/google/osv-scanner/v2/internal/version.OSVVersion={{.Version}}_GHAction"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.commit={{.Commit}}"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.date={{.CommitDate}}"
-    goos:
-      - linux
-    goarch:
-      - amd64
-  - main: ./cmd/osv-reporter/
-    id: osv-reporter
-    binary: osv-reporter
-    env: # osv-reporter for github action
-      - CGO_ENABLED=0
-      - GO111MODULE=on
-    mod_timestamp: "{{ .CommitTimestamp }}"
-    flags:
-      - -trimpath
-    ldflags:
-      - "-s -w"
-      - "-X github.com/google/osv-scanner/v2/internal/version.OSVVersion={{.Version}}"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.commit={{.Commit}}"
-      - "-X github.com/google/osv-scanner/v2/cmd/osv-scanner/internal/cmd.date={{.CommitDate}}"
-    goos:
-      - linux
-    goarch:
-      - amd64
 
 dockers:
   # Arch: amd64
   - image_templates:
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-amd64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
     dockerfile: goreleaser.dockerfile
     use: buildx
     build_flag_templates:
       - "--pull"
-      - "--label=org.opencontainers.image.title=osv-scanner"
+      - "--label=org.opencontainers.image.title=kunnus"
       - "--label=org.opencontainers.image.description=Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
       - "--label=org.opencontainers.image.licenses=Apache License 2.0"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -94,7 +55,7 @@ dockers:
       - "--platform=linux/amd64"
   # Arch: arm64
   - image_templates:
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-arm64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"
     dockerfile: goreleaser.dockerfile
     use: buildx
     build_flag_templates:
@@ -112,14 +73,14 @@ dockers:
     goarch: arm64
   # Github Action
   - image_templates:
-      - "ghcr.io/google/osv-scanner-action:{{ .Tag }}"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner-action:{{ .Tag }}"
     dockerfile: goreleaser-action.dockerfile
     use: buildx
     extra_files:
       - exit_code_redirect.sh
     build_flag_templates:
       - "--pull"
-      - "--label=org.opencontainers.image.title=osv-scanner-action"
+      - "--label=org.opencontainers.image.title=kunnus-action"
       - "--label=org.opencontainers.image.description=Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
       - "--label=org.opencontainers.image.licenses=Apache-2.0"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -132,25 +93,25 @@ dockers:
     goarch: amd64
 
 docker_manifests:
-  - name_template: "ghcr.io/google/osv-scanner:{{ .Tag }}"
+  - name_template: "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}"
     image_templates:
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-amd64"
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-arm64"
-  - name_template: "ghcr.io/google/osv-scanner:latest"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"
+  - name_template: "gghcr.io/think-ahead-technologies/kunnus-scanner:latest"
     image_templates:
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-amd64"
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-arm64"
-  - name_template: "ghcr.io/google/osv-scanner:stable"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"
+  - name_template: "ghcr.io/think-ahead-technologies/kunnus-scanner:stable"
     image_templates:
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-amd64"
-      - "ghcr.io/google/osv-scanner:{{ .Tag }}-arm64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"
     skip_push: "{{ ne .Env.STABLE `true` }}"
 
 archives:
   - formats: binary
     name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
     ids:
-      - osv-scanner
+      - kunnus
 checksum:
   name_template: "{{ .ProjectName }}_SHA256SUMS"
   algorithm: sha256
