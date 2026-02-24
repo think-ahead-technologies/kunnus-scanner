@@ -15,9 +15,9 @@ import (
 	"strings"
 	"time"
 
+	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	"github.com/google/osv-scanner/v2/internal/reporter"
-	"github.com/google/osv-scanner/v2/internal/version"
 	"github.com/google/osv-scanner/v2/pkg/models"
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
 	"github.com/urfave/cli/v3"
@@ -89,7 +89,7 @@ func action(_ context.Context, cmd *cli.Command, stdout, stderr io.Writer, clien
 		CompareOffline: cmd.Bool("offline-vulnerabilities"),
 		ExperimentalScannerActions: osvscanner.ExperimentalScannerActions{
 			HTTPClient:       client,
-			RequestUserAgent: "kunnus_sbom/" + version.OSVVersion,
+			RequestUserAgent: "kunnus_sbom/" + kversion.KunnusVersion,
 		},
 	}
 

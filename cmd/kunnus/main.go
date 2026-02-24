@@ -11,8 +11,9 @@ import (
 	"os"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
+	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
-	"github.com/google/osv-scanner/v2/internal/version"
+	osvversion "github.com/google/osv-scanner/v2/internal/version"
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
 	"github.com/urfave/cli/v3"
 )
@@ -28,13 +29,14 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 
 	cli.VersionPrinter = func(cmd *cli.Command) {
 		cmdlogger.Infof("kunnus version: %s", cmd.Version)
+		cmdlogger.Infof("osv-scanner version: %s", osvversion.OSVVersion)
 		cmdlogger.Infof("commit: %s", commit)
 		cmdlogger.Infof("built at: %s", date)
 	}
 
 	app := &cli.Command{
 		Name:      "kunnus",
-		Version:   version.OSVVersion,
+		Version:   kversion.KunnusVersion,
 		Usage:     "kunnus security tooling",
 		Suggest:   true,
 		Writer:    stdout,
