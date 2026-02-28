@@ -1,0 +1,22 @@
+name: "kunnus sbom"
+description: "Generate an SBOM for your project using kunnus"
+inputs:
+  directory:
+    description: "Directory to scan"
+    default: "./"
+  format:
+    description: "SBOM format: spdx-2-3, cyclonedx-1-4, or cyclonedx-1-5"
+    default: "spdx-2-3"
+  output:
+    description: "Output file path"
+    default: "sbom.spdx.json"
+runs:
+  using: "docker"
+  image: "docker://ghcr.io/think-ahead-technologies/kunnus-scanner-action:latest"
+  args:
+    - sbom
+    - --format
+    - ${{ inputs.format }}
+    - --output
+    - ${{ inputs.output }}
+    - ${{ inputs.directory }}

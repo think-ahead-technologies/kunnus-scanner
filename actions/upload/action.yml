@@ -1,0 +1,34 @@
+name: "kunnus upload"
+description: "Upload an SBOM to the Kunnus platform"
+inputs:
+  file:
+    description: "Path to the SBOM file to upload"
+    required: true
+  version:
+    description: "Version string to associate with the SBOM (e.g. git SHA or tag)"
+    required: true
+  api-key:
+    description: "Kunnus API key (maps to KUNNUS_API_KEY) — use a secret"
+    required: true
+  component-id:
+    description: "Component ID to associate the SBOM with (maps to KUNNUS_COMPONENT_ID)"
+    required: true
+  mark-as-current:
+    description: "Mark this SBOM as the current version for the component"
+    default: "true"
+  upload-url:
+    description: "Override the Kunnus upload API URL (maps to KUNNUS_URL)"
+    required: false
+runs:
+  using: "docker"
+  image: "docker://ghcr.io/think-ahead-technologies/kunnus-scanner-action:latest"
+  env:
+    KUNNUS_API_KEY: ${{ inputs.api-key }}
+    KUNNUS_COMPONENT_ID: ${{ inputs.component-id }}
+    KUNNUS_URL: ${{ inputs.upload-url }}
+  args:
+    - upload
+    - ${{ inputs.file }}
+    - --version
+    - ${{ inputs.version }}
+    - --mark-as-current=${{ inputs.mark-as-current }}
