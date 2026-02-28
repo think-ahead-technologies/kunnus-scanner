@@ -179,7 +179,7 @@ jobs:
             echo "Testing image $image"
 
             exit_code=0
-            docker run -v ${PWD}:/src $image sbom /src || exit_code=$?
+            docker run -v ${PWD}:/src $image sbom --no-recursive /src || exit_code=$?
 
             # fail if we get a non-zero exit code other than "vulnerabilities were found"
             if [[ $exit_code -ne 0 && $exit_code -ne 1  ]]; then
