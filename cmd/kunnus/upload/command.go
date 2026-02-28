@@ -12,6 +12,7 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
+	"time"
 
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
 	"github.com/urfave/cli/v3"
@@ -84,7 +85,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 
 	version := cmd.String("version")
 	if version == "" {
-		return fmt.Errorf("missing required flag --version")
+		version = time.Now().Format("2006-01-02")
 	}
 
 	uploadURL := cmd.String("url")

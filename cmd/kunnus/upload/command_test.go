@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/upload"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
@@ -174,8 +175,11 @@ func TestUploadMissingComponentID(t *testing.T) {
 	}
 }
 
-func TestUploadMissingVersion(t *testing.T) {
+func TestUploadVersionDefaultsToDate(t *testing.T) {
 	t.Parallel()
+
+	server, captured := newCaptureServer(t, http.StatusOK)
+	defer server.Close()
 
 	sbomFile := writeTempSBOM(t, `{"spdxVersion":"SPDX-2.3"}`)
 
@@ -183,11 +187,18 @@ func TestUploadMissingVersion(t *testing.T) {
 		"kunnus", "upload",
 		"--api-key", "kns_test",
 		"--component-id", "comp-123",
+		"--url", server.URL,
+		// no --version flag: should default to today's date
 		sbomFile,
 	})
 
-	if exitCode != 2 {
-		t.Errorf("exit code: got %d, want 2", exitCode)
+	if exitCode != 0 {
+		t.Errorf("exit code: got %d, want 0", exitCode)
+	}
+
+	want := time.Now().Format("2006-01-02")
+	if captured.formValues["version"] != want {
+		t.Errorf("version field: got %q, want %q (today's date)", captured.formValues["version"], want)
 	}
 }
 

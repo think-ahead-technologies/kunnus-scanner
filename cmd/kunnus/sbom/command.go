@@ -101,9 +101,6 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		},
 	}
 
-	// ctx is intentionally unused for now: osvscanner.DoScan does not yet accept a context.
-	_ = ctx
-
 	vulnResult, err := osvscanner.DoScan(scannerAction)
 
 	noPackagesFound := errors.Is(err, osvscanner.ErrNoPackagesFound)
@@ -125,6 +122,18 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		return err
 	}
 
+	// Windows: append OS packages, OS version, and patch level from the registry.
+	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
+		mergeWindowsInventory(winInv, &vulnResult)
+	} else {
+		cmdlogger.Warnf("Windows OS scan failed (non-fatal): %v", winErr)
+	}
+
+	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
+	if noPackagesFound && len(vulnResult.Results) > 0 {
+		noPackagesFound = false
+	}
+
 	if !interactive {
 		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
 		if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
@@ -137,7 +146,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 	// Interactive/terminal mode: save SBOM to file and show a human-readable summary.
 	savedPath := outputPath
 	if savedPath == "" && !noPackagesFound {
-		project := projectNameFromDir(dirs[0])
+		project := autoProjectName(dirs)
 		date := time.Now().Format("2006-01-02")
 		savedPath = buildFileName(project, format, date)
 	}
