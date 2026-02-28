@@ -15,7 +15,9 @@ Download the latest release for your platform from the [releases page](https://g
 ### From source
 
 ```shell
-go install github.com/google/osv-scanner/v2/cmd/kunnus@latest
+git clone https://github.com/think-ahead-technologies/kunnus-scanner.git
+cd kunnus-scanner
+go build -o kunnus ./cmd/kunnus
 ```
 
 ## Usage
@@ -38,10 +40,18 @@ kunnus sbom --output sbom.spdx.json
 
 Supported formats: `spdx-2-3` (default), `cyclonedx-1-4`, `cyclonedx-1-5`.
 
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--format`, `-f` | `spdx-2-3` | SBOM output format |
+| `--output`, `-o` | — | Save SBOM to file (stdout if omitted in pipe mode) |
+| `--recursive` / `--no-recursive` | on | Scan subdirectories |
+| `--all-packages` / `--no-all-packages` | on | Include all packages, not just vulnerable ones |
+| `--offline-vulnerabilities` | off | Use locally cached vulnerability databases |
+
 ### Upload an SBOM
 
 ```shell
-kunnus upload --file sbom.spdx.json \
+kunnus upload sbom.spdx.json \
   --api-key $KUNNUS_API_KEY \
   --component-id $KUNNUS_COMPONENT_ID \
   --version 1.2.3
@@ -49,8 +59,8 @@ kunnus upload --file sbom.spdx.json \
 
 | Flag | Env var | Description |
 |------|---------|-------------|
-| `--api-key` | `KUNNUS_API_KEY` | API key for the kunnus platform |
-| `--component-id` | `KUNNUS_COMPONENT_ID` | Target component ID |
+| `--api-key`, `-k` | `KUNNUS_API_KEY` | API key for the kunnus platform |
+| `--component-id`, `-c` | `KUNNUS_COMPONENT_ID` | Target component ID |
 | `--version` | — | Version label for the SBOM |
 | `--url` | `KUNNUS_URL` | API endpoint (default: `https://app.kunnus.tech/api/sboms/upload`) |
 | `--source` | — | Source label (auto-detected in CI: `CiPipeline`, otherwise `CLI`) |
@@ -75,6 +85,27 @@ kunnus upload --file sbom.spdx.json \
     api-key: ${{ secrets.KUNNUS_API_KEY }}
     component-id: ${{ vars.KUNNUS_COMPONENT_ID }}
     version: ${{ github.sha }}
+```
+
+### Generate and upload in one job
+
+```yaml
+jobs:
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: think-ahead-technologies/kunnus-scanner/actions/sbom@main
+        with:
+          output: sbom.spdx.json
+
+      - uses: think-ahead-technologies/kunnus-scanner/actions/upload@main
+        with:
+          file: sbom.spdx.json
+          version: ${{ github.ref_name }}
+          api-key: ${{ secrets.KUNNUS_API_KEY }}
+          component-id: ${{ vars.KUNNUS_COMPONENT_ID }}
 ```
 
 ## Attribution
