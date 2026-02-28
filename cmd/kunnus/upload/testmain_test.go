@@ -1,5 +1,3 @@
-// ABOUTME: Test setup for the kunnus upload command tests.
-// ABOUTME: Configures the testlogger for the test suite.
 package upload_test
 
 import (

@@ -1,6 +1,3 @@
-// ABOUTME: Provides autoProjectName for non-Windows platforms.
-// ABOUTME: Returns the base directory name of the first scanned directory for use in auto-generated filenames.
-
 //go:build !windows
 
 package sbom

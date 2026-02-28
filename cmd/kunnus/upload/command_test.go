@@ -1,5 +1,3 @@
-// ABOUTME: Integration tests for the 'kunnus upload' command.
-// ABOUTME: Verifies upload behavior, form fields, authentication, and error handling.
 package upload_test
 
 import (
@@ -24,10 +22,10 @@ import (
 
 // capturedUpload holds data captured by a test upload server.
 type capturedUpload struct {
-	apiKey        string
-	formValues    map[string]string
-	fileContent   []byte
-	fileName      string
+	apiKey      string
+	formValues  map[string]string
+	fileContent []byte
+	fileName    string
 }
 
 // newCaptureServer creates a test HTTP server that captures the multipart upload.
@@ -42,7 +40,7 @@ func newCaptureServer(t *testing.T, statusCode int) (*httptest.Server, *captured
 			return
 		}
 
-		captured.apiKey = r.Header.Get("X-API-Key")
+		captured.apiKey = r.Header.Get("X-Api-Key")
 		captured.formValues = make(map[string]string)
 
 		for k, v := range r.MultipartForm.Value {
@@ -68,7 +66,7 @@ func newCaptureServer(t *testing.T, statusCode int) (*httptest.Server, *captured
 
 // run builds a minimal CLI app with the upload command and executes it, mirroring
 // the exit code logic from cmd/kunnus/main.go.
-func run(t *testing.T, args []string) (string, string, int) {
+func run(t *testing.T, args []string) (string, string, int) { //nolint:unparam
 	t.Helper()
 
 	var outBuf, errBuf bytes.Buffer

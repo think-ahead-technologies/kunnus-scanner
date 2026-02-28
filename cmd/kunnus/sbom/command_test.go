@@ -1,5 +1,3 @@
-// ABOUTME: Integration tests for the 'kunnus sbom' command.
-// ABOUTME: Verifies SBOM generation behavior, format selection, and error handling.
 package sbom_test
 
 import (
@@ -7,10 +5,10 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"regexp"
 	"testing"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
+	"github.com/google/osv-scanner/v2/internal/cachedregexp"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	"github.com/google/osv-scanner/v2/internal/testlogger"
 	"github.com/google/osv-scanner/v2/internal/testutility"
@@ -19,9 +17,9 @@ import (
 
 var (
 	// uuidV4Pattern matches UUID v4 strings for normalization.
-	uuidV4Pattern = regexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89ABab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`)
+	uuidV4Pattern = cachedregexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89ABab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`)
 	// iso8601Pattern matches ISO 8601 timestamps for normalization.
-	iso8601Pattern = regexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`)
+	iso8601Pattern = cachedregexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`)
 )
 
 // normalizeUUIDs replaces each unique UUID with a stable placeholder to make
@@ -72,6 +70,7 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
 				cmdlogger.SetLevel(lvl)
 			}
+
 			return ctx, nil
 		},
 		Commands: []*cli.Command{

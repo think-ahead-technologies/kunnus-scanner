@@ -1,10 +1,10 @@
-// ABOUTME: Implements the 'kunnus upload' subcommand for uploading SBOMs to the Kunnus platform.
-// ABOUTME: Handles API key auth, multipart form upload, and CI environment source detection.
+// Package upload implements the 'kunnus upload' subcommand for uploading SBOMs.
 package upload
 
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -67,20 +67,20 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 	}
 }
 
-func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, client *http.Client) error {
+func action(ctx context.Context, cmd *cli.Command, stdout io.Writer, _ io.Writer, client *http.Client) error {
 	if !cmd.Args().Present() {
-		return fmt.Errorf("missing required argument: <sbom-file>")
+		return errors.New("missing required argument: <sbom-file>")
 	}
 	filePath := cmd.Args().First()
 
 	apiKey := cmd.String("api-key")
 	if apiKey == "" {
-		return fmt.Errorf("missing required flag --api-key (or env KUNNUS_API_KEY)")
+		return errors.New("missing required flag --api-key (or env KUNNUS_API_KEY)")
 	}
 
 	componentID := cmd.String("component-id")
 	if componentID == "" {
-		return fmt.Errorf("missing required flag --component-id (or env KUNNUS_COMPONENT_ID)")
+		return errors.New("missing required flag --component-id (or env KUNNUS_COMPONENT_ID)")
 	}
 
 	version := cmd.String("version")
@@ -157,11 +157,11 @@ func doUpload(ctx context.Context, client *http.Client, uploadURL, apiKey, fileP
 		return fmt.Errorf("failed to create request: %w", err)
 	}
 	req.Header.Set("Content-Type", mw.FormDataContentType())
-	req.Header.Set("X-API-Key", apiKey)
+	req.Header.Set("X-Api-Key", apiKey)
 
 	resp, err := client.Do(req)
 	if err != nil {
-		return fmt.Errorf("%w: %v", osvscanner.ErrAPIFailed, err)
+		return fmt.Errorf("%w: %w", osvscanner.ErrAPIFailed, err)
 	}
 	defer resp.Body.Close()
 

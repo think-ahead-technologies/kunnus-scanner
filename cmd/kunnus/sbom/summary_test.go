@@ -1,5 +1,3 @@
-// ABOUTME: Unit tests for SBOM summary helper functions (white-box, package sbom).
-// ABOUTME: Tests buildFileName, primaryEcosystem, buildScanSummary, mergeWindowsInventory, and autoProjectName helpers.
 package sbom
 
 import (

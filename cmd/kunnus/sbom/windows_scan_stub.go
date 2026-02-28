@@ -1,6 +1,3 @@
-// ABOUTME: Stub for runWindowsScan on non-Windows platforms.
-// ABOUTME: Returns an empty inventory so the caller can proceed without OS-level registry access.
-
 //go:build !windows
 
 package sbom

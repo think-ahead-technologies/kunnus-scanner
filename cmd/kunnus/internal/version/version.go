@@ -1,5 +1,4 @@
-// ABOUTME: Stores the version of the kunnus CLI binary.
-// ABOUTME: Separates kunnus versioning from the underlying osv-scanner version.
+// Package version provides the kunnus CLI version string.
 package version
 
 // KunnusVersion is the current release version of the kunnus CLI.

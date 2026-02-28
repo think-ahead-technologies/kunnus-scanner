@@ -1,5 +1,3 @@
-// ABOUTME: Converts scalibr inventory.Inventory into a models.PackageSource for Windows OS packages.
-// ABOUTME: Appends a Windows Registry PackageSource to VulnerabilityResults from a scalibr scan.
 package sbom
 
 import (

@@ -1,6 +1,3 @@
-// ABOUTME: Runs Windows-specific standalone extractors to collect OS packages from the registry.
-// ABOUTME: Uses scalibr's ospackages, regosversion, and regpatchlevel extractors via standalone.Run.
-
 //go:build windows
 
 package sbom

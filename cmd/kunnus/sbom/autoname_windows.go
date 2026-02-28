@@ -1,6 +1,3 @@
-// ABOUTME: Provides autoProjectName for Windows, using the machine hostname.
-// ABOUTME: On Windows the technician scans the whole machine, so hostname is the natural project name.
-
 //go:build windows
 
 package sbom

@@ -1,5 +1,3 @@
-// ABOUTME: Test setup for the kunnus sbom command tests.
-// ABOUTME: Configures the testlogger and snapshot cleanup for the test suite.
 package sbom_test
 
 import (

@@ -1,5 +1,4 @@
-// ABOUTME: Implements the 'kunnus sbom' subcommand for generating SBOMs from project dependencies.
-// ABOUTME: Provides a simplified, user-friendly interface to osv-scanner's SBOM generation capabilities.
+// Package sbom implements the 'kunnus sbom' subcommand for SBOM generation.
 package sbom
 
 import (
@@ -101,7 +100,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		},
 	}
 
-	vulnResult, err := osvscanner.DoScan(scannerAction)
+	vulnResult, err := osvscanner.DoScan(scannerAction) //nolint:contextcheck
 
 	noPackagesFound := errors.Is(err, osvscanner.ErrNoPackagesFound)
 
@@ -249,10 +248,11 @@ func countVulnerabilities(result *models.VulnerabilityResults) int {
 	for _, pkgSource := range result.Results {
 		for _, pkg := range pkgSource.Packages {
 			for _, v := range pkg.Vulnerabilities {
-				seen[v.Id] = struct{}{}
+				seen[v.GetId()] = struct{}{}
 			}
 		}
 	}
+
 	return len(seen)
 }
 
