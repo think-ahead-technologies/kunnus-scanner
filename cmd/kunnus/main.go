@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
+	"github.com/google/osv-scanner/v2/cmd/kunnus/upload"
 	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	osvversion "github.com/google/osv-scanner/v2/internal/version"
@@ -76,6 +77,7 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 		},
 		Commands: []*cli.Command{
 			sbom.Command(stdout, stderr, client),
+			upload.Command(stdout, stderr, client),
 		},
 		// Prevent cli from calling os.Exit on errors - we handle exit codes ourselves.
 		ExitErrHandler: func(_ context.Context, _ *cli.Command, _ error) {},
