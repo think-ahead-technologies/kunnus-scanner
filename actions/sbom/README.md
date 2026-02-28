@@ -10,11 +10,11 @@ Generates an SBOM for your project using [`kunnus`](../../cmd/kunnus).
 
 ## Inputs
 
-| Input | Required | Default | Description |
-|-------|----------|---------|-------------|
-| `directory` | no | `./` | Directory to scan |
-| `format` | no | `spdx-2-3` | SBOM format: `spdx-2-3`, `cyclonedx-1-4`, or `cyclonedx-1-5` |
-| `output` | no | `sbom.spdx.json` | Output file path |
+| Input       | Required | Default          | Description                                                  |
+| ----------- | -------- | ---------------- | ------------------------------------------------------------ |
+| `directory` | no       | `./`             | Directory to scan                                            |
+| `format`    | no       | `spdx-2-3`       | SBOM format: `spdx-2-3`, `cyclonedx-1-4`, or `cyclonedx-1-5` |
+| `output`    | no       | `sbom.spdx.json` | Output file path                                             |
 
 ## Examples
 
@@ -67,7 +67,7 @@ jobs:
 
 ## Exit codes
 
-| Code | Meaning |
-|------|---------|
-| `0` | Success |
-| `2` | Error (invalid arguments, scan failure) |
+| Code | Meaning                                 |
+| ---- | --------------------------------------- |
+| `0`  | Success                                 |
+| `2`  | Error (invalid arguments, scan failure) |
