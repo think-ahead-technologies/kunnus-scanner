@@ -121,7 +121,18 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		return err
 	}
 
-	// Windows: append OS packages, OS version, and patch level from the registry.
+	if !interactive {
+		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
+		if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
+			return fmt.Errorf("failed to write SBOM: %w", errPrint)
+		}
+
+		return nil
+	}
+
+	// Interactive/terminal mode: also append Windows OS packages from the registry.
+	// In pipe mode the SBOM covers the scanned directories only; OS-level inventory
+	// is added here so interactive users get a comprehensive machine snapshot.
 	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
 		mergeWindowsInventory(winInv, &vulnResult)
 	} else {
@@ -133,16 +144,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		noPackagesFound = false
 	}
 
-	if !interactive {
-		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
-		if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
-			return fmt.Errorf("failed to write SBOM: %w", errPrint)
-		}
-
-		return nil
-	}
-
-	// Interactive/terminal mode: save SBOM to file and show a human-readable summary.
+	// Save SBOM to file and show a human-readable summary.
 	savedPath := outputPath
 	if savedPath == "" && !noPackagesFound {
 		project := autoProjectName(dirs)

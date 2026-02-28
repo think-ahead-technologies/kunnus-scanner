@@ -5,7 +5,6 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"runtime"
 	"testing"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
@@ -21,9 +20,6 @@ var (
 	uuidV4Pattern = cachedregexp.MustCompile(`[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-4[0-9a-fA-F]{3}-[89ABab][0-9a-fA-F]{3}-[0-9a-fA-F]{12}`)
 	// iso8601Pattern matches ISO 8601 timestamps for normalization.
 	iso8601Pattern = cachedregexp.MustCompile(`\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z`)
-	// windowsOSScanFailurePattern matches the non-fatal Windows OS scan failure warning that
-	// may appear in stderr when the registry scan fails in CI environments.
-	windowsOSScanFailurePattern = cachedregexp.MustCompile(`Windows OS scan failed \(non-fatal\): [^\n]*\n?`)
 )
 
 // normalizeUUIDs replaces each unique UUID with a stable placeholder to make
@@ -95,12 +91,6 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 
 	stdout := normalizeUUIDs(normalizeTimestamps(outBuf.String()))
 	stderr := errBuf.String()
-
-	// On Windows, the registry scan may fail in CI environments; strip the non-fatal
-	// warning so snapshots remain deterministic across environments.
-	if runtime.GOOS == "windows" {
-		stderr = windowsOSScanFailurePattern.ReplaceAllString(stderr, "")
-	}
 
 	return stdout, stderr, exitCode
 }
