@@ -15,11 +15,6 @@
 name: test
 description: "Runs go tests"
 
-inputs:
-  codecov_token:
-    description: "Token for uploading coverage reports to Codecov"
-    required: true
-
 runs:
   using: composite
   steps:
@@ -31,5 +26,5 @@ runs:
     - name: Upload coverage to Codecov
       uses: codecov/codecov-action@671740ac38dd9b0130fbe1cec585b89eea48d3de # v5.5.2
       with:
-        token: ${{ inputs.codecov_token }}
+        use_oidc: true
         fail_ci_if_error: true
