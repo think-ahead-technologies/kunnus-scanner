@@ -288,6 +288,10 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 
 	for _, pkgSource := range result.Results {
 		eco := primaryEcosystem(pkgSource.Packages)
+		// Windows Registry packages have no OSV ecosystem; label them by source path.
+		if eco == "" && pkgSource.Source.Path == "Windows Registry" {
+			eco = "Windows"
+		}
 		count := len(pkgSource.Packages)
 		total += count
 		sourceName := filepath.Base(pkgSource.Source.Path)

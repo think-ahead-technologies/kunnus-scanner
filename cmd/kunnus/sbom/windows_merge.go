@@ -7,7 +7,8 @@ import (
 
 // mergeWindowsInventory appends Windows OS packages from inv into result as a new PackageSource.
 // Packages with a nil pointer in inv.Packages are silently skipped.
-// The Ecosystem is hard-coded to "Windows" because scalibr's PURLType "windows" maps to an empty string.
+// Ecosystem is left empty because "Windows" is not a valid OSV ecosystem; buildScanSummary
+// infers the display label from the source path ("Windows Registry") instead.
 // The Inventory pointer is set on each package so the SPDX formatter can access it without panicking.
 func mergeWindowsInventory(inv inventory.Inventory, result *models.VulnerabilityResults) {
 	var pkgVulns []models.PackageVulns
@@ -23,7 +24,6 @@ func mergeWindowsInventory(inv inventory.Inventory, result *models.Vulnerability
 			Package: models.PackageInfo{
 				Name:      p.Name,
 				Version:   p.Version,
-				Ecosystem: "Windows",
 				Inventory: pCopy,
 			},
 		})

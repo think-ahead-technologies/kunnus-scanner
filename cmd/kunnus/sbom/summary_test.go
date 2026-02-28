@@ -366,8 +366,8 @@ func TestMergeWindowsInventory(t *testing.T) {
 		if pkg.Package.Version != "1.2.3" {
 			t.Errorf("Version = %q, want %q", pkg.Package.Version, "1.2.3")
 		}
-		if pkg.Package.Ecosystem != "Windows" {
-			t.Errorf("Ecosystem = %q, want %q", pkg.Package.Ecosystem, "Windows")
+		if pkg.Package.Ecosystem != "" {
+			t.Errorf("Ecosystem = %q, want %q (Windows is not a valid OSV ecosystem)", pkg.Package.Ecosystem, "")
 		}
 		if pkg.Package.Inventory == nil {
 			t.Error("Inventory pointer must not be nil (SPDX formatter dereferences it)")
