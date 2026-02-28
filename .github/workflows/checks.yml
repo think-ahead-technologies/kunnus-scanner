@@ -169,12 +169,11 @@ jobs:
           args: release --clean --snapshot
       - run: |
           echo '${{ steps.run-goreleaser.outputs.artifacts }}' > output.json
-          jq -r '.[] | select(
+          jq -r '[.[] | select(
             .type == "Docker Image" and
-            .goarch == "amd64" and
-            .goos == "linux" and
-            .extra.DockerConfig.dockerfile == "goreleaser.dockerfile"
-          ) | .name' output.json | while read -r image; do
+            (.name | startswith("ghcr.io/think-ahead-technologies/kunnus-scanner:")) and
+            (.name | contains("action") | not)
+          ) | .name] | unique[]' output.json | while read -r image; do
             echo "Testing image $image"
 
             exit_code=0
