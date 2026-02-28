@@ -115,6 +115,7 @@ jobs:
   tests:
     permissions:
       contents: read # to fetch code (actions/checkout)
+      id-token: write # for codecov
     needs:
       - prepare_test_image_testdata
     name: Run unit tests
@@ -139,8 +140,6 @@ jobs:
           check-latest: true
       - name: Run test action
         uses: ./.github/workflows/test-action
-        with:
-          codecov_token: ${{ secrets.CODECOV_TOKEN }}
   docker:
     permissions:
       contents: read # to fetch code (actions/checkout)
