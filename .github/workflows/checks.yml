@@ -147,6 +147,9 @@ jobs:
     env:
       # Required for buildx on docker 19.x
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      # STABLE must be defined; dockers_v2 template errors on missing env keys.
+      # Snapshot builds are never stable releases.
+      STABLE: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
