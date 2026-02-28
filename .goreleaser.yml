@@ -60,7 +60,7 @@ dockers:
     use: buildx
     build_flag_templates:
       - "--pull"
-      - "--label=org.opencontainers.image.title=osv-scanner"
+      - "--label=org.opencontainers.image.title=kunnus"
       - "--label=org.opencontainers.image.description=Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
       - "--label=org.opencontainers.image.licenses=Apache-2.0"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -97,7 +97,7 @@ docker_manifests:
     image_templates:
       - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
       - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"
-  - name_template: "gghcr.io/think-ahead-technologies/kunnus-scanner:latest"
+  - name_template: "ghcr.io/think-ahead-technologies/kunnus-scanner:latest"
     image_templates:
       - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-amd64"
       - "ghcr.io/think-ahead-technologies/kunnus-scanner:{{ .Tag }}-arm64"

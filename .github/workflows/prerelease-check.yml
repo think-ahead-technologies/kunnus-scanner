@@ -17,18 +17,6 @@ on:
 permissions: {}
 
 jobs:
-  osv-scan:
-    permissions:
-      contents: read # to fetch code (actions/checkout)
-      security-events: write # for uploading SARIF files
-      actions: read
-    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@main
-    with:
-      # Only scan the top level go.mod file without recursively scanning directories since
-      # this is pipeline is about releasing the go module and binary
-      scan-args: |-
-        ./
-
   links:
     permissions:
       contents: read # to fetch code (actions/checkout)
@@ -160,7 +148,6 @@ jobs:
       - format
       - lint
       - tests
-      - osv-scan
     steps:
       - name: Print Scripts
         env:
