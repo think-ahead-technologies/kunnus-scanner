@@ -2,7 +2,9 @@
 
 SBOM generation and upload for your software supply chain.
 
-kunnus generates Software Bill of Materials (SBOMs) for your projects and uploads them to the [kunnus platform](https://app.kunnus.tech). It is built on [osv-scalibr](https://github.com/google/osv-scalibr) and supports a wide range of languages and package managers.
+kunnus generates Software Bill of Materials (SBOMs) for your projects and uploads them to the [kunnus platform](https://kunnus.tech). It is built on [osv-scalibr](https://github.com/google/osv-scalibr) and supports a wide range of languages and package managers.
+
+Beyond raw SBOM generation, kunnus adds convenience for manufacturers who need to meet EU Cyber Resilience Act (CRA) compliance obligations: automated upload to the [kunnus platform](https://kunnus.tech), CI/CD integration, and ongoing features that make compliance easier to achieve and maintain. The kunnus platform uses the uploaded SBOMs to track and manage vulnerabilities across your products, giving you full insights into your product's complete bill of materials.
 
 ## Installation
 
@@ -77,4 +79,4 @@ kunnus upload --file sbom.spdx.json \
 
 ## Attribution
 
-kunnus is built on [osv-scanner](https://github.com/google/osv-scanner) (Apache 2.0) by Google.
+kunnus is a soft fork of [osv-scanner](https://github.com/google/osv-scanner) (Apache 2.0) by Google. We aim to keep this fork in sync with upstream to benefit from ongoing improvements to the scanner and its ecosystem.
