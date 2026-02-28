@@ -1,12 +1,15 @@
 package sbom
 
 import (
+	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
 	scalibrextractor "github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scanner/v2/internal/testutility"
 	"github.com/google/osv-scanner/v2/pkg/models"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 )
@@ -414,10 +417,28 @@ func TestAutoProjectName(t *testing.T) {
 
 	t.Run("returns filepath.Base of the directory", func(t *testing.T) {
 		t.Parallel()
+		if runtime.GOOS == "windows" {
+			testutility.Skip(t, "on Windows, autoProjectName returns hostname instead of directory path")
+		}
 		dir := filepath.Join(t.TempDir(), "my-project")
 		got := autoProjectName([]string{dir})
 		if got != "my-project" {
 			t.Errorf("autoProjectName(%q) = %q, want %q", dir, got, "my-project")
+		}
+	})
+
+	t.Run("returns hostname on Windows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "windows" {
+			testutility.Skip(t, "hostname-based naming is Windows-only")
+		}
+		hostname, err := os.Hostname()
+		if err != nil {
+			t.Fatalf("os.Hostname() error: %v", err)
+		}
+		got := autoProjectName([]string{t.TempDir()})
+		if got != hostname {
+			t.Errorf("autoProjectName() = %q, want hostname %q", got, hostname)
 		}
 	})
 }
