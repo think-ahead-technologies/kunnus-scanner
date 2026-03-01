@@ -304,6 +304,31 @@ func TestBuildScanSummary(t *testing.T) {
 		}
 	})
 
+	t.Run("Windows Registry source is labelled as Windows ecosystem", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source: models.SourceInfo{
+						Path: "Windows Registry",
+						Type: models.SourceTypeOSPackage,
+					},
+					Packages: []models.PackageVulns{
+						{Package: models.PackageInfo{Ecosystem: ""}},
+						{Package: models.PackageInfo{Ecosystem: ""}},
+					},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"."}, result, "")
+		if !strings.Contains(got, "Windows") {
+			t.Errorf("expected 'Windows' ecosystem label in summary, got: %q", got)
+		}
+		if !strings.Contains(got, "2") {
+			t.Errorf("expected package count '2' in summary, got: %q", got)
+		}
+	})
+
 	t.Run("multiple sources aggregate same ecosystem", func(t *testing.T) {
 		t.Parallel()
 		result := &models.VulnerabilityResults{

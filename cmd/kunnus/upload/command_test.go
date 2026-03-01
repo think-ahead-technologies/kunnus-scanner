@@ -176,6 +176,9 @@ func TestUploadMissingComponentID(t *testing.T) {
 func TestUploadVersionDefaultsToDate(t *testing.T) {
 	t.Parallel()
 
+	// Capture now once to avoid flakiness if the test runs at midnight.
+	today := time.Now().Format("2006-01-02")
+
 	server, captured := newCaptureServer(t, http.StatusOK)
 	defer server.Close()
 
@@ -194,9 +197,8 @@ func TestUploadVersionDefaultsToDate(t *testing.T) {
 		t.Errorf("exit code: got %d, want 0", exitCode)
 	}
 
-	want := time.Now().Format("2006-01-02")
-	if captured.formValues["version"] != want {
-		t.Errorf("version field: got %q, want %q (today's date)", captured.formValues["version"], want)
+	if captured.formValues["version"] != today {
+		t.Errorf("version field: got %q, want %q (today's date)", captured.formValues["version"], today)
 	}
 }
 
