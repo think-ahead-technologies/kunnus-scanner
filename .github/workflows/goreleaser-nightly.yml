@@ -50,5 +50,3 @@ jobs:
           args: release --clean --config .goreleaser-nightly.yml --skip validate,announce
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # STABLE must be defined; dockers_v2 template errors on missing env keys.
-          STABLE: "false"
