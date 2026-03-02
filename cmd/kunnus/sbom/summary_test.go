@@ -1,11 +1,15 @@
-// ABOUTME: Unit tests for SBOM summary helper functions (white-box, package sbom).
-// ABOUTME: Tests buildFileName, primaryEcosystem, and buildScanSummary helpers.
 package sbom
 
 import (
+	"os"
+	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
+	scalibrextractor "github.com/google/osv-scalibr/extractor"
+	"github.com/google/osv-scalibr/inventory"
+	"github.com/google/osv-scanner/v2/internal/testutility"
 	"github.com/google/osv-scanner/v2/pkg/models"
 	"github.com/ossf/osv-schema/bindings/go/osvschema"
 )
@@ -300,6 +304,31 @@ func TestBuildScanSummary(t *testing.T) {
 		}
 	})
 
+	t.Run("Windows Registry source is labelled as Windows ecosystem", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{
+			Results: []models.PackageSource{
+				{
+					Source: models.SourceInfo{
+						Path: "Windows Registry",
+						Type: models.SourceTypeOSPackage,
+					},
+					Packages: []models.PackageVulns{
+						{Package: models.PackageInfo{Ecosystem: ""}},
+						{Package: models.PackageInfo{Ecosystem: ""}},
+					},
+				},
+			},
+		}
+		got := buildScanSummary([]string{"."}, result, "")
+		if !strings.Contains(got, "Windows") {
+			t.Errorf("expected 'Windows' ecosystem label in summary, got: %q", got)
+		}
+		if !strings.Contains(got, "2") {
+			t.Errorf("expected package count '2' in summary, got: %q", got)
+		}
+	})
+
 	t.Run("multiple sources aggregate same ecosystem", func(t *testing.T) {
 		t.Parallel()
 		result := &models.VulnerabilityResults{
@@ -323,6 +352,118 @@ func TestBuildScanSummary(t *testing.T) {
 		// Total should be 3 across both sources
 		if !strings.Contains(got, "3") {
 			t.Errorf("expected total count '3' in summary, got: %q", got)
+		}
+	})
+}
+
+func TestMergeWindowsInventory(t *testing.T) {
+	t.Parallel()
+
+	t.Run("empty inventory leaves result unchanged", func(t *testing.T) {
+		t.Parallel()
+		result := &models.VulnerabilityResults{}
+		mergeWindowsInventory(inventory.Inventory{}, result)
+		if len(result.Results) != 0 {
+			t.Errorf("expected no results, got %d", len(result.Results))
+		}
+	})
+
+	t.Run("packages produce correct PackageSource", func(t *testing.T) {
+		t.Parallel()
+		p := &scalibrextractor.Package{Name: "SomeApp", Version: "1.2.3", PURLType: "windows"}
+		inv := inventory.Inventory{Packages: []*scalibrextractor.Package{p}}
+		result := &models.VulnerabilityResults{}
+		mergeWindowsInventory(inv, result)
+		if len(result.Results) != 1 {
+			t.Fatalf("expected 1 PackageSource, got %d", len(result.Results))
+		}
+		src := result.Results[0]
+		if src.Source.Path != "Windows Registry" {
+			t.Errorf("Source.Path = %q, want %q", src.Source.Path, "Windows Registry")
+		}
+		if src.Source.Type != models.SourceTypeOSPackage {
+			t.Errorf("Source.Type = %q, want %q", src.Source.Type, models.SourceTypeOSPackage)
+		}
+		if len(src.Packages) != 1 {
+			t.Fatalf("expected 1 package, got %d", len(src.Packages))
+		}
+		pkg := src.Packages[0]
+		if pkg.Package.Name != "SomeApp" {
+			t.Errorf("Name = %q, want %q", pkg.Package.Name, "SomeApp")
+		}
+		if pkg.Package.Version != "1.2.3" {
+			t.Errorf("Version = %q, want %q", pkg.Package.Version, "1.2.3")
+		}
+		if pkg.Package.Ecosystem != "" {
+			t.Errorf("Ecosystem = %q, want %q (Windows is not a valid OSV ecosystem)", pkg.Package.Ecosystem, "")
+		}
+		if pkg.Package.Inventory == nil {
+			t.Error("Inventory pointer must not be nil (SPDX formatter dereferences it)")
+		}
+	})
+
+	t.Run("nil packages in inventory are skipped", func(t *testing.T) {
+		t.Parallel()
+		inv := inventory.Inventory{Packages: []*scalibrextractor.Package{
+			nil,
+			{Name: "ValidApp", Version: "2.0", PURLType: "windows"},
+			nil,
+		}}
+		result := &models.VulnerabilityResults{}
+		mergeWindowsInventory(inv, result)
+		if len(result.Results) != 1 {
+			t.Fatalf("expected 1 PackageSource, got %d", len(result.Results))
+		}
+		if len(result.Results[0].Packages) != 1 {
+			t.Errorf("expected 1 non-nil package, got %d", len(result.Results[0].Packages))
+		}
+	})
+
+	t.Run("appends to existing results", func(t *testing.T) {
+		t.Parallel()
+		existing := models.PackageSource{
+			Source:   models.SourceInfo{Path: "/project/go.mod"},
+			Packages: []models.PackageVulns{{Package: models.PackageInfo{Ecosystem: "Go"}}},
+		}
+		result := &models.VulnerabilityResults{Results: []models.PackageSource{existing}}
+		p := &scalibrextractor.Package{Name: "WinApp", Version: "3.0", PURLType: "windows"}
+		mergeWindowsInventory(inventory.Inventory{Packages: []*scalibrextractor.Package{p}}, result)
+		if len(result.Results) != 2 {
+			t.Fatalf("expected 2 PackageSources, got %d", len(result.Results))
+		}
+		if result.Results[0].Source.Path != "/project/go.mod" {
+			t.Errorf("existing result was overwritten")
+		}
+	})
+}
+
+func TestAutoProjectName(t *testing.T) {
+	t.Parallel()
+
+	t.Run("returns filepath.Base of the directory", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS == "windows" {
+			testutility.Skip(t, "on Windows, autoProjectName returns hostname instead of directory path")
+		}
+		dir := filepath.Join(t.TempDir(), "my-project")
+		got := autoProjectName([]string{dir})
+		if got != "my-project" {
+			t.Errorf("autoProjectName(%q) = %q, want %q", dir, got, "my-project")
+		}
+	})
+
+	t.Run("returns hostname on Windows", func(t *testing.T) {
+		t.Parallel()
+		if runtime.GOOS != "windows" {
+			testutility.Skip(t, "hostname-based naming is Windows-only")
+		}
+		hostname, err := os.Hostname()
+		if err != nil {
+			t.Fatalf("os.Hostname() error: %v", err)
+		}
+		got := autoProjectName([]string{t.TempDir()})
+		if got != hostname {
+			t.Errorf("autoProjectName() = %q, want hostname %q", got, hostname)
 		}
 	})
 }

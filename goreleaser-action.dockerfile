@@ -23,7 +23,8 @@ RUN git config --global --add safe.directory '*'
 
 # Built binaries provided by goreleaser
 WORKDIR /root/
-COPY ./kunnus ./
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/kunnus ./
 COPY ./exit_code_redirect.sh ./
 
 ENV PATH="${PATH}:/root"

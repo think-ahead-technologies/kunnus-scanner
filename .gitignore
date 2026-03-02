@@ -11,6 +11,8 @@
 *.pprof
 .go-version
 node_modules
+/kunnus.exe
+.DS_Store
 
 osv-scalibr-portal
 

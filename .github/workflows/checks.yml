@@ -115,6 +115,7 @@ jobs:
   tests:
     permissions:
       contents: read # to fetch code (actions/checkout)
+      id-token: write # for codecov
     needs:
       - prepare_test_image_testdata
     name: Run unit tests
@@ -139,8 +140,6 @@ jobs:
           check-latest: true
       - name: Run test action
         uses: ./.github/workflows/test-action
-        with:
-          codecov_token: ${{ secrets.CODECOV_TOKEN }}
   docker:
     permissions:
       contents: read # to fetch code (actions/checkout)
@@ -148,6 +147,9 @@ jobs:
     env:
       # Required for buildx on docker 19.x
       DOCKER_CLI_EXPERIMENTAL: "enabled"
+      # STABLE must be defined; dockers_v2 template errors on missing env keys.
+      # Snapshot builds are never stable releases.
+      STABLE: "false"
     steps:
       - name: Checkout
         uses: actions/checkout@8e8c483db84b4bee98b60c0593521ed34d9990e8 # v6.0.1
@@ -169,16 +171,15 @@ jobs:
           args: release --clean --snapshot
       - run: |
           echo '${{ steps.run-goreleaser.outputs.artifacts }}' > output.json
-          jq -r '.[] | select(
+          jq -r '[.[] | select(
             .type == "Docker Image" and
-            .goarch == "amd64" and
-            .goos == "linux" and
-            .extra.DockerConfig.dockerfile == "goreleaser.dockerfile"
-          ) | .name' output.json | while read -r image; do
+            (.name | startswith("ghcr.io/think-ahead-technologies/kunnus-scanner:")) and
+            (.name | contains("action") | not)
+          ) | .name] | unique[]' output.json | while read -r image; do
             echo "Testing image $image"
 
             exit_code=0
-            docker run -v ${PWD}:/src $image -L /src/go.mod || exit_code=$?
+            docker run -v ${PWD}:/src $image sbom --no-recursive /src || exit_code=$?
 
             # fail if we get a non-zero exit code other than "vulnerabilities were found"
             if [[ $exit_code -ne 0 && $exit_code -ne 1  ]]; then

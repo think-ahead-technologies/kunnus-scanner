@@ -22,6 +22,7 @@ RUN git config --global --add safe.directory '*'
 
 WORKDIR /
 
-COPY kunnus ./
+ARG TARGETPLATFORM
+COPY $TARGETPLATFORM/kunnus ./
 
 ENTRYPOINT ["/kunnus"]

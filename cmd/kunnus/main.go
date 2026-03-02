@@ -12,9 +12,9 @@ import (
 	"os"
 	"strings"
 
+	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
 	"github.com/google/osv-scanner/v2/cmd/kunnus/upload"
-	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	osvversion "github.com/google/osv-scanner/v2/internal/version"
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
@@ -47,9 +47,9 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 			"  1  vulnerabilities found\n" +
 			"  2  error (invalid arguments, scan failure, etc.)\n" +
 			"  3  network or API request failed",
-		Suggest:              true,
-		Writer:               stdout,
-		ErrWriter:            stderr,
+		Suggest:               true,
+		Writer:                stdout,
+		ErrWriter:             stderr,
 		EnableShellCompletion: true,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
@@ -67,12 +67,14 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
 				cmdlogger.SetLevel(lvl)
 			}
+
 			return ctx, nil
 		},
 		Action: func(_ context.Context, cmd *cli.Command) error {
 			if cmd.Args().Present() {
 				return fmt.Errorf("unknown command %q — run 'kunnus --help' for usage", cmd.Args().First())
 			}
+
 			return cli.ShowAppHelp(cmd)
 		},
 		Commands: []*cli.Command{

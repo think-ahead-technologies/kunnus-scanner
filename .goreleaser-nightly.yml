@@ -26,44 +26,51 @@ builds:
     goarch:
       - amd64
 
-dockers:
+dockers_v2:
   # Main kunnus image
-  - image_templates:
-      - "ghcr.io/think-ahead-technologies/kunnus-scanner:nightly"
+  - id: kunnus
     dockerfile: goreleaser.dockerfile
-    use: buildx
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.title=kunnus"
-      - "--label=org.opencontainers.image.description=Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
-      - "--label=org.opencontainers.image.licenses=Apache License 2.0"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--label=org.opencontainers.image.url={{.GitURL}}"
-      - "--platform=linux/amd64"
-  # Github Action
-  - image_templates:
-      - "ghcr.io/think-ahead-technologies/kunnus-scanner-action:nightly"
+    ids:
+      - kunnus
+    images:
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner"
+    tags:
+      - "nightly"
+    labels:
+      "org.opencontainers.image.title": "kunnus"
+      "org.opencontainers.image.description": "Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
+      "org.opencontainers.image.licenses": "Apache License 2.0"
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.url": "{{.GitURL}}"
+    platforms:
+      - linux/amd64
+  # GitHub Actions variant
+  - id: kunnus-action
     dockerfile: goreleaser-action.dockerfile
-    use: buildx
+    ids:
+      - kunnus
+    images:
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner-action"
+    tags:
+      - "nightly"
+    labels:
+      "org.opencontainers.image.title": "kunnus-action"
+      "org.opencontainers.image.description": "Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
+      "org.opencontainers.image.licenses": "Apache-2.0"
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.url": "{{.GitURL}}"
     extra_files:
       - exit_code_redirect.sh
-    build_flag_templates:
-      - "--pull"
-      - "--label=org.opencontainers.image.title=kunnus-action"
-      - "--label=org.opencontainers.image.description=Vulnerability scanner written in Go which uses the data provided by https://osv.dev"
-      - "--label=org.opencontainers.image.licenses=Apache-2.0"
-      - "--label=org.opencontainers.image.created={{.Date}}"
-      - "--label=org.opencontainers.image.name={{.ProjectName}}"
-      - "--label=org.opencontainers.image.revision={{.FullCommit}}"
-      - "--label=org.opencontainers.image.version={{.Version}}"
-      - "--label=org.opencontainers.image.source={{.GitURL}}"
-      - "--label=org.opencontainers.image.url={{.GitURL}}"
-      - "--platform=linux/amd64"
-    goarch: amd64
+    platforms:
+      - linux/amd64
 
 release:
   disable: true

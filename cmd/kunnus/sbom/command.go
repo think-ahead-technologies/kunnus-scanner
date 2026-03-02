@@ -1,5 +1,4 @@
-// ABOUTME: Implements the 'kunnus sbom' subcommand for generating SBOMs from project dependencies.
-// ABOUTME: Provides a simplified, user-friendly interface to osv-scanner's SBOM generation capabilities.
+// Package sbom implements the 'kunnus sbom' subcommand for SBOM generation.
 package sbom
 
 import (
@@ -101,15 +100,10 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		},
 	}
 
-	// ctx is intentionally unused for now: osvscanner.DoScan does not yet accept a context.
-	_ = ctx
-
-	vulnResult, err := osvscanner.DoScan(scannerAction)
-
-	noPackagesFound := errors.Is(err, osvscanner.ErrNoPackagesFound)
+	vulnResult, err := osvscanner.DoScan(scannerAction) //nolint:contextcheck
 
 	// No packages is not an error for SBOM generation.
-	if noPackagesFound {
+	if errors.Is(err, osvscanner.ErrNoPackagesFound) {
 		if !interactive {
 			cmdlogger.Warnf("No package sources found in the given directories")
 		}
@@ -134,10 +128,22 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		return nil
 	}
 
-	// Interactive/terminal mode: save SBOM to file and show a human-readable summary.
+	// Interactive/terminal mode: also append Windows OS packages from the registry.
+	// In pipe mode the SBOM covers the scanned directories only; OS-level inventory
+	// is added here so interactive users get a comprehensive machine snapshot.
+	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
+		mergeWindowsInventory(winInv, &vulnResult)
+	} else {
+		return fmt.Errorf("windows OS scan failed: %w", winErr)
+	}
+
+	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
+	noPackagesFound := len(vulnResult.Results) == 0
+
+	// Save SBOM to file and show a human-readable summary.
 	savedPath := outputPath
 	if savedPath == "" && !noPackagesFound {
-		project := projectNameFromDir(dirs[0])
+		project := autoProjectName(dirs)
 		date := time.Now().Format("2006-01-02")
 		savedPath = buildFileName(project, format, date)
 	}
@@ -240,10 +246,11 @@ func countVulnerabilities(result *models.VulnerabilityResults) int {
 	for _, pkgSource := range result.Results {
 		for _, pkg := range pkgSource.Packages {
 			for _, v := range pkg.Vulnerabilities {
-				seen[v.Id] = struct{}{}
+				seen[v.GetId()] = struct{}{}
 			}
 		}
 	}
+
 	return len(seen)
 }
 
@@ -279,6 +286,10 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 
 	for _, pkgSource := range result.Results {
 		eco := primaryEcosystem(pkgSource.Packages)
+		// Windows Registry packages have no OSV ecosystem; label them by source path.
+		if eco == "" && pkgSource.Source.Path == "Windows Registry" {
+			eco = "Windows"
+		}
 		count := len(pkgSource.Packages)
 		total += count
 		sourceName := filepath.Base(pkgSource.Source.Path)

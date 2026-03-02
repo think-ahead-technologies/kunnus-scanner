@@ -40,13 +40,13 @@ kunnus sbom --output sbom.spdx.json
 
 Supported formats: `spdx-2-3` (default), `cyclonedx-1-4`, `cyclonedx-1-5`.
 
-| Flag | Default | Description |
-|------|---------|-------------|
-| `--format`, `-f` | `spdx-2-3` | SBOM output format |
-| `--output`, `-o` | — | Save SBOM to file (stdout if omitted in pipe mode) |
-| `--recursive` / `--no-recursive` | on | Scan subdirectories |
-| `--all-packages` / `--no-all-packages` | on | Include all packages, not just vulnerable ones |
-| `--offline-vulnerabilities` | off | Use locally cached vulnerability databases |
+| Flag                                   | Default    | Description                                        |
+| -------------------------------------- | ---------- | -------------------------------------------------- |
+| `--format`, `-f`                       | `spdx-2-3` | SBOM output format                                 |
+| `--output`, `-o`                       | —          | Save SBOM to file (stdout if omitted in pipe mode) |
+| `--recursive` / `--no-recursive`       | on         | Scan subdirectories                                |
+| `--all-packages` / `--no-all-packages` | on         | Include all packages, not just vulnerable ones     |
+| `--offline-vulnerabilities`            | off        | Use locally cached vulnerability databases         |
 
 ### Upload an SBOM
 
@@ -57,14 +57,14 @@ kunnus upload sbom.spdx.json \
   --version 1.2.3
 ```
 
-| Flag | Env var | Description |
-|------|---------|-------------|
-| `--api-key`, `-k` | `KUNNUS_API_KEY` | API key for the kunnus platform |
-| `--component-id`, `-c` | `KUNNUS_COMPONENT_ID` | Target component ID |
-| `--version` | — | Version label for the SBOM |
-| `--url` | `KUNNUS_URL` | API endpoint (default: `https://app.kunnus.tech/api/sboms/upload`) |
-| `--source` | — | Source label (auto-detected in CI: `CiPipeline`, otherwise `CLI`) |
-| `--mark-as-current` | — | Mark this SBOM as the current version (default: `true`) |
+| Flag                   | Env var               | Description                                                        |
+| ---------------------- | --------------------- | ------------------------------------------------------------------ |
+| `--api-key`, `-k`      | `KUNNUS_API_KEY`      | API key for the kunnus platform                                    |
+| `--component-id`, `-c` | `KUNNUS_COMPONENT_ID` | Target component ID                                                |
+| `--version`            | —                     | Version label for the SBOM                                         |
+| `--url`                | `KUNNUS_URL`          | API endpoint (default: `https://app.kunnus.tech/api/sboms/upload`) |
+| `--source`             | —                     | Source label (auto-detected in CI: `CiPipeline`, otherwise `CLI`)  |
+| `--mark-as-current`    | —                     | Mark this SBOM as the current version (default: `true`)            |
 
 ## GitHub Actions
 
