@@ -136,7 +136,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
 		mergeWindowsInventory(winInv, &vulnResult)
 	} else {
-		cmdlogger.Warnf("Windows OS scan failed (non-fatal): %v", winErr)
+		return fmt.Errorf("Windows OS scan failed: %w", winErr)
 	}
 
 	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
