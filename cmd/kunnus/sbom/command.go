@@ -102,10 +102,8 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 
 	vulnResult, err := osvscanner.DoScan(scannerAction) //nolint:contextcheck
 
-	noPackagesFound := errors.Is(err, osvscanner.ErrNoPackagesFound)
-
 	// No packages is not an error for SBOM generation.
-	if noPackagesFound {
+	if errors.Is(err, osvscanner.ErrNoPackagesFound) {
 		if !interactive {
 			cmdlogger.Warnf("No package sources found in the given directories")
 		}
@@ -136,11 +134,11 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
 		mergeWindowsInventory(winInv, &vulnResult)
 	} else {
-		return fmt.Errorf("Windows OS scan failed: %w", winErr)
+		return fmt.Errorf("windows OS scan failed: %w", winErr)
 	}
 
 	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
-	noPackagesFound = len(vulnResult.Results) == 0
+	noPackagesFound := len(vulnResult.Results) == 0
 
 	// Save SBOM to file and show a human-readable summary.
 	savedPath := outputPath
