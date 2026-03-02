@@ -140,9 +140,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 	}
 
 	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
-	if noPackagesFound && len(vulnResult.Results) > 0 {
-		noPackagesFound = false
-	}
+	noPackagesFound = len(vulnResult.Results) == 0
 
 	// Save SBOM to file and show a human-readable summary.
 	savedPath := outputPath
