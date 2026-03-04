@@ -119,7 +119,8 @@ docker_signs:
       - "${artifact}@${digest}"
 
 archives:
-  - ids:
+  - id: kunnus
+    ids:
       - kunnus
     name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
     formats:
