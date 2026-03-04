@@ -84,6 +84,15 @@ dockers_v2:
     platforms:
       - linux/amd64
 
+docker_signs:
+  - cmd: cosign
+    artifacts: all
+    output: true
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}@${digest}"
+
 archives:
   - formats: binary
     name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
