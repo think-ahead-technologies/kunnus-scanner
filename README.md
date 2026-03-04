@@ -8,6 +8,19 @@ Beyond raw SBOM generation, kunnus adds convenience for manufacturers who need t
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```shell
+brew install think-ahead-technologies/tap/kunnus
+```
+
+### Scoop (Windows)
+
+```shell
+scoop bucket add think-ahead-technologies https://github.com/think-ahead-technologies/scoop-bucket
+scoop install kunnus
+```
+
 ### Prebuilt binaries
 
 Download the latest release for your platform from the [releases page](https://github.com/think-ahead-technologies/kunnus-scanner/releases).
