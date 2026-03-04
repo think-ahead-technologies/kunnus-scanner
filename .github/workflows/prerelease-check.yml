@@ -91,6 +91,7 @@ jobs:
   tests:
     permissions:
       contents: read # to fetch code (actions/checkout)
+      id-token: write # for codecov OIDC
     name: Run unit tests
     needs:
       - prepare_test_image_testdata
