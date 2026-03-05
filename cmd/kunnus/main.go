@@ -65,7 +65,7 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 			&cli.BoolFlag{
 				Name:    "quiet",
 				Aliases: []string{"q"},
-				Usage:   "suppress informational output; only errors are printed",
+				Usage:   "suppress progress and summary output on stderr; only errors are printed",
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
