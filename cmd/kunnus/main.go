@@ -62,6 +62,11 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 					return err
 				},
 			},
+			&cli.BoolFlag{
+				Name:    "quiet",
+				Aliases: []string{"q"},
+				Usage:   "suppress informational output; only errors are printed",
+			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {

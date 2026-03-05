@@ -12,7 +12,6 @@ import (
 	"slices"
 	"sort"
 	"strings"
-	"time"
 
 	kversion "github.com/google/osv-scanner/v2/cmd/kunnus/internal/version"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
@@ -20,7 +19,6 @@ import (
 	"github.com/google/osv-scanner/v2/pkg/models"
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
 	"github.com/urfave/cli/v3"
-	"golang.org/x/term"
 )
 
 var sbomFormats = []string{"spdx-2-3", "cyclonedx-1-4", "cyclonedx-1-5"}
@@ -84,7 +82,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 
 	format := cmd.String("format")
 	outputPath := cmd.String("output")
-	interactive := isTerminalWriter(stdout)
+	quiet := cmd.Bool("quiet")
 
 	// SBOM output formats need log messages on stderr to keep the SBOM on stdout clean.
 	cmdlogger.SendEverythingToStderr()
@@ -104,9 +102,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 
 	// No packages is not an error for SBOM generation.
 	if errors.Is(err, osvscanner.ErrNoPackagesFound) {
-		if !interactive {
-			cmdlogger.Warnf("No package sources found in the given directories")
-		}
+		cmdlogger.Warnf("No package sources found in the given directories")
 		err = nil
 	}
 
@@ -119,51 +115,26 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		return err
 	}
 
-	if !interactive {
-		// Pipe mode: write SBOM to stdout or to the given file (existing behavior unchanged).
-		if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
-			return fmt.Errorf("failed to write SBOM: %w", errPrint)
-		}
-
-		return nil
-	}
-
-	// Interactive/terminal mode: also append Windows OS packages from the registry.
-	// In pipe mode the SBOM covers the scanned directories only; OS-level inventory
-	// is added here so interactive users get a comprehensive machine snapshot.
+	// Append Windows OS packages from the registry (no-op on non-Windows via build tag).
 	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
 		mergeWindowsInventory(winInv, &vulnResult)
 	} else {
 		return fmt.Errorf("windows OS scan failed: %w", winErr)
 	}
 
-	// Re-check: DoScan may have set noPackagesFound before Windows packages were added.
-	noPackagesFound := len(vulnResult.Results) == 0
-
-	// Save SBOM to file and show a human-readable summary.
-	savedPath := outputPath
-	if savedPath == "" && !noPackagesFound {
-		project := autoProjectName(dirs)
-		date := time.Now().Format("2006-01-02")
-		savedPath = buildFileName(project, format, date)
+	if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
+		return fmt.Errorf("failed to write SBOM: %w", errPrint)
 	}
 
-	if savedPath != "" {
-		if err := writeSBOMToFile(savedPath, format, &vulnResult); err != nil {
-			return fmt.Errorf("failed to write SBOM: %w", err)
-		}
+	if !quiet {
+		fmt.Fprint(stderr, buildScanSummary(dirs, &vulnResult, outputPath))
 	}
-
-	fmt.Fprint(stdout, buildScanSummary(dirs, &vulnResult, savedPath))
-
-	_ = stderr
 
 	return nil
 }
 
 // printSBOM writes the SBOM to stdout or to the given file path.
 func printSBOM(stdout io.Writer, outputPath, format string, vulnResult *models.VulnerabilityResults) error {
-	termWidth := 0
 	writer := stdout
 
 	if outputPath != "" {
@@ -172,25 +143,9 @@ func printSBOM(stdout io.Writer, outputPath, format string, vulnResult *models.V
 			return fmt.Errorf("failed to create output file: %w", err)
 		}
 		writer = f
-	} else if stdoutAsFile, ok := stdout.(*os.File); ok {
-		var err error
-		termWidth, _, err = term.GetSize(int(stdoutAsFile.Fd()))
-		if err != nil {
-			termWidth = 0
-		}
 	}
 
-	return reporter.PrintResult(vulnResult, format, writer, termWidth, false)
-}
-
-// isTerminalWriter reports whether w is an *os.File connected to a terminal.
-func isTerminalWriter(w io.Writer) bool {
-	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-
-	return term.IsTerminal(int(f.Fd()))
+	return reporter.PrintResult(vulnResult, format, writer, 0, false)
 }
 
 // buildFileName constructs the auto-save filename for the SBOM.
