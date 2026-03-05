@@ -26,6 +26,23 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 		Name:      "upload",
 		Usage:     "upload an SBOM to the Kunnus platform",
 		ArgsUsage: "<sbom-file>",
+		Description: `Uploads an SBOM file to the Kunnus platform.
+API key and component ID can be supplied via flags or environment variables.
+
+Examples:
+   kunnus upload sbom.spdx.json \
+     --api-key $KUNNUS_API_KEY \
+     --component-id $KUNNUS_COMPONENT_ID \
+     --version 1.2.3
+
+   # Use environment variables instead of flags
+   export KUNNUS_API_KEY=...
+   export KUNNUS_COMPONENT_ID=...
+   kunnus upload sbom.spdx.json --version 1.2.3
+
+   # Generate and upload in one pipeline
+   kunnus sbom --output sbom.spdx.json && \
+   kunnus upload sbom.spdx.json --version $GIT_TAG`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "api-key",

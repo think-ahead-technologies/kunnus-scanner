@@ -26,10 +26,21 @@ var sbomFormats = []string{"spdx-2-3", "cyclonedx-1-4", "cyclonedx-1-5"}
 // Command returns the 'sbom' subcommand for generating Software Bill of Materials.
 func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 	return &cli.Command{
-		Name:        "sbom",
-		Usage:       "generate a Software Bill of Materials for a project's dependencies",
-		Description: "scans a project's dependencies and generates an SBOM in spdx or cyclonedx format",
-		ArgsUsage:   "[directory...] (default: current directory)",
+		Name:      "sbom",
+		Usage:     "generate a Software Bill of Materials for a project's dependencies",
+		ArgsUsage: "[directory...] (default: current directory)",
+		Description: `Scans a project's dependencies and generates an SBOM in SPDX or CycloneDX format.
+The SBOM is written to stdout by default; use --output to save to a file.
+A human-readable summary is printed to stderr unless --quiet is set.
+
+Examples:
+   kunnus sbom                                  # scan current directory
+   kunnus sbom ./backend ./frontend             # scan multiple directories
+   kunnus sbom --output sbom.spdx.json          # save to file
+   kunnus sbom --format cyclonedx-1-5           # choose format
+   kunnus sbom --include-os                     # include OS-level packages
+   kunnus sbom --quiet --output sbom.spdx.json  # CI-friendly, no stderr output
+   kunnus sbom | jq '.packages | length'        # pipe to jq`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "format",
