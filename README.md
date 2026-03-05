@@ -51,6 +51,15 @@ go build -o kunnus ./cmd/kunnus
 
 ## Usage
 
+### Global flags
+
+These flags apply to all subcommands:
+
+| Flag              | Description                                                            |
+| ----------------- | ---------------------------------------------------------------------- |
+| `--quiet`, `-q`   | Suppress progress and summary output on stderr; only errors are printed |
+| `--verbosity`     | Log verbosity level (`error`, `warn`, `info`, `debug`); default `warn` |
+
 ### Generate an SBOM
 
 ```shell
@@ -65,17 +74,21 @@ kunnus sbom --format cyclonedx-1-5
 
 # Write SBOM to a file
 kunnus sbom --output sbom.spdx.json
+
+# Include OS-level packages (e.g. Windows registry) in the SBOM
+kunnus sbom --include-os
 ```
 
 Supported formats: `spdx-2-3` (default), `cyclonedx-1-4`, `cyclonedx-1-5`.
 
-| Flag                                   | Default    | Description                                        |
-| -------------------------------------- | ---------- | -------------------------------------------------- |
-| `--format`, `-f`                       | `spdx-2-3` | SBOM output format                                 |
-| `--output`, `-o`                       | —          | Save SBOM to file (stdout if omitted in pipe mode) |
-| `--recursive` / `--no-recursive`       | on         | Scan subdirectories                                |
-| `--all-packages` / `--no-all-packages` | on         | Include all packages, not just vulnerable ones     |
-| `--offline-vulnerabilities`            | off        | Use locally cached vulnerability databases         |
+| Flag                                   | Default    | Description                                               |
+| -------------------------------------- | ---------- | --------------------------------------------------------- |
+| `--format`, `-f`                       | `spdx-2-3` | SBOM output format                                        |
+| `--output`, `-o`                       | —          | Save SBOM to file; writes to stdout if omitted            |
+| `--recursive` / `--no-recursive`       | on         | Scan subdirectories                                       |
+| `--all-packages` / `--no-all-packages` | on         | Include all packages, not just vulnerable ones            |
+| `--offline-vulnerabilities`            | off        | Use locally cached vulnerability databases                |
+| `--include-os`                         | off        | Include OS-level packages (e.g. Windows registry) in SBOM |
 
 ### Upload an SBOM
 
