@@ -282,14 +282,3 @@ func buildScanSummary(dirs []string, result *models.VulnerabilityResults, savedP
 
 	return sb.String()
 }
-
-// writeSBOMToFile writes the SBOM to the given file path.
-func writeSBOMToFile(path, format string, result *models.VulnerabilityResults) error {
-	f, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create output file: %w", err)
-	}
-	defer f.Close()
-
-	return reporter.PrintResult(result, format, f, 0, false)
-}

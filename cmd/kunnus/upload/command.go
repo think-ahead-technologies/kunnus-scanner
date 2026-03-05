@@ -186,4 +186,3 @@ func detectSource() string {
 
 	return "CLI"
 }
-
