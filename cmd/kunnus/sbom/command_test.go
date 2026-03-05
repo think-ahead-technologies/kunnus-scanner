@@ -65,6 +65,7 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 		ErrWriter:      &errBuf,
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "verbosity", Value: "warn"},
+			&cli.BoolFlag{Name: "quiet", Aliases: []string{"q"}},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
@@ -136,6 +137,11 @@ func TestCommand(t *testing.T) {
 		{
 			name: "no-recursive flag is accepted",
 			args: []string{"kunnus", "sbom", "--no-recursive", "./testdata/no-packages"},
+			exit: 0,
+		},
+		{
+			name: "quiet flag suppresses summary on stderr",
+			args: []string{"kunnus", "--quiet", "sbom", "./testdata/no-packages"},
 			exit: 0,
 		},
 	}
