@@ -40,7 +40,7 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 	app := &cli.Command{
 		Name:    "kunnus",
 		Version: kversion.KunnusVersion,
-		Usage: "SBOM generation and vulnerability scanning",
+		Usage:   "SBOM generation and vulnerability scanning",
 		Description: `Generate SBOMs and scan for vulnerabilities.
 
 Examples:

@@ -6,8 +6,9 @@ import (
 	"testing"
 )
 
-func TestRun(t *testing.T) {
-	// Not parallel: run() calls slog.SetDefault, which is a global.
+func TestRun(t *testing.T) { //nolint:paralleltest
+	// Not parallel: run() calls slog.SetDefault and cmdlogger globals,
+	// which are not safe for concurrent use across subtests.
 	tests := []struct {
 		name     string
 		args     []string
@@ -51,7 +52,7 @@ func TestRun(t *testing.T) {
 		},
 	}
 
-	for _, tc := range tests {
+	for _, tc := range tests { //nolint:paralleltest
 		t.Run(tc.name, func(t *testing.T) {
 			var stdout, stderr bytes.Buffer
 
