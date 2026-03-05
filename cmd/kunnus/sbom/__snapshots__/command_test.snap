@@ -200,7 +200,6 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/quiet_flag_suppresses_summary_on_stderr - 2]
-No package sources found in the given directories
 
 ---
 

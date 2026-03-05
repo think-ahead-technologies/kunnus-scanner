@@ -67,6 +67,10 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 				Value:       true,
 				DefaultText: "on",
 			},
+			&cli.BoolFlag{
+				Name:  "include-os",
+				Usage: "include OS-level inventory (e.g. installed packages, patch level) in the SBOM",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return action(ctx, cmd, stdout, stderr, client)
@@ -83,6 +87,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 	format := cmd.String("format")
 	outputPath := cmd.String("output")
 	quiet := cmd.Bool("quiet")
+	includeOS := cmd.Bool("include-os")
 
 	// SBOM output formats need log messages on stderr to keep the SBOM on stdout clean.
 	cmdlogger.SendEverythingToStderr()
@@ -102,7 +107,9 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 
 	// No packages is not an error for SBOM generation.
 	if errors.Is(err, osvscanner.ErrNoPackagesFound) {
-		cmdlogger.Warnf("No package sources found in the given directories")
+		if !quiet {
+			cmdlogger.Warnf("No package sources found in the given directories")
+		}
 		err = nil
 	}
 
@@ -115,11 +122,13 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		return err
 	}
 
-	// Append Windows OS packages from the registry (no-op on non-Windows via build tag).
-	if winInv, winErr := runWindowsScan(ctx); winErr == nil {
-		mergeWindowsInventory(winInv, &vulnResult)
-	} else {
-		return fmt.Errorf("windows OS scan failed: %w", winErr)
+	// Append OS-level packages when explicitly requested via --include-os (no-op on non-Windows via build tag).
+	if includeOS {
+		if winInv, winErr := runWindowsScan(ctx); winErr == nil {
+			mergeWindowsInventory(winInv, &vulnResult)
+		} else {
+			cmdlogger.Warnf("OS inventory scan failed: %v", winErr)
+		}
 	}
 
 	if errPrint := printSBOM(stdout, outputPath, format, &vulnResult); errPrint != nil {
