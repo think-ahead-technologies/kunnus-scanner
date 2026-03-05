@@ -55,10 +55,10 @@ go build -o kunnus ./cmd/kunnus
 
 These flags apply to all subcommands:
 
-| Flag              | Description                                                            |
-| ----------------- | ---------------------------------------------------------------------- |
-| `--quiet`, `-q`   | Suppress progress and summary output on stderr; only errors are printed |
-| `--verbosity`     | Log verbosity level (`error`, `warn`, `info`, `debug`); default `warn` |
+| Flag            | Description                                                             |
+| --------------- | ----------------------------------------------------------------------- |
+| `--quiet`, `-q` | Suppress progress and summary output on stderr; only errors are printed |
+| `--verbosity`   | Log verbosity level (`error`, `warn`, `info`, `debug`); default `warn`  |
 
 ### Generate an SBOM
 

@@ -444,6 +444,26 @@ func TestUploadEnvVarAPIKey(t *testing.T) {
 	}
 }
 
+func TestUploadFileNotFound(t *testing.T) {
+	t.Parallel()
+
+	server, _ := newCaptureServer(t, http.StatusOK)
+	defer server.Close()
+
+	_, _, exitCode := run(t, []string{
+		"kunnus", "upload",
+		"--api-key", "kns_test",
+		"--component-id", "comp-123",
+		"--version", "1.0.0",
+		"--url", server.URL,
+		"/nonexistent/path/sbom.spdx.json",
+	})
+
+	if exitCode != 2 {
+		t.Errorf("exit code: got %d, want 2 (file not found)", exitCode)
+	}
+}
+
 func TestUploadQuiet(t *testing.T) {
 	t.Parallel()
 
