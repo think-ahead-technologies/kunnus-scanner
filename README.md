@@ -8,6 +8,35 @@ Beyond raw SBOM generation, kunnus adds convenience for manufacturers who need t
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```shell
+brew install think-ahead-technologies/tap/kunnus
+```
+
+### Scoop (Windows)
+
+```shell
+scoop bucket add think-ahead-technologies https://github.com/think-ahead-technologies/scoop-bucket
+scoop install kunnus
+```
+
+### Docker
+
+```shell
+# Generate an SBOM for the current directory
+docker run --rm -v $(pwd):/src ghcr.io/think-ahead-technologies/kunnus-scanner sbom /src
+
+# Generate and save to file
+docker run --rm -v $(pwd):/src ghcr.io/think-ahead-technologies/kunnus-scanner sbom --output /src/sbom.spdx.json /src
+
+# Upload an SBOM
+docker run --rm -v $(pwd):/src \
+  -e KUNNUS_API_KEY=$KUNNUS_API_KEY \
+  -e KUNNUS_COMPONENT_ID=$KUNNUS_COMPONENT_ID \
+  ghcr.io/think-ahead-technologies/kunnus-scanner upload /src/sbom.spdx.json
+```
+
 ### Prebuilt binaries
 
 Download the latest release for your platform from the [releases page](https://github.com/think-ahead-technologies/kunnus-scanner/releases).

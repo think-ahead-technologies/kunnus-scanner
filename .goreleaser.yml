@@ -84,6 +84,31 @@ dockers_v2:
     platforms:
       - linux/amd64
 
+homebrew_casks:
+  - name: kunnus
+    ids:
+      - kunnus
+    binaries:
+      - kunnus
+    repository:
+      owner: think-ahead-technologies
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
+    description: "Vulnerability scanner for your software dependencies"
+
+scoops:
+  - name: kunnus
+    ids:
+      - kunnus
+    repository:
+      owner: think-ahead-technologies
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
+    description: "Vulnerability scanner for your software dependencies"
+    license: "Apache-2.0"
+
 docker_signs:
   - cmd: cosign
     artifacts: all
@@ -94,10 +119,16 @@ docker_signs:
       - "${artifact}@${digest}"
 
 archives:
-  - formats: binary
-    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+  - id: kunnus
     ids:
       - kunnus
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
 checksum:
   name_template: "{{ .ProjectName }}_SHA256SUMS"
   algorithm: sha256
