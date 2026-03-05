@@ -147,11 +147,6 @@ func TestCommand(t *testing.T) {
 			args: []string{"kunnus", "--quiet", "sbom", "./testdata/no-packages"},
 			exit: 0,
 		},
-		{
-			name: "include-os flag is accepted",
-			args: []string{"kunnus", "sbom", "--include-os", "./testdata/no-packages"},
-			exit: 0,
-		},
 	}
 
 	for _, tc := range tests {
@@ -169,6 +164,25 @@ func TestCommand(t *testing.T) {
 				"CreateFile": "stat",
 			}).MatchText(t, stderr)
 		})
+	}
+}
+
+func TestCommandIncludeOS(t *testing.T) {
+	t.Parallel()
+
+	// --include-os runs the real Windows scan on Windows and a no-op stub elsewhere.
+	// stdout content is platform-dependent (OS packages vary), so we only assert
+	// that the command succeeds and produces valid SPDX output.
+	stdout, _, exitCode := runAndNormalize(t, []string{
+		"kunnus", "sbom", "--include-os", "./testdata/no-packages",
+	})
+
+	if exitCode != 0 {
+		t.Errorf("exit code: got %d, want 0", exitCode)
+	}
+
+	if !strings.Contains(stdout, "spdxVersion") {
+		t.Errorf("stdout: expected SPDX output, got: %q", stdout)
 	}
 }
 
