@@ -5,6 +5,9 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/osv-scanner/v2/cmd/kunnus/sbom"
@@ -65,6 +68,7 @@ func runAndNormalize(t *testing.T, args []string) (string, string, int) {
 		ErrWriter:      &errBuf,
 		Flags: []cli.Flag{
 			&cli.StringFlag{Name: "verbosity", Value: "warn"},
+			&cli.BoolFlag{Name: "quiet", Aliases: []string{"q"}},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
 			if lvl, err := cmdlogger.ParseLevel(cmd.String("verbosity")); err == nil {
@@ -138,6 +142,11 @@ func TestCommand(t *testing.T) {
 			args: []string{"kunnus", "sbom", "--no-recursive", "./testdata/no-packages"},
 			exit: 0,
 		},
+		{
+			name: "quiet flag suppresses summary on stderr",
+			args: []string{"kunnus", "--quiet", "sbom", "./testdata/no-packages"},
+			exit: 0,
+		},
 	}
 
 	for _, tc := range tests {
@@ -155,5 +164,51 @@ func TestCommand(t *testing.T) {
 				"CreateFile": "stat",
 			}).MatchText(t, stderr)
 		})
+	}
+}
+
+func TestCommandIncludeOS(t *testing.T) {
+	t.Parallel()
+
+	// --include-os runs the real Windows scan on Windows and a no-op stub elsewhere.
+	// stdout content is platform-dependent (OS packages vary), so we only assert
+	// that the command succeeds and produces valid SPDX output.
+	stdout, _, exitCode := runAndNormalize(t, []string{
+		"kunnus", "sbom", "--include-os", "./testdata/no-packages",
+	})
+
+	if exitCode != 0 {
+		t.Errorf("exit code: got %d, want 0", exitCode)
+	}
+
+	if !strings.Contains(stdout, "spdxVersion") {
+		t.Errorf("stdout: expected SPDX output, got: %q", stdout)
+	}
+}
+
+func TestCommandOutputFlag(t *testing.T) {
+	t.Parallel()
+
+	outFile := filepath.Join(t.TempDir(), "sbom.spdx.json")
+
+	_, stderr, exitCode := runAndNormalize(t, []string{
+		"kunnus", "sbom", "--output", outFile, "./testdata/no-packages",
+	})
+
+	if exitCode != 0 {
+		t.Errorf("exit code: got %d, want 0\nstderr: %s", exitCode, stderr)
+	}
+
+	data, err := os.ReadFile(outFile)
+	if err != nil {
+		t.Fatalf("SBOM output file not created: %v", err)
+	}
+
+	if !strings.Contains(string(data), "spdxVersion") {
+		t.Errorf("output file does not look like an SPDX document: %q", string(data))
+	}
+
+	if !strings.Contains(stderr, "Scanning") {
+		t.Errorf("stderr: expected scan summary, got: %q", stderr)
 	}
 }

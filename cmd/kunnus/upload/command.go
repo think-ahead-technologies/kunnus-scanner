@@ -16,7 +16,6 @@ import (
 
 	"github.com/google/osv-scanner/v2/pkg/osvscanner"
 	"github.com/urfave/cli/v3"
-	"golang.org/x/term"
 )
 
 const defaultUploadURL = "https://app.kunnus.tech/api/sboms/upload"
@@ -27,6 +26,23 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 		Name:      "upload",
 		Usage:     "upload an SBOM to the Kunnus platform",
 		ArgsUsage: "<sbom-file>",
+		Description: `Uploads an SBOM file to the Kunnus platform.
+API key and component ID can be supplied via flags or environment variables.
+
+Examples:
+   kunnus upload sbom.spdx.json \
+     --api-key $KUNNUS_API_KEY \
+     --component-id $KUNNUS_COMPONENT_ID \
+     --version 1.2.3
+
+   # Use environment variables instead of flags
+   export KUNNUS_API_KEY=...
+   export KUNNUS_COMPONENT_ID=...
+   kunnus upload sbom.spdx.json --version 1.2.3
+
+   # Generate and upload in one pipeline
+   kunnus sbom --output sbom.spdx.json && \
+   kunnus upload sbom.spdx.json --version $GIT_TAG`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "api-key",
@@ -67,7 +83,7 @@ func Command(stdout, stderr io.Writer, client *http.Client) *cli.Command {
 	}
 }
 
-func action(ctx context.Context, cmd *cli.Command, stdout io.Writer, _ io.Writer, client *http.Client) error {
+func action(ctx context.Context, cmd *cli.Command, _ io.Writer, stderr io.Writer, client *http.Client) error {
 	if !cmd.Args().Present() {
 		return errors.New("missing required argument: <sbom-file>")
 	}
@@ -96,22 +112,22 @@ func action(ctx context.Context, cmd *cli.Command, stdout io.Writer, _ io.Writer
 	}
 
 	markAsCurrent := cmd.Bool("mark-as-current")
-	interactive := isTerminalWriter(stdout)
+	quiet := cmd.Bool("quiet")
 
 	if client == nil {
 		client = http.DefaultClient
 	}
 
-	if interactive {
-		fmt.Fprintf(stdout, "Uploading %s to Kunnus...\n", filepath.Base(filePath))
+	if !quiet {
+		fmt.Fprintf(stderr, "Uploading %s to Kunnus...\n", filepath.Base(filePath))
 	}
 
 	if err := doUpload(ctx, client, uploadURL, apiKey, filePath, componentID, version, source, markAsCurrent); err != nil {
 		return err
 	}
 
-	if interactive {
-		fmt.Fprintf(stdout, "SBOM uploaded.\n  Component: %s\n  Version:   %s\n", componentID, version)
+	if !quiet {
+		fmt.Fprintf(stderr, "SBOM uploaded.\n  Component: %s\n  Version:   %s\n", componentID, version)
 	}
 
 	return nil
@@ -186,14 +202,4 @@ func detectSource() string {
 	}
 
 	return "CLI"
-}
-
-// isTerminalWriter reports whether w is an *os.File connected to a terminal.
-func isTerminalWriter(w io.Writer) bool {
-	f, ok := w.(*os.File)
-	if !ok {
-		return false
-	}
-
-	return term.IsTerminal(int(f.Fd()))
 }

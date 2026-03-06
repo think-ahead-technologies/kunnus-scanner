@@ -10,6 +10,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -84,6 +85,9 @@ func run(t *testing.T, args []string) (string, string, int) { //nolint:unparam
 		Name:      "kunnus",
 		Writer:    &outBuf,
 		ErrWriter: &errBuf,
+		Flags: []cli.Flag{
+			&cli.BoolFlag{Name: "quiet", Aliases: []string{"q"}},
+		},
 		Commands: []*cli.Command{
 			upload.Command(&outBuf, &errBuf, nil),
 		},
@@ -211,7 +215,7 @@ func TestUploadSuccess(t *testing.T) {
 	sbomContent := `{"spdxVersion":"SPDX-2.3","name":"test"}`
 	sbomFile := writeTempSBOM(t, sbomContent)
 
-	_, _, exitCode := run(t, []string{
+	_, errOutput, exitCode := run(t, []string{
 		"kunnus", "upload",
 		"--api-key", "kns_test_key",
 		"--component-id", "comp-abc-123",
@@ -223,6 +227,14 @@ func TestUploadSuccess(t *testing.T) {
 
 	if exitCode != 0 {
 		t.Errorf("exit code: got %d, want 0", exitCode)
+	}
+
+	if !strings.Contains(errOutput, "Uploading") {
+		t.Errorf("stderr: expected 'Uploading' message, got: %q", errOutput)
+	}
+
+	if !strings.Contains(errOutput, "SBOM uploaded") {
+		t.Errorf("stderr: expected 'SBOM uploaded' message, got: %q", errOutput)
 	}
 
 	if captured.apiKey != "kns_test_key" {
@@ -429,5 +441,52 @@ func TestUploadEnvVarAPIKey(t *testing.T) {
 
 	if captured.apiKey != "env_api_key" {
 		t.Errorf("X-API-Key: got %q, want %q", captured.apiKey, "env_api_key")
+	}
+}
+
+func TestUploadFileNotFound(t *testing.T) {
+	t.Parallel()
+
+	server, _ := newCaptureServer(t, http.StatusOK)
+	defer server.Close()
+
+	_, _, exitCode := run(t, []string{
+		"kunnus", "upload",
+		"--api-key", "kns_test",
+		"--component-id", "comp-123",
+		"--version", "1.0.0",
+		"--url", server.URL,
+		"/nonexistent/path/sbom.spdx.json",
+	})
+
+	if exitCode != 2 {
+		t.Errorf("exit code: got %d, want 2 (file not found)", exitCode)
+	}
+}
+
+func TestUploadQuiet(t *testing.T) {
+	t.Parallel()
+
+	server, _ := newCaptureServer(t, http.StatusOK)
+	defer server.Close()
+
+	sbomFile := writeTempSBOM(t, `{"spdxVersion":"SPDX-2.3"}`)
+
+	_, errOutput, exitCode := run(t, []string{
+		"kunnus", "--quiet",
+		"upload",
+		"--api-key", "kns_test",
+		"--component-id", "comp-123",
+		"--version", "1.0.0",
+		"--url", server.URL,
+		sbomFile,
+	})
+
+	if exitCode != 0 {
+		t.Errorf("exit code: got %d, want 0", exitCode)
+	}
+
+	if strings.Contains(errOutput, "Uploading") || strings.Contains(errOutput, "SBOM uploaded") {
+		t.Errorf("stderr: expected no informational messages with --quiet, got: %q", errOutput)
 	}
 }

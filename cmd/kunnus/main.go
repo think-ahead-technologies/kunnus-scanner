@@ -41,12 +41,20 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 		Name:    "kunnus",
 		Version: kversion.KunnusVersion,
 		Usage:   "SBOM generation and vulnerability scanning",
-		Description: "Generate SBOMs and scan for vulnerabilities.\n\n" +
-			"Exit codes:\n" +
-			"  0  success\n" +
-			"  1  vulnerabilities found\n" +
-			"  2  error (invalid arguments, scan failure, etc.)\n" +
-			"  3  network or API request failed",
+		Description: `Generate SBOMs and scan for vulnerabilities.
+
+Examples:
+   kunnus sbom                          # generate SBOM for current directory
+   kunnus sbom --output sbom.spdx.json  # save SBOM to file
+   kunnus upload sbom.spdx.json \       # upload SBOM to Kunnus platform
+     --api-key $KUNNUS_API_KEY \
+     --component-id $KUNNUS_COMPONENT_ID
+
+Exit codes:
+   0  success
+   1  vulnerabilities found
+   2  error (invalid arguments, scan failure, etc.)
+   3  network or API request failed`,
 		Suggest:               true,
 		Writer:                stdout,
 		ErrWriter:             stderr,
@@ -61,6 +69,11 @@ func run(args []string, stdout, stderr io.Writer, client *http.Client) int {
 					_, err := cmdlogger.ParseLevel(s)
 					return err
 				},
+			},
+			&cli.BoolFlag{
+				Name:    "quiet",
+				Aliases: []string{"q"},
+				Usage:   "suppress progress and summary output on stderr; only errors are printed",
 			},
 		},
 		Before: func(ctx context.Context, cmd *cli.Command) (context.Context, error) {
