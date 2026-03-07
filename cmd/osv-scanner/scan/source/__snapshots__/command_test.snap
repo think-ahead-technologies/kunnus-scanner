@@ -3298,8 +3298,8 @@ Java reachability enricher marked 14 packages as unreachable
 Scanned <rootdir>/testdata/artifact/javareach_test.jar file and found 21 packages
 failed to download package err jar not found: https://repo1.maven.org/maven2/com/example/hello-tester/1.0-SNAPSHOT/hello-tester-1.0-SNAPSHOT.jar
 
-Total 4 packages affected by 54 known vulnerabilities (18 Critical, 30 High, 5 Medium, 1 Low, 0 Unknown) from 1 ecosystem.
-54 vulnerabilities can be fixed.
+Total 4 packages affected by 55 known vulnerabilities (18 Critical, 30 High, 5 Medium, 2 Low, 0 Unknown) from 1 ecosystem.
+55 vulnerabilities can be fixed.
 
 +-------------------------------------+------+-----------+---------------------------------------------+------------------+---------------+--------------------------------------+
 | OSV URL                             | CVSS | ECOSYSTEM | PACKAGE                                     | VERSION          | FIXED VERSION | SOURCE                               |
@@ -3358,6 +3358,7 @@ Total 4 packages affected by 54 known vulnerabilities (18 Critical, 30 High, 5 M
 | https://osv.dev/GHSA-cj7v-27pg-wf7q | 2.7  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 9.4.47        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-hmr7-m48g-48f6 | 5.3  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 9.4.52        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-qh8g-58pp-2wxh | 6.3  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 12.0.12       | testdata/artifact/javareach_test.jar |
+| https://osv.dev/GHSA-wjpw-4j6x-6rwh | 3.7  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 12.0.31       | testdata/artifact/javareach_test.jar |
 +-------------------------------------+------+-----------+---------------------------------------------+------------------+---------------+--------------------------------------+
 | Uncalled vulnerabilities            |      |           |                                             |                  |               |                                      |
 +-------------------------------------+------+-----------+---------------------------------------------+------------------+---------------+--------------------------------------+
@@ -3379,8 +3380,8 @@ Total 4 packages affected by 54 known vulnerabilities (18 Critical, 30 High, 5 M
 Scanning dir ./testdata/artifact/javareach_test.jar
 Scanned <rootdir>/testdata/artifact/javareach_test.jar file and found 21 packages
 
-Total 8 packages affected by 60 known vulnerabilities (18 Critical, 32 High, 8 Medium, 2 Low, 0 Unknown) from 1 ecosystem.
-59 vulnerabilities can be fixed.
+Total 8 packages affected by 61 known vulnerabilities (18 Critical, 32 High, 8 Medium, 3 Low, 0 Unknown) from 1 ecosystem.
+60 vulnerabilities can be fixed.
 
 +-------------------------------------+------+-----------+---------------------------------------------+------------------+---------------+--------------------------------------+
 | OSV URL                             | CVSS | ECOSYSTEM | PACKAGE                                     | VERSION          | FIXED VERSION | SOURCE                               |
@@ -3441,6 +3442,7 @@ Total 8 packages affected by 60 known vulnerabilities (18 Critical, 32 High, 8 M
 | https://osv.dev/GHSA-cj7v-27pg-wf7q | 2.7  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 9.4.47        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-hmr7-m48g-48f6 | 5.3  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 9.4.52        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-qh8g-58pp-2wxh | 6.3  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 12.0.12       | testdata/artifact/javareach_test.jar |
+| https://osv.dev/GHSA-wjpw-4j6x-6rwh | 3.7  | Maven     | org.eclipse.jetty:jetty-http                | 9.4.40.v20210413 | 12.0.31       | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-3gh6-v5v9-6v9j | 3.5  | Maven     | org.eclipse.jetty:jetty-servlets            | 9.4.40.v20210413 | 9.4.52        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-gwcr-j4wh-j3cq | 5.3  | Maven     | org.eclipse.jetty:jetty-servlets            | 9.4.40.v20210413 | 9.4.41        | testdata/artifact/javareach_test.jar |
 | https://osv.dev/GHSA-j26w-f9rq-mr2q | 5.3  | Maven     | org.eclipse.jetty:jetty-servlets            | 9.4.40.v20210413 | 9.4.54        | testdata/artifact/javareach_test.jar |
