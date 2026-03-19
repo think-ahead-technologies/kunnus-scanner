@@ -1,4 +1,4 @@
-# kunnus
+# kunnus-scanner
 
 **Open-source SBOM generation for manufacturers who need to know what software runs on their machines.**
 
