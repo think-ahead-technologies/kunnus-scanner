@@ -6,7 +6,7 @@ Starting December 11, 2027, the [EU Cyber Resilience Act (CRA)](https://digital-
 
 kunnus-scanner generates that SBOM. No installer, no cloud connection, no account required. It runs on Windows, Linux, and macOS, detects installed software down to individual libraries and version numbers, and outputs standard-compliant SPDX or CycloneDX files. It is built on Google's [osv-scalibr](https://github.com/google/osv-scalibr) and supports over 30 language ecosystems and OS-level package detection.
 
-Beyond generating SBOMs, kunnus automatically checks every detected component against the [OSV vulnerability database](https://osv.dev/). You see immediately whether your machine image ships a library with known CVEs — before you deliver.
+Beyond generating SBOMs, kunnus-scanner automatically checks every detected component against the [OSV vulnerability database](https://osv.dev/). You see immediately whether your machine image ships a library with known CVEs — before you deliver.
 
 ## Quick start
 
@@ -27,7 +27,7 @@ That's it. Your first SBOM in under three minutes. Also available via [Scoop (Wi
 
 ### Industrial PC on a machine tool
 
-Your machining center ships with a Windows IPC running your HMI, OPC UA server, drivers, and various utilities. Nobody has a complete list of what's installed. Copy the kunnus binary to a USB stick, plug it into the IPC, and run:
+Your machining center ships with a Windows IPC running your HMI, OPC UA server, drivers, and various utilities. Nobody has a complete list of what's installed. Copy the kunnus-scanner binary to a USB stick, plug it into the IPC, and run:
 
 ```shell
 kunnus sbom --include-os --format spdx-2-3 --output machine-x200.spdx.json
@@ -37,7 +37,7 @@ You get a complete inventory — every installed program, every library, every O
 
 ### Automated CI/CD pipeline for IoT devices
 
-Your IoT gateway firmware is built in a CI/CD pipeline with weekly releases and dozens of open-source dependencies. A manually maintained SBOM is outdated the moment you create it. Integrate kunnus into your GitHub Actions workflow and every release gets a current SBOM automatically:
+Your IoT gateway firmware is built in a CI/CD pipeline with weekly releases and dozens of open-source dependencies. A manually maintained SBOM is outdated the moment you create it. Integrate kunnus-scanner into your GitHub Actions workflow and every release gets a current SBOM automatically:
 
 ```yaml
 - uses: think-ahead-technologies/kunnus-scanner/actions/sbom@main
@@ -54,7 +54,7 @@ Your IoT gateway firmware is built in a CI/CD pipeline with weekly releases and 
 
 ### AGVs and mobile robots
 
-AGVs with Linux-based navigation stacks, ROS middleware, and fleet management dashboards are clearly products with digital elements under the CRA. kunnus provides multi-arch Docker images (amd64/arm64), so you can scan directly on the ARM-based vehicle computer:
+AGVs with Linux-based navigation stacks, ROS middleware, and fleet management dashboards are clearly products with digital elements under the CRA. kunnus-scanner provides multi-arch Docker images (amd64/arm64), so you can scan directly on the ARM-based vehicle computer:
 
 ```shell
 docker run --rm -v /opt/agv-software:/scan \
