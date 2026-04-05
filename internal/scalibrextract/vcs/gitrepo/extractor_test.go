@@ -18,20 +18,20 @@ func TestExtractor_Extract(t *testing.T) {
 
 	tests := []extracttest.TestTableEntry{
 		{
-			Name: "Not a git dir",
+			Name: "Not_a_git_dir",
 			InputConfig: extracttest.ScanInputMockConfig{
 				Path: "testdata/example-not-git/.git",
 			},
 			WantErr: extracttest.ContainsErrStr{Str: "repository does not exist"},
 		},
 		{
-			Name: "example git",
+			Name: "example_git",
 			InputConfig: extracttest.ScanInputMockConfig{
 				Path: "testdata/example-git/.git",
 			},
 			WantPackages: []*extractor.Package{
 				{
-					Locations: []string{"testdata/example-git/.git"},
+					Location: extractor.LocationFromPath("testdata/example-git/.git"),
 					SourceCode: &extractor.SourceCodeIdentifier{
 						Commit: "862ac4bd2703b622e85f29f55a2fd8cd6caf8182",
 					},
@@ -39,7 +39,7 @@ func TestExtractor_Extract(t *testing.T) {
 			},
 		},
 		{
-			Name: "Clean git repository with no commits",
+			Name: "Clean_git_repository_with_no_commits",
 			InputConfig: extracttest.ScanInputMockConfig{
 				Path: "testdata/example-clean/.git",
 			},
