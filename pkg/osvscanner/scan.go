@@ -96,7 +96,6 @@ func getPlugins(defaultPlugins []string, accessors ExternalAccessors, actions Sc
 		actions.PluginsEnabled = append(actions.PluginsEnabled, packagedeprecation.Name)
 	}
 
-
 	plugins := scalibrplugin.Resolve(actions.PluginsEnabled, actions.PluginsDisabled, cfg)
 
 	configurePlugins(plugins, accessors, actions)
