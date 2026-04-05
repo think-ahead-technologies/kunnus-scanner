@@ -12,6 +12,7 @@
 ---
 
 [TestCommand/cyclonedx-1-4_format - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 No package sources found in the given directories
 Scanning ./testdata/no-packages
 
@@ -32,6 +33,7 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/cyclonedx-1-5_format - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 No package sources found in the given directories
 Scanning ./testdata/no-packages
 
@@ -74,6 +76,7 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/empty_directory_produces_no-package_warning - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 No package sources found in the given directories
 Scanning ./testdata/no-packages
 
@@ -116,6 +119,7 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/explicit_spdx-2-3_format - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 No package sources found in the given directories
 Scanning ./testdata/no-packages
 
@@ -158,6 +162,7 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/no-recursive_flag_is_accepted - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 No package sources found in the given directories
 Scanning ./testdata/no-packages
 
@@ -200,6 +205,7 @@ Scanning ./testdata/no-packages
 ---
 
 [TestCommand/quiet_flag_suppresses_summary_on_stderr - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
 
 ---
 
