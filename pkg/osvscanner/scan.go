@@ -20,7 +20,6 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/simplefileapi"
 	"github.com/google/osv-scalibr/fs"
 	"github.com/google/osv-scalibr/inventory"
-	"github.com/google/osv-scalibr/log"
 	"github.com/google/osv-scalibr/plugin"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	"github.com/google/osv-scanner/v2/internal/scalibrextract/filesystem/vendored"
@@ -32,6 +31,14 @@ import (
 )
 
 var ErrExtractorNotFound = errors.New("could not determine extractor suitable to this file")
+
+func logUnsafePlugins(plugins []plugin.Plugin) {
+	for _, plug := range plugins {
+		if plug.Requirements() != nil && plug.Requirements().AllowUnsafePlugins {
+			cmdlogger.Warnf("Warning: plugin %s can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.", plug.Name())
+		}
+	}
+}
 
 func configurePlugins(plugins []plugin.Plugin, accessors ExternalAccessors, actions ScannerActions) {
 	for _, plug := range plugins {
@@ -55,6 +62,13 @@ func getPlugins(defaultPlugins []string, accessors ExternalAccessors, actions Sc
 					},
 				},
 			},
+			{
+				Config: &cpb.PluginSpecificConfig_PythonRequirementsTransitive{
+					PythonRequirementsTransitive: &cpb.PythonRequirementsTransitiveConfig{
+						DepsDevRequirements: !actions.TransitiveScanning.NativeDataSource,
+					},
+				},
+			},
 		},
 	}
 
@@ -72,6 +86,14 @@ func getPlugins(defaultPlugins []string, accessors ExternalAccessors, actions Sc
 
 	if accessors.OSVDevClient == nil {
 		actions.PluginsDisabled = append(actions.PluginsDisabled, vendored.Name)
+	}
+
+	if actions.CallAnalysisStates["jar"] {
+		actions.PluginsEnabled = append(actions.PluginsEnabled, java.Name)
+	}
+
+	if actions.FlagDeprecatedPackages {
+		actions.PluginsEnabled = append(actions.PluginsEnabled, packagedeprecation.Name)
 	}
 
 	plugins := scalibrplugin.Resolve(actions.PluginsEnabled, actions.PluginsDisabled, cfg)
@@ -108,21 +130,6 @@ func scan(accessors ExternalAccessors, actions ScannerActions) (*inventory.Inven
 	// not mentioning them to avoid confusion since they're still in their infancy
 	if countNotEnrichers(plugins) == 0 {
 		return nil, errors.New("at least one extractor must be enabled")
-	}
-
-	if actions.CallAnalysisStates["jar"] {
-		plugins = append(plugins, java.NewDefault())
-	}
-
-	if actions.FlagDeprecatedPackages {
-		p, err := packagedeprecation.New(&cpb.PluginConfig{
-			UserAgent: actions.RequestUserAgent,
-		})
-		if err != nil {
-			log.Errorf("Failed to make packagedeprecation enricher: %v", err)
-		} else {
-			plugins = append(plugins, p)
-		}
 	}
 
 	scanner := scalibr.New()
@@ -213,21 +220,25 @@ SBOMLoop:
 		return nil, fmt.Errorf("failed to parse exclude patterns: %w", err)
 	}
 
+	capabilities := plugin.Capabilities{
+		DirectFS:           true,
+		RunningSystem:      true,
+		Network:            plugin.NetworkOnline,
+		OS:                 osCapability,
+		AllowUnsafePlugins: true,
+	}
+
+	if actions.CompareOffline {
+		capabilities.Network = plugin.NetworkOffline
+	}
+
+	filteredPlugins := append(plugin.FilterByCapabilities(plugins, &capabilities), gitDirectPlugin)
+	logUnsafePlugins(filteredPlugins)
+
 	// For each root, run scalibr's scan() once.
 	for root, paths := range rootMap {
-		capabilities := plugin.Capabilities{
-			DirectFS:      true,
-			RunningSystem: true,
-			Network:       plugin.NetworkOnline,
-			OS:            osCapability,
-		}
-
-		if actions.CompareOffline {
-			capabilities.Network = plugin.NetworkOffline
-		}
-
 		sr := scanner.Scan(context.Background(), &scalibr.ScanConfig{
-			Plugins:               append(plugin.FilterByCapabilities(plugins, &capabilities), gitDirectPlugin),
+			Plugins:               filteredPlugins,
 			Capabilities:          &capabilities,
 			ScanRoots:             fs.RealFSScanRoots(root),
 			PathsToExtract:        paths,
@@ -239,6 +250,7 @@ SBOMLoop:
 			Stats:                 &statsCollector,
 			ReadSymlinks:          false,
 			MaxInodes:             0,
+			StoreAbsolutePath:     true,
 			PrintDurationAnalysis: false,
 			ErrorOnFSErrors:       false,
 			ExplicitPlugins:       true,
@@ -284,14 +296,6 @@ SBOMLoop:
 				if criticalError {
 					return nil, errors.New("extraction failed on specified lockfile")
 				}
-			}
-		}
-
-		// todo: ideally we'd have scalibr make package locations absolute this via StoreAbsolutePath,
-		//  but currently that can break plugins that don't support absolute paths, like the pomxml enricher
-		for _, pkg := range sr.Inventory.Packages {
-			for i, loc := range pkg.Locations {
-				pkg.Locations[i] = filepath.Join(root, loc)
 			}
 		}
 
