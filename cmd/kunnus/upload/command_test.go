@@ -36,6 +36,7 @@ func newCaptureServer(t *testing.T, statusCode int) (*httptest.Server, *captured
 	captured := &capturedUpload{}
 
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		r.Body = http.MaxBytesReader(w, r.Body, 32<<20)
 		if err := r.ParseMultipartForm(32 << 20); err != nil {
 			http.Error(w, err.Error(), http.StatusBadRequest)
 			return
