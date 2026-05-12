@@ -17,6 +17,18 @@ on:
 permissions: {}
 
 jobs:
+  osv-scan:
+    permissions:
+      contents: read # to fetch code (actions/checkout)
+      security-events: write # for uploading SARIF files
+      actions: read
+    uses: google/osv-scanner-action/.github/workflows/osv-scanner-reusable.yml@main
+    with:
+      # Only scan the top level go.mod file without recursively scanning directories since
+      # this pipeline is about releasing the go module and binary
+      scan-args: |-
+        ./
+
   links:
     permissions:
       contents: read # to fetch code (actions/checkout)
@@ -52,7 +64,7 @@ jobs:
         with:
           persist-credentials: false
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -69,7 +81,7 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.commit }}
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -85,7 +97,7 @@ jobs:
         with:
           persist-credentials: false
       - run: scripts/build_test_images.sh
-      - uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: image-testdata-${{ github.run_number }}-${{ github.run_attempt }}
           path: cmd/osv-scanner/scan/image/testdata/*.tar
@@ -93,7 +105,6 @@ jobs:
   tests:
     permissions:
       contents: read # to fetch code (actions/checkout)
-      id-token: write # for codecov OIDC
     name: Run unit tests
     needs:
       - prepare_test_image_testdata
@@ -113,7 +124,7 @@ jobs:
           name: image-testdata-${{ github.run_number }}-${{ github.run_attempt }}
           path: cmd/osv-scanner/scan/image/testdata/
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -133,7 +144,7 @@ jobs:
           persist-credentials: false
           ref: ${{ inputs.commit }}
       - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        uses: actions/setup-go@4a3601121dd01d1626a1e23e37211e3254c1c06c # v6.4.0
         with:
           go-version-file: "go.mod"
           check-latest: true
@@ -151,6 +162,7 @@ jobs:
       - format
       - lint
       - tests
+      - osv-scan
     steps:
       - name: Print Scripts
         env:

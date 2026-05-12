@@ -72,7 +72,7 @@ func Name(pkg *extractor.Package) string {
 		return "stdlib"
 	}
 
-	// TODO: Move the normalization to another where matching logic happens.
+	// TODO: Move the normalization to another place where matching logic happens.
 	// Patch python package names to be normalized
 	if Ecosystem(pkg).Ecosystem == osvconstants.EcosystemPyPI {
 		// per https://peps.python.org/pep-0503/#normalized-names
@@ -119,6 +119,12 @@ func Ecosystem(pkg *extractor.Package) osvecosystem.Parsed {
 		}
 
 		eco = newEco
+	}
+
+	// If ecosystem is empty and the source code repo is set we set the ecosystem to GIT
+	// since it's likely that the vulnerabilities will be associated with the source code repo
+	if eco.Ecosystem == "" && pkg.SourceCode != nil {
+		eco = osvecosystem.MustParse("GIT")
 	}
 
 	// TODO(v2): SBOM special case, to be removed after PURL to ESI conversion within each extractor is complete

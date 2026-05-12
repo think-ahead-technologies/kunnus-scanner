@@ -30,7 +30,6 @@ import (
 	"github.com/google/osv-scalibr/guidedremediation/upgrade"
 	"github.com/google/osv-scanner/v2/internal/cmdlogger"
 	"github.com/google/osv-scanner/v2/internal/depsdev"
-	"github.com/google/osv-scanner/v2/internal/resolution/client"
 	"github.com/google/osv-scanner/v2/internal/version"
 	"github.com/urfave/cli/v3"
 	"golang.org/x/term"
@@ -88,7 +87,7 @@ func Command(stdout, _ io.Writer, _ *http.Client) *cli.Command {
 				Name:  "interactive",
 				Usage: "run in the interactive mode",
 				Action: func(_ context.Context, _ *cli.Command, b bool) error {
-					if b && !term.IsTerminal(int(os.Stdin.Fd())) {
+					if b && !term.IsTerminal(int(os.Stdin.Fd())) { //nolint:gosec // Fd() is safe to convert to int
 						return errors.New("interactive mode only to be run in a terminal")
 					}
 
@@ -254,7 +253,7 @@ func action(ctx context.Context, cmd *cli.Command, stdout io.Writer) error {
 	userAgent := "osv-scanner_fix/" + version.OSVVersion
 	switch cmd.String("data-source") {
 	case "deps.dev":
-		cl, err := client.NewDepsDevClient(depsdev.DepsdevAPI, userAgent)
+		cl, err := resolution.NewDepsDevClient(depsdev.DepsdevAPI, userAgent)
 		if err != nil {
 			return err
 		}
