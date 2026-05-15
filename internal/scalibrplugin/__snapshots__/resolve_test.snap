@@ -10,9 +10,12 @@ cve/cve-2023-38408
 cve/cve-2023-6019
 cve/cve-2024-2912
 dart/pubspec
+dotnet/csproj
 dotnet/depsjson
+dotnet/nugetcpm
 dotnet/packagesconfig
 dotnet/packageslockjson
+dotnet/pe
 erlang/mixlock
 filesystem/vendored
 go/binary
@@ -62,6 +65,7 @@ weakcredentials/winlocal
 
 [TestResolve_Annotators_Presets/artifact - 1]
 baseimage
+dotnet/pe
 go/binary
 java/archive
 javascript/nodemodules
@@ -99,6 +103,7 @@ weakcredentials/winlocal
 
 [TestResolve_Enrichers_Presets/artifact - 1]
 baseimage
+dotnet/pe
 go/binary
 java/archive
 javascript/nodemodules
@@ -125,6 +130,7 @@ vulnmatch/osvlocal
 
 [TestResolve_Extractors_Presets/artifact - 1]
 baseimage
+dotnet/pe
 go/binary
 java/archive
 javascript/nodemodules
@@ -144,7 +150,9 @@ vcs/gitrepo
 [TestResolve_Extractors_Presets/lockfile - 1]
 cpp/conanlock
 dart/pubspec
+dotnet/csproj
 dotnet/depsjson
+dotnet/nugetcpm
 dotnet/packagesconfig
 dotnet/packageslockjson
 erlang/mixlock

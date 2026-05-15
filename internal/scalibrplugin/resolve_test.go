@@ -22,6 +22,7 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/golang/gobinary"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/archive"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/pomxml"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/dotnetpe"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/requirements"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
@@ -515,6 +516,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -534,6 +536,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -559,6 +562,7 @@ func TestResolve_Extractors(t *testing.T) {
 			want: []string{
 				apk.Name,
 				baseimage.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -578,6 +582,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gitrepo.Name,
 				gobinary.Name,
