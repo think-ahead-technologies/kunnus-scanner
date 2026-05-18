@@ -34,13 +34,17 @@ The SBOM is written to stdout by default; use --output to save to a file.
 A human-readable summary is printed to stderr unless --quiet is set.
 
 Examples:
-   kunnus sbom                                  # scan current directory
-   kunnus sbom ./backend ./frontend             # scan multiple directories
-   kunnus sbom --output sbom.spdx.json          # save to file
-   kunnus sbom --format cyclonedx-1-5           # choose format
-   kunnus sbom --include-os                     # include OS-level packages
-   kunnus sbom --quiet --output sbom.spdx.json  # CI-friendly, no stderr output
-   kunnus sbom | jq '.packages | length'        # pipe to jq`,
+   kunnus sbom                                                 # scan current directory
+   kunnus sbom ./backend ./frontend                            # scan multiple directories
+   kunnus sbom --output sbom.spdx.json                         # save to file
+   kunnus sbom --format cyclonedx-1-5                          # choose format
+   kunnus sbom --include-os                                    # include OS-level packages
+   kunnus sbom --quiet --output sbom.spdx.json                 # CI-friendly, no stderr output
+   kunnus sbom --experimental-plugins dotnet/nugetcpm          # enable an additional extractor
+   kunnus sbom --experimental-disable-plugins directory        # disable an extractor
+   kunnus sbom --experimental-no-default-plugins \
+              --experimental-plugins lockfile                  # only run the lockfile preset
+   kunnus sbom | jq '.packages | length'                       # pipe to jq`,
 		Flags: []cli.Flag{
 			&cli.StringFlag{
 				Name:    "format",
@@ -82,6 +86,18 @@ Examples:
 				Name:  "include-os",
 				Usage: "include OS-level inventory (e.g. installed packages, patch level) in the SBOM",
 			},
+			&cli.StringSliceFlag{
+				Name:  "experimental-plugins",
+				Usage: "list of specific plugins and presets of plugins to enable in addition to the defaults",
+			},
+			&cli.StringSliceFlag{
+				Name:  "experimental-disable-plugins",
+				Usage: "list of specific plugins and presets of plugins to disable",
+			},
+			&cli.BoolFlag{
+				Name:  "experimental-no-default-plugins",
+				Usage: "disable default plugins, instead using only those enabled by --experimental-plugins",
+			},
 		},
 		Action: func(ctx context.Context, cmd *cli.Command) error {
 			return action(ctx, cmd, stdout, stderr, client)
@@ -109,8 +125,11 @@ func action(ctx context.Context, cmd *cli.Command, stdout, stderr io.Writer, cli
 		CompareOffline:  cmd.Bool("offline-vulnerabilities"),
 		ShowAllPackages: cmd.Bool("all-packages"),
 		ExperimentalScannerActions: osvscanner.ExperimentalScannerActions{
-			HTTPClient:       client,
-			RequestUserAgent: "kunnus_sbom/" + kversion.KunnusVersion,
+			HTTPClient:        client,
+			RequestUserAgent:  "kunnus_sbom/" + kversion.KunnusVersion,
+			PluginsEnabled:    cmd.StringSlice("experimental-plugins"),
+			PluginsDisabled:   cmd.StringSlice("experimental-disable-plugins"),
+			PluginsNoDefaults: cmd.Bool("experimental-no-default-plugins"),
 		},
 	}
 

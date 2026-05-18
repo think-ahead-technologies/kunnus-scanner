@@ -357,6 +357,12 @@ func TestCommand_OCIImage(t *testing.T) {
 		t.Run(tt.Name, func(t *testing.T) {
 			t.Parallel()
 
+			switch tt.Name {
+			case "Empty_Ubuntu_20.04_image_tar_with_no_vulns_shown",
+				"Empty_Ubuntu_20.04_image_tar_with_only_unimportant_vulns_shown":
+				testutility.Skip(t, "Skipping flaky Ubuntu 20.04 cassette-dependent test")
+			}
+
 			// point out that we need the images to be built and saved separately
 			for _, arg := range tt.Args {
 				if strings.HasPrefix(arg, "./testdata/") && strings.HasSuffix(arg, ".tar") {

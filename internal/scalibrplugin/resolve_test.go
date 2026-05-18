@@ -18,6 +18,7 @@ import (
 	"github.com/google/osv-scalibr/enricher/baseimage"
 	transitivedependencypomxml "github.com/google/osv-scalibr/enricher/transitivedependency/pomxml"
 	transitivedependencyrequirements "github.com/google/osv-scalibr/enricher/transitivedependency/requirements"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/dotnetpe"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/packageslockjson"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/golang/gobinary"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/archive"
@@ -515,6 +516,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -534,6 +536,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -559,6 +562,7 @@ func TestResolve_Extractors(t *testing.T) {
 			want: []string{
 				apk.Name,
 				baseimage.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gobinary.Name,
 				nodemodules.Name,
@@ -578,6 +582,7 @@ func TestResolve_Extractors(t *testing.T) {
 				archive.Name,
 				baseimage.Name,
 				cargoauditable.Name,
+				dotnetpe.Name,
 				dpkg.Name,
 				gitrepo.Name,
 				gobinary.Name,

@@ -147,6 +147,26 @@ func TestCommand(t *testing.T) {
 			args: []string{"kunnus", "--quiet", "sbom", "./testdata/no-packages"},
 			exit: 0,
 		},
+		{
+			name: "experimental-plugins flag is accepted",
+			args: []string{"kunnus", "sbom", "--experimental-plugins=dotnet/nugetcpm", "./testdata/no-packages"},
+			exit: 0,
+		},
+		{
+			name: "experimental-disable-plugins flag is accepted",
+			args: []string{"kunnus", "sbom", "--experimental-disable-plugins=directory", "./testdata/no-packages"},
+			exit: 0,
+		},
+		{
+			name: "no-default-plugins with explicit lockfile preset is accepted",
+			args: []string{"kunnus", "sbom", "--experimental-no-default-plugins", "--experimental-plugins=lockfile", "./testdata/no-packages"},
+			exit: 0,
+		},
+		{
+			name: "no-default-plugins without any enabled plugins errors",
+			args: []string{"kunnus", "sbom", "--experimental-no-default-plugins", "./testdata/no-packages"},
+			exit: 2,
+		},
 	}
 
 	for _, tc := range tests {

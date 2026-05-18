@@ -84,6 +84,92 @@ Scanning ./testdata/no-packages
 
 ---
 
+[TestCommand/experimental-disable-plugins_flag_is_accepted - 1]
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SCALIBR-generated SPDX",
+  "documentNamespace": "https://spdx.google/uuid-placeholder-0",
+  "creationInfo": {
+    "creators": [
+      "Tool: SCALIBR"
+    ],
+    "created": "<TIMESTAMP>"
+  },
+  "packages": [
+    {
+      "name": "main",
+      "SPDXID": "SPDXRef-Package-main-uuid-placeholder-1",
+      "versionInfo": "0",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-main-uuid-placeholder-1",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}
+
+---
+
+[TestCommand/experimental-disable-plugins_flag_is_accepted - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
+No package sources found in the given directories
+Scanning ./testdata/no-packages
+
+  No package sources found.
+
+---
+
+[TestCommand/experimental-plugins_flag_is_accepted - 1]
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SCALIBR-generated SPDX",
+  "documentNamespace": "https://spdx.google/uuid-placeholder-0",
+  "creationInfo": {
+    "creators": [
+      "Tool: SCALIBR"
+    ],
+    "created": "<TIMESTAMP>"
+  },
+  "packages": [
+    {
+      "name": "main",
+      "SPDXID": "SPDXRef-Package-main-uuid-placeholder-1",
+      "versionInfo": "0",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-main-uuid-placeholder-1",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}
+
+---
+
+[TestCommand/experimental-plugins_flag_is_accepted - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
+No package sources found in the given directories
+Scanning ./testdata/no-packages
+
+  No package sources found.
+
+---
+
 [TestCommand/explicit_spdx-2-3_format - 1]
 {
   "spdxVersion": "SPDX-2.3",
@@ -124,6 +210,58 @@ No package sources found in the given directories
 Scanning ./testdata/no-packages
 
   No package sources found.
+
+---
+
+[TestCommand/no-default-plugins_with_explicit_lockfile_preset_is_accepted - 1]
+{
+  "spdxVersion": "SPDX-2.3",
+  "dataLicense": "CC0-1.0",
+  "SPDXID": "SPDXRef-DOCUMENT",
+  "name": "SCALIBR-generated SPDX",
+  "documentNamespace": "https://spdx.google/uuid-placeholder-0",
+  "creationInfo": {
+    "creators": [
+      "Tool: SCALIBR"
+    ],
+    "created": "<TIMESTAMP>"
+  },
+  "packages": [
+    {
+      "name": "main",
+      "SPDXID": "SPDXRef-Package-main-uuid-placeholder-1",
+      "versionInfo": "0",
+      "supplier": "NOASSERTION",
+      "downloadLocation": "NOASSERTION",
+      "filesAnalyzed": false
+    }
+  ],
+  "relationships": [
+    {
+      "spdxElementId": "SPDXRef-DOCUMENT",
+      "relatedSpdxElement": "SPDXRef-Package-main-uuid-placeholder-1",
+      "relationshipType": "DESCRIBES"
+    }
+  ]
+}
+
+---
+
+[TestCommand/no-default-plugins_with_explicit_lockfile_preset_is_accepted - 2]
+Warning: plugin transitivedependency/pomxml can be risky when run on untrusted artifacts. Please ensure you trust the source code and artifacts before proceeding.
+No package sources found in the given directories
+Scanning ./testdata/no-packages
+
+  No package sources found.
+
+---
+
+[TestCommand/no-default-plugins_without_any_enabled_plugins_errors - 1]
+
+---
+
+[TestCommand/no-default-plugins_without_any_enabled_plugins_errors - 2]
+at least one extractor must be enabled
 
 ---
 

@@ -327,6 +327,7 @@ Package Ubuntu:20.04/gcc-10/10.5.0-1ubuntu1~20.04 has been filtered out because:
 Package Ubuntu:20.04/libgcrypt20/1.8.5-5ubuntu1.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/gnutls28/3.6.13-2ubuntu1.12 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/lz4/1.9.2-2ubuntu0.20.04.1 has been filtered out because: Just want to test only unimportant vulns
+Package Ubuntu:20.04/xz-utils/5.2.4-1ubuntu1.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/util-linux/2.34-0.1ubuntu9.6 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
@@ -348,14 +349,15 @@ Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just 
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/shadow/1:4.8.1-1ubuntu5.20.04.5 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/perl/5.30.0-9ubuntu0.5 has been filtered out because: Just want to test only unimportant vulns
+Package Ubuntu:20.04/sed/4.7-1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/tar/1.30+dfsg-7ubuntu0.20.04.4 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/util-linux/2.34-0.1ubuntu9.6 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/zlib/1:1.2.11.dfsg-2ubuntu1.5 has been filtered out because: Just want to test only unimportant vulns
-Filtered 38 ignored package/s from the scan.
+Filtered 40 ignored package/s from the scan.
 
 
 Container Scanning Result (Ubuntu 20.04.6 LTS) (Based on "ubuntu" image):
-Total 1 package affected by 1 known vulnerability (0 Critical, 0 High, 0 Medium, 0 Low, 1 Unknown) from 1 ecosystem.
+Total 1 package affected by 1 known vulnerability (0 Critical, 0 High, 1 Medium, 0 Low, 0 Unknown) from 1 ecosystem.
 0 vulnerabilities can be fixed.
 
 
@@ -394,6 +396,7 @@ Package Ubuntu:20.04/gcc-10/10.5.0-1ubuntu1~20.04 has been filtered out because:
 Package Ubuntu:20.04/libgcrypt20/1.8.5-5ubuntu1.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/gnutls28/3.6.13-2ubuntu1.12 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/lz4/1.9.2-2ubuntu0.20.04.1 has been filtered out because: Just want to test only unimportant vulns
+Package Ubuntu:20.04/xz-utils/5.2.4-1ubuntu1.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/util-linux/2.34-0.1ubuntu9.6 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
@@ -415,14 +418,15 @@ Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just 
 Package Ubuntu:20.04/ncurses/6.2-0ubuntu2.1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/shadow/1:4.8.1-1ubuntu5.20.04.5 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/perl/5.30.0-9ubuntu0.5 has been filtered out because: Just want to test only unimportant vulns
+Package Ubuntu:20.04/sed/4.7-1 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/tar/1.30+dfsg-7ubuntu0.20.04.4 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/util-linux/2.34-0.1ubuntu9.6 has been filtered out because: Just want to test only unimportant vulns
 Package Ubuntu:20.04/zlib/1:1.2.11.dfsg-2ubuntu1.5 has been filtered out because: Just want to test only unimportant vulns
-Filtered 38 ignored package/s from the scan.
+Filtered 40 ignored package/s from the scan.
 
 
 Container Scanning Result (Ubuntu 20.04.6 LTS) (Based on "ubuntu" image):
-Total 1 package affected by 1 known vulnerability (0 Critical, 0 High, 0 Medium, 0 Low, 1 Unknown) from 1 ecosystem.
+Total 1 package affected by 1 known vulnerability (0 Critical, 0 High, 1 Medium, 0 Low, 0 Unknown) from 1 ecosystem.
 0 vulnerabilities can be fixed.
 
 
@@ -456,7 +460,7 @@ Scanning local image tarball "./testdata/test-ubuntu.tar"
 
 
 Container Scanning Result (Ubuntu 22.04.5 LTS) (Based on "ubuntu" image):
-Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 25 Medium, 3 Low, 3 Unknown) from 1 ecosystem.
+Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 26 Medium, 3 Low, 2 Unknown) from 1 ecosystem.
 25 vulnerabilities can be fixed.
 
 
@@ -506,7 +510,7 @@ Scanning local image tarball "./testdata/test-ubuntu.tar"
 
 
 Container Scanning Result (Ubuntu 22.04.5 LTS) (Based on "ubuntu" image):
-Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 25 Medium, 3 Low, 3 Unknown) from 1 ecosystem.
+Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 26 Medium, 3 Low, 2 Unknown) from 1 ecosystem.
 25 vulnerabilities can be fixed.
 
 
@@ -575,7 +579,7 @@ Scanning local image tarball "./testdata/test-ubuntu-with-packages.tar"
 
 
 Container Scanning Result (Ubuntu 22.04.5 LTS) (Based on "ubuntu" image):
-Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 25 Medium, 3 Low, 3 Unknown) from 1 ecosystem.
+Total 23 packages affected by 50 known vulnerabilities (3 Critical, 16 High, 26 Medium, 3 Low, 2 Unknown) from 1 ecosystem.
 25 vulnerabilities can be fixed.
 
 
