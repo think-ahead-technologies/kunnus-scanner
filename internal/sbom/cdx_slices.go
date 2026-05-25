@@ -74,9 +74,9 @@ func mergeExternalRefs(dst, src *[]cyclonedx.ExternalReference) *[]cyclonedx.Ext
 	return dst
 }
 
-// appendHashes folds src into dst, deduplicating on (Algorithm, Value). dst
+// mergeHashes folds src into dst, deduplicating on (Algorithm, Value). dst
 // nil + src non-nil produces a fresh slice.
-func appendHashes(dst, src *[]cyclonedx.Hash) *[]cyclonedx.Hash {
+func mergeHashes(dst, src *[]cyclonedx.Hash) *[]cyclonedx.Hash {
 	if src == nil {
 		return dst
 	}

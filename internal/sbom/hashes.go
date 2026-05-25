@@ -33,7 +33,7 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 			Algorithm: algorithmToCDX(h.Algorithm),
 			Value:     h.Hex,
 		}
-		c.Hashes = appendHashes(c.Hashes, &[]cyclonedx.Hash{cdxHash})
+		c.Hashes = mergeHashes(c.Hashes, &[]cyclonedx.Hash{cdxHash})
 
 		// BSI v2.1 §5.2.2 requires the deployable hash to live on an
 		// externalReference of type "distribution" or "distribution-intake".

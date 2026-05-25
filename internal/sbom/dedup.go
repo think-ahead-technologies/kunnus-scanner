@@ -66,7 +66,7 @@ func mergeInto(dst, src *cyclonedx.Component) {
 	dst.Evidence = mergeEvidence(dst.Evidence, src.Evidence)
 	dst.Properties = mergePropertiesByName(dst.Properties, src.Properties)
 	dst.ExternalReferences = mergeExternalRefs(dst.ExternalReferences, src.ExternalReferences)
-	dst.Hashes = appendHashes(dst.Hashes, src.Hashes)
+	dst.Hashes = mergeHashes(dst.Hashes, src.Hashes)
 }
 
 // mergeEvidence folds src into dst, deduplicating occurrences by location+symbol.
