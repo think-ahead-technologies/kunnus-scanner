@@ -4,6 +4,7 @@ package sbom
 
 import (
 	"net/url"
+	"regexp"
 	"strings"
 )
 
@@ -61,8 +62,86 @@ func cpeFromPURL(rawPURL string) string {
 	if v == "" {
 		v = "*"
 	}
-	return formatCPE23(part, vendor, product, v)
+	out := formatCPE23(part, vendor, product, v)
+	// Defensive: if a future ecosystem mapping ever produces a malformed
+	// CPE, drop it rather than emit garbage into the SBOM.
+	if !isValidCPE23(out) {
+		return ""
+	}
+	return out
 }
+
+// isValidCPE23 reports whether s matches the CPE 2.3 formatted-string grammar
+// defined in NIST IR 7695 section 6.2. The check is structural plus a
+// per-field character allow-list — sufficient to catch malformed output we
+// might generate, not a substitute for the official MITRE reference parser.
+func isValidCPE23(s string) bool {
+	if !strings.HasPrefix(s, "cpe:2.3:") {
+		return false
+	}
+
+	// 13 colon-separated fields total: "cpe", "2.3", part, plus 10 component
+	// fields. Splitting naively works because we never emit unescaped colons
+	// (cpeField substitutes them), and properly escaped colons in input
+	// (\:) survive Split because we don't have any in our codepath.
+	parts := splitCPEFields(s)
+	if len(parts) != 13 {
+		return false
+	}
+	if parts[0] != "cpe" || parts[1] != "2.3" {
+		return false
+	}
+	switch parts[2] {
+	case "a", "o", "h", "*", "-":
+	default:
+		return false
+	}
+	for _, f := range parts[3:] {
+		if !cpe23FieldRe.MatchString(f) {
+			return false
+		}
+	}
+	return true
+}
+
+// splitCPEFields splits a CPE 2.3 formatted string on unescaped ":" boundaries.
+// A "\:" sequence is treated as a literal colon inside a field, not a separator.
+func splitCPEFields(s string) []string {
+	var out []string
+	var cur strings.Builder
+	escape := false
+	for _, r := range s {
+		switch {
+		case escape:
+			cur.WriteRune('\\')
+			cur.WriteRune(r)
+			escape = false
+		case r == '\\':
+			escape = true
+		case r == ':':
+			out = append(out, cur.String())
+			cur.Reset()
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	if escape {
+		// trailing backslash — leave as-is for the regex to reject
+		cur.WriteRune('\\')
+	}
+	out = append(out, cur.String())
+	return out
+}
+
+// cpe23FieldRe accepts any single CPE 2.3 component value:
+//   - "*" (ANY) or "-" (NA) alone, or
+//   - a body composed of unreserved chars (letters, digits, ., -, _, ~, %),
+//     standalone wildcards (* or ?), or escape sequences (\ + special char).
+//
+// Whitespace and control characters are rejected.
+var cpe23FieldRe = regexp.MustCompile(
+	`^(?:[*-]|(?:\\[!-/:-@\[-` + "`" + `{-~]|[A-Za-z0-9._\-~%*?])+)$`,
+)
 
 // goVendorProduct picks vendor and product from a Go module path.
 //

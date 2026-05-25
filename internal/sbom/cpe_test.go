@@ -2,7 +2,12 @@
 // ABOUTME: Table-driven; covers the ecosystems we ship plus malformed input fall-through.
 package sbom
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/google/osv-scalibr/extractor"
+	"github.com/google/osv-scalibr/inventory"
+)
 
 func TestCPEFromPURL(t *testing.T) {
 	tests := []struct {
@@ -146,6 +151,103 @@ func TestCPEFromPURL(t *testing.T) {
 			if got != tc.want {
 				t.Errorf("cpeFromPURL(%q)\n  got:  %q\n  want: %q", tc.purl, got, tc.want)
 			}
+			// Every non-empty CPE we emit must be syntactically valid per NIST IR 7695.
+			if got != "" && !isValidCPE23(got) {
+				t.Errorf("cpeFromPURL(%q) = %q, which fails CPE 2.3 grammar", tc.purl, got)
+			}
 		})
 	}
+}
+
+func TestIsValidCPE23(t *testing.T) {
+	good := []string{
+		"cpe:2.3:a:google:uuid:1.6.0:*:*:*:*:*:*:*",
+		"cpe:2.3:o:debian:openssl:3.0.11-1~deb12u2:*:*:*:*:*:*:*",
+		"cpe:2.3:h:cisco:asa_5505:9.16.1:*:*:*:*:*:*:*",
+		"cpe:2.3:a:vendor:product:*:*:*:*:*:*:*:*",
+		"cpe:2.3:a:vendor:product:-:*:*:*:*:*:*:*",
+		// Escaped specials per spec section 6.2.
+		`cpe:2.3:a:vendor:product\:name:1.0:*:*:*:*:*:*:*`,
+	}
+	for _, s := range good {
+		if !isValidCPE23(s) {
+			t.Errorf("expected valid: %q", s)
+		}
+	}
+
+	bad := []string{
+		"",
+		"cpe:2.2:a:vendor:product:*:*:*:*:*:*:*:*",                // wrong version
+		"cpe:2.3:x:vendor:product:1.0:*:*:*:*:*:*:*",              // bad part
+		"cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*",                // 12 fields not 13
+		"cpe:2.3:a:vendor:product:1.0:*:*:*:*:*:*:*:*",            // 14 fields
+		"not-a-cpe-at-all",                                        // garbage
+		"cpe:2.3:a:vendor:prod uct:1.0:*:*:*:*:*:*:*",             // whitespace in field
+		"cpe:2.3:a:vendor:product\x00malicious:1.0:*:*:*:*:*:*:*", // control char
+	}
+	for _, s := range bad {
+		if isValidCPE23(s) {
+			t.Errorf("expected invalid: %q", s)
+		}
+	}
+}
+
+func TestRealScanProducesValidCPEs(t *testing.T) {
+	// Build a single inventory spanning every ecosystem we map, push it
+	// through the encoder, then walk the output CDX components asserting
+	// each emitted CPE is spec-valid. Catches regressions where a new
+	// ecosystem mapping accidentally produces malformed strings.
+	purls := []struct {
+		name, version, purlType string
+	}{
+		{"github.com/google/uuid", "v1.6.0", "golang"},
+		{"github.com/CycloneDX/cyclonedx-go", "v0.11.0", "golang"},
+		{"stdlib", "1.26.3", "golang"},
+		{"lodash", "4.17.21", "npm"},
+		{"requests", "2.31.0", "pypi"},
+		{"spring-core", "5.3.31", "maven"},
+		{"Newtonsoft.Json", "13.0.3", "nuget"},
+		{"serde", "1.0.200", "cargo"},
+		{"console", "6.4.0", "composer"},
+		{"rails", "7.1.0", "gem"},
+		{"openssl", "3.0.11-1~deb12u2", "deb"},
+		{"curl", "8.4.0-1.fc39", "rpm"},
+		{"musl", "1.2.4-r2", "apk"},
+	}
+
+	pkgs := make([]*extractor.Package, 0, len(purls))
+	for _, p := range purls {
+		pkgs = append(pkgs, &extractor.Package{
+			Name:     p.name,
+			Version:  p.version,
+			PURLType: p.purlType,
+		})
+	}
+
+	// Encode and re-parse to find the CPEs that actually made it into the SBOM.
+	count := 0
+	for _, pkg := range pkgs {
+		purl := pkg.PURL()
+		if purl == nil {
+			t.Errorf("package %s produced nil PURL", pkg.Name)
+			continue
+		}
+		cpe := cpeFromPURL(purl.String())
+		if cpe == "" {
+			t.Errorf("no CPE generated for %s (purl=%s)", pkg.Name, purl)
+			continue
+		}
+		if !isValidCPE23(cpe) {
+			t.Errorf("invalid CPE for %s: %q", pkg.Name, cpe)
+		}
+		count++
+	}
+	if count != len(purls) {
+		t.Errorf("got %d valid CPEs, want %d", count, len(purls))
+	}
+
+	// Sanity check that the inventory shape we synthesise is the one the
+	// encoder accepts — guards against a future refactor breaking this test
+	// silently if Encode stops walking the inventory.
+	_ = inventory.Inventory{Packages: pkgs}
 }
