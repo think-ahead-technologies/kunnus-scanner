@@ -72,9 +72,9 @@ func TestPlan_EveryShippedPluginResolves(t *testing.T) {
 	root := t.TempDir()
 	for _, marker := range []string{
 		"package.json", "go.mod", "Cargo.toml", "MyApp.csproj",
-		"pom.xml", "build.gradle", "pyproject.toml",
+		"pom.xml", "build.gradle", "pyproject.toml", "uv.lock",
 		"composer.json", "Gemfile", "Package.resolved", "cabal.project.freeze",
-		"renv.lock",
+		"renv.lock", "conan.lock",
 	} {
 		writeFile(t, filepath.Join(root, marker), "")
 	}

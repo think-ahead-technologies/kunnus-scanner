@@ -61,6 +61,25 @@ func TestEcosystems(t *testing.T) {
 			want:  []string{"python"},
 		},
 		{
+			// uv.lock alone is a complete signal — Astral's uv ships only a
+			// lockfile; many real repos commit it without pyproject.toml.
+			name:  "python uv-only project",
+			files: []string{"uv.lock"},
+			want:  []string{"python"},
+		},
+		{
+			// conan.lock or a conanfile signals a C/C++ project using Conan.
+			// Both extensions of the conanfile (.txt and .py) count.
+			name:  "cpp conan project",
+			files: []string{"conanfile.py", "conan.lock"},
+			want:  []string{"cpp"},
+		},
+		{
+			name:  "cpp conanfile.txt only",
+			files: []string{"conanfile.txt"},
+			want:  []string{"cpp"},
+		},
+		{
 			name: "mixed monorepo",
 			files: []string{
 				"backend/go.mod",

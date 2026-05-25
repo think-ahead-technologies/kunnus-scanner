@@ -66,8 +66,10 @@ func ecosystemForFile(name string) string {
 		return "maven"
 	case "build.gradle", "build.gradle.kts", "gradle.lockfile":
 		return "gradle"
-	case "pyproject.toml", "poetry.lock", "pdm.lock", "pipfile.lock", "requirements.txt", "setup.py":
+	case "pyproject.toml", "poetry.lock", "pdm.lock", "pipfile.lock", "requirements.txt", "setup.py", "uv.lock":
 		return "python"
+	case "conan.lock", "conanfile.txt", "conanfile.py":
+		return "cpp"
 	case "composer.json", "composer.lock":
 		return "composer"
 	case "gemfile", "gemfile.lock":
