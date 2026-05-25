@@ -52,21 +52,21 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		component = mode.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",
-			Type:    "operating-system",
+			Type:    mode.ComponentTypeOS,
 		}
 	case "windows":
 		pluginNames = windowsPlugins()
 		component = mode.ComponentInfo{
 			Name:    "Windows",
 			Version: "",
-			Type:    "operating-system",
+			Type:    mode.ComponentTypeOS,
 		}
 	case "mac", "darwin":
 		pluginNames = macPlugins()
 		component = mode.ComponentInfo{
 			Name:    "macOS",
 			Version: "",
-			Type:    "operating-system",
+			Type:    mode.ComponentTypeOS,
 		}
 	default:
 		return nil, mode.ComponentInfo{}, fmt.Errorf("unsupported target OS %q", targetOS)

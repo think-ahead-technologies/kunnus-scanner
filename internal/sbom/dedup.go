@@ -1,4 +1,4 @@
-// ABOUTME: Merges CycloneDX components sharing a PURL into one entry with combined evidence.
+// ABOUTME: Stage: collapses CDX components sharing a PURL into one entry with combined evidence.
 // ABOUTME: Scalibr emits a separate component per extractor that finds a package; the spec asks for one.
 package sbom
 
@@ -69,6 +69,9 @@ func mergeInto(dst, src *cyclonedx.Component) {
 	dst.Hashes = appendHashes(dst.Hashes, src.Hashes)
 }
 
+// mergeEvidence folds src into dst, deduplicating occurrences by location+symbol.
+// Evidence-occurrence merging is dedup-specific; the generic CDX-slice helpers
+// in cdx_slices.go don't fit because EvidenceOccurrence isn't pointer-wrapped.
 func mergeEvidence(dst, src *cyclonedx.Evidence) *cyclonedx.Evidence {
 	if src == nil {
 		return dst
@@ -104,83 +107,4 @@ type occurrenceKey struct {
 
 func occKey(o cyclonedx.EvidenceOccurrence) occurrenceKey {
 	return occurrenceKey{location: o.Location, symbol: o.Symbol}
-}
-
-func mergePropertiesByName(dst, src *[]cyclonedx.Property) *[]cyclonedx.Property {
-	if src == nil {
-		return dst
-	}
-	if dst == nil {
-		out := make([]cyclonedx.Property, len(*src))
-		copy(out, *src)
-		return &out
-	}
-	seen := make(map[string]bool, len(*dst))
-	for _, p := range *dst {
-		seen[p.Name] = true
-	}
-	for _, p := range *src {
-		if seen[p.Name] {
-			continue
-		}
-		*dst = append(*dst, p)
-		seen[p.Name] = true
-	}
-	return dst
-}
-
-func mergeExternalRefs(dst, src *[]cyclonedx.ExternalReference) *[]cyclonedx.ExternalReference {
-	if src == nil {
-		return dst
-	}
-	if dst == nil {
-		out := make([]cyclonedx.ExternalReference, len(*src))
-		copy(out, *src)
-		return &out
-	}
-	type refKey struct {
-		url  string
-		kind cyclonedx.ExternalReferenceType
-	}
-	seen := make(map[refKey]bool, len(*dst))
-	for _, r := range *dst {
-		seen[refKey{r.URL, r.Type}] = true
-	}
-	for _, r := range *src {
-		k := refKey{r.URL, r.Type}
-		if seen[k] {
-			continue
-		}
-		*dst = append(*dst, r)
-		seen[k] = true
-	}
-	return dst
-}
-
-func appendHashes(dst, src *[]cyclonedx.Hash) *[]cyclonedx.Hash {
-	if src == nil {
-		return dst
-	}
-	if dst == nil {
-		out := make([]cyclonedx.Hash, len(*src))
-		copy(out, *src)
-		return &out
-	}
-	type hashKey struct {
-		alg cyclonedx.HashAlgorithm
-		val string
-	}
-	seen := make(map[hashKey]bool, len(*dst))
-	for _, h := range *dst {
-		seen[hashKey{h.Algorithm, h.Value}] = true
-	}
-	for _, h := range *src {
-		k := hashKey{h.Algorithm, h.Value}
-		if seen[k] {
-			continue
-		}
-		*dst = append(*dst, h)
-		seen[k] = true
-	}
-	return dst
 }

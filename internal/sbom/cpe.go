@@ -1,4 +1,4 @@
-// ABOUTME: Heuristic CPE 2.3 generation from PURLs.
+// ABOUTME: Stage: synthesises CPE 2.3 strings from PURLs for components scalibr left without one.
 // ABOUTME: Bridges the gap between our PURL-first SBOMs and legacy CPE-only vuln matchers.
 package sbom
 
@@ -6,7 +6,23 @@ import (
 	"net/url"
 	"regexp"
 	"strings"
+
+	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 )
+
+// injectCPEsCDX fills in Component.CPE for any component that has a PURL but
+// no CPE yet. Scalibr only emits CPEs for packages that came from a parsed
+// SBOM input; for everything else we synthesise one.
+func injectCPEsCDX(bom *cyclonedx.BOM) {
+	forEachComponent(bom, func(c *cyclonedx.Component) {
+		if c.CPE != "" || c.PackageURL == "" {
+			return
+		}
+		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
+			c.CPE = cpe
+		}
+	})
+}
 
 // cpeFromPURL returns a CPE 2.3 string derived from a PURL, or "" if the PURL
 // is malformed or empty. The mapping is heuristic and per-ecosystem — it aims

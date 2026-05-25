@@ -1,12 +1,15 @@
-// ABOUTME: Maps a scalibr Package to the BSI TR-03183-2 v2.1 component-properties set.
-// ABOUTME: Each property classifies how the component was sourced and what shape it has.
+// ABOUTME: BSI TR-03183-2 v2.1 component-property keys, classifier, and the applier shared by both enrichment stages.
+// ABOUTME: Both per-component enrichment and root-component enrichment write these properties.
 package sbom
 
-import "github.com/google/osv-scalibr/extractor"
+import (
+	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/osv-scalibr/extractor"
+)
 
-// BSI property keys defined by TR-03183-2 v2.1 §5.2.2. Values are the JSON
-// strings "true" or "false" — they're treated as text by both CDX and the
-// sbomqs evaluator, so we encode them as strings rather than booleans.
+// BSI property keys. Values are the JSON strings "true" or "false" — they're
+// treated as text by both CDX and the sbomqs evaluator, so we encode them as
+// strings rather than booleans.
 const (
 	bsiPropFilename   = "bsi:component:filename"
 	bsiPropExecutable = "bsi:component:executable"
@@ -14,7 +17,7 @@ const (
 	bsiPropStructured = "bsi:component:structured"
 )
 
-// bsiProperties returns the property map BSI v2.1 expects for a single
+// bsiProperties returns the property map BSI expects for a single
 // scalibr package. The filename key is omitted when no location is known —
 // callers must not emit an empty filename property.
 func bsiProperties(p *extractor.Package) map[string]string {
@@ -41,6 +44,37 @@ func bsiProperties(p *extractor.Package) map[string]string {
 		}
 	}
 	return out
+}
+
+// applyBSIProps writes the given property map onto the component, skipping
+// any property name the component already carries (caller wins over default).
+// A no-op when props is empty.
+func applyBSIProps(c *cyclonedx.Component, props map[string]string) {
+	if len(props) == 0 {
+		return
+	}
+	existing := map[string]bool{}
+	if c.Properties != nil {
+		for _, p := range *c.Properties {
+			existing[p.Name] = true
+		}
+	}
+	additions := make([]cyclonedx.Property, 0, len(props))
+	for name, value := range props {
+		if existing[name] {
+			continue
+		}
+		additions = append(additions, cyclonedx.Property{Name: name, Value: value})
+	}
+	if len(additions) == 0 {
+		return
+	}
+	if c.Properties == nil {
+		c.Properties = &additions
+		return
+	}
+	combined := append(*c.Properties, additions...)
+	c.Properties = &combined
 }
 
 // pluginClass captures the BSI form a given scalibr plugin produces:

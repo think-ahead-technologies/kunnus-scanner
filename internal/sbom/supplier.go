@@ -4,6 +4,31 @@ package sbom
 
 import "strings"
 
+// supplierEntry holds one supplier's display name and canonical URL.
+type supplierEntry struct {
+	Name string
+	URL  string
+}
+
+// purlSuppliers maps a PURL type to the function that derives a supplier
+// from that type's (namespace, name) pair. Adding an ecosystem is a one-line
+// map entry; the dispatcher (supplierFromPURL) doesn't change.
+var purlSuppliers = map[string]func(namespace, name string) (string, string){
+	"golang": goSupplier,
+	"npm":    npmSupplier,
+	"pypi":   func(_, name string) (string, string) { return name, "https://pypi.org/project/" + name + "/" },
+	"maven": func(ns, name string) (string, string) {
+		return ns, "https://central.sonatype.com/artifact/" + ns + "/" + name
+	},
+	"nuget":    func(_, name string) (string, string) { return name, "https://www.nuget.org/packages/" + name },
+	"cargo":    func(_, name string) (string, string) { return name, "https://crates.io/crates/" + name },
+	"composer": func(ns, name string) (string, string) { return ns, "https://packagist.org/packages/" + ns + "/" + name },
+	"gem":      func(_, name string) (string, string) { return name, "https://rubygems.org/gems/" + name },
+	"deb":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
+	"rpm":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
+	"apk":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
+}
+
 // supplierFromPURL returns a (name, url) pair identifying the conventional
 // supplier of the package described by the PURL. Returns ("", "") when no
 // confident derivation is possible — callers must omit Supplier in that case
@@ -13,36 +38,19 @@ func supplierFromPURL(rawPURL string) (string, string) {
 	if !ok {
 		return "", ""
 	}
-
-	switch t {
-	case "golang":
-		return goSupplier(namespace, name)
-	case "npm":
-		if strings.HasPrefix(namespace, "@") {
-			scope := strings.TrimPrefix(namespace, "@")
-			return namespace, "https://www.npmjs.com/org/" + scope
-		}
-		return name, "https://www.npmjs.com/package/" + name
-	case "pypi":
-		return name, "https://pypi.org/project/" + name + "/"
-	case "maven":
-		return namespace, "https://central.sonatype.com/artifact/" + namespace + "/" + name
-	case "nuget":
-		return name, "https://www.nuget.org/packages/" + name
-	case "cargo":
-		return name, "https://crates.io/crates/" + name
-	case "composer":
-		return namespace, "https://packagist.org/packages/" + namespace + "/" + name
-	case "gem":
-		return name, "https://rubygems.org/gems/" + name
-	case "deb":
-		return distroSupplier(namespace)
-	case "rpm":
-		return distroSupplier(namespace)
-	case "apk":
-		return distroSupplier(namespace)
+	fn, ok := purlSuppliers[t]
+	if !ok {
+		return "", ""
 	}
-	return "", ""
+	return fn(namespace, name)
+}
+
+func npmSupplier(namespace, name string) (string, string) {
+	if strings.HasPrefix(namespace, "@") {
+		scope := strings.TrimPrefix(namespace, "@")
+		return namespace, "https://www.npmjs.com/org/" + scope
+	}
+	return name, "https://www.npmjs.com/package/" + name
 }
 
 func goSupplier(namespace, name string) (string, string) {
@@ -67,35 +75,36 @@ func goSupplier(namespace, name string) (string, string) {
 	return segs[0], "https://" + segs[0]
 }
 
-// distroSupplier maps an OS distro identifier to a canonical supplier identity.
-// Unknown distros return ("", "") rather than guess; BSI prefers no claim to a
-// wrong claim.
+// distroSuppliers maps an OS distro identifier (and its known aliases) to a
+// canonical supplier identity. Aliases are explicit data — searching for
+// "Red Hat" surfaces every key that maps to it.
+var distroSuppliers = map[string]supplierEntry{
+	"ubuntu":    {"Canonical", "https://ubuntu.com"},
+	"debian":    {"Debian", "https://www.debian.org"},
+	"fedora":    {"Fedora Project", "https://fedoraproject.org"},
+	"centos":    {"CentOS Project", "https://www.centos.org"},
+	"rhel":      {"Red Hat", "https://www.redhat.com"},
+	"redhat":    {"Red Hat", "https://www.redhat.com"},
+	"rocky":     {"Rocky Enterprise Software Foundation", "https://rockylinux.org"},
+	"alma":      {"AlmaLinux OS Foundation", "https://almalinux.org"},
+	"almalinux": {"AlmaLinux OS Foundation", "https://almalinux.org"},
+	"suse":      {"SUSE", "https://www.suse.com"},
+	"sles":      {"SUSE", "https://www.suse.com"},
+	"opensuse":  {"SUSE", "https://www.suse.com"},
+	"alpine":    {"Alpine Linux", "https://alpinelinux.org"},
+	"arch":      {"Arch Linux", "https://archlinux.org"},
+	"gentoo":    {"Gentoo Foundation", "https://www.gentoo.org"},
+	"amzn":      {"Amazon", "https://aws.amazon.com/linux"},
+	"amazon":    {"Amazon", "https://aws.amazon.com/linux"},
+}
+
+// distroSupplier returns the canonical supplier for an OS distro identifier,
+// matching case-insensitively. Unknown distros return ("", "") rather than
+// guess; BSI prefers no claim to a wrong claim.
 func distroSupplier(distro string) (string, string) {
-	switch strings.ToLower(distro) {
-	case "ubuntu":
-		return "Canonical", "https://ubuntu.com"
-	case "debian":
-		return "Debian", "https://www.debian.org"
-	case "fedora":
-		return "Fedora Project", "https://fedoraproject.org"
-	case "centos":
-		return "CentOS Project", "https://www.centos.org"
-	case "rhel", "redhat":
-		return "Red Hat", "https://www.redhat.com"
-	case "rocky":
-		return "Rocky Enterprise Software Foundation", "https://rockylinux.org"
-	case "alma", "almalinux":
-		return "AlmaLinux OS Foundation", "https://almalinux.org"
-	case "suse", "sles", "opensuse":
-		return "SUSE", "https://www.suse.com"
-	case "alpine":
-		return "Alpine Linux", "https://alpinelinux.org"
-	case "arch":
-		return "Arch Linux", "https://archlinux.org"
-	case "gentoo":
-		return "Gentoo Foundation", "https://www.gentoo.org"
-	case "amzn", "amazon":
-		return "Amazon", "https://aws.amazon.com/linux"
+	s, ok := distroSuppliers[strings.ToLower(distro)]
+	if !ok {
+		return "", ""
 	}
-	return "", ""
+	return s.Name, s.URL
 }

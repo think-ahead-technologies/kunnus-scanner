@@ -47,12 +47,21 @@ type Overrides struct {
 	DisablePlugins []string
 }
 
+// Component type values for ComponentInfo.Type. These are the CycloneDX
+// `metadata.component.type` strings; we list them here because mode is the
+// canonical place that decides which type a scan produces.
+const (
+	ComponentTypeApplication = "application"
+	ComponentTypeOS          = "operating-system"
+	ComponentTypeFirmware    = "firmware"
+)
+
 // ComponentInfo describes the root component of the resulting SBOM.
-// SPDX puts this in the DocumentName; CycloneDX puts it in metadata.component.
+// CycloneDX puts this in metadata.component.
 type ComponentInfo struct {
 	Name    string
 	Version string
-	Type    string // "application" | "operating-system" | "firmware"
+	Type    string // one of ComponentType* constants above
 }
 
 // ApplyOverrides folds ov.EnablePlugins and ov.DisablePlugins into the given

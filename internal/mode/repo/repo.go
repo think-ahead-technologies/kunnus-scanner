@@ -69,6 +69,6 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 	return cfg, mode.ComponentInfo{
 		Name:    filepath.Base(abs),
 		Version: "",
-		Type:    "application",
+		Type:    mode.ComponentTypeApplication,
 	}, nil
 }
