@@ -13,6 +13,7 @@ import (
 	pl "github.com/google/osv-scalibr/plugin/list"
 
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
+	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
@@ -43,7 +44,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		ecosystems = intersect(ecosystems, ov.Ecosystems)
 	}
 
-	pluginNames := pluginsFor(ecosystems)
+	pluginNames := ecosystem.PluginsFor(ecosystems)
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
 	if len(pluginNames) == 0 {
