@@ -1,0 +1,151 @@
+// ABOUTME: Tests for cpeFromPURL: heuristic CPE 2.3 generation per ecosystem.
+// ABOUTME: Table-driven; covers the ecosystems we ship plus malformed input fall-through.
+package sbom
+
+import "testing"
+
+func TestCPEFromPURL(t *testing.T) {
+	tests := []struct {
+		name string
+		purl string
+		want string
+	}{
+		// Go modules: vendor from path segment after the host, product from last segment.
+		{
+			name: "go github vendor + product",
+			purl: "pkg:golang/github.com/google/uuid@v1.6.0",
+			want: "cpe:2.3:a:google:uuid:1.6.0:*:*:*:*:*:*:*",
+		},
+		{
+			name: "go nested path",
+			purl: "pkg:golang/github.com/CycloneDX/cyclonedx-go@v0.11.0",
+			want: "cpe:2.3:a:cyclonedx:cyclonedx-go:0.11.0:*:*:*:*:*:*:*",
+		},
+		{
+			name: "go deps.dev (no github prefix)",
+			purl: "pkg:golang/deps.dev/util/maven@0.0.0-20251104021112-20ad94767ddf",
+			want: "cpe:2.3:a:util:maven:0.0.0-20251104021112-20ad94767ddf:*:*:*:*:*:*:*",
+		},
+		{
+			name: "go stdlib",
+			purl: "pkg:golang/stdlib@1.26.3",
+			want: "cpe:2.3:a:golang:go:1.26.3:*:*:*:*:*:*:*",
+		},
+		{
+			name: "go single-segment module",
+			purl: "pkg:golang/example.com@1.0.0",
+			want: "cpe:2.3:a:example.com:example.com:1.0.0:*:*:*:*:*:*:*",
+		},
+
+		// npm: scope becomes vendor; unscoped uses product as vendor (NVD convention).
+		{
+			name: "npm scoped",
+			purl: "pkg:npm/%40babel/core@7.0.0",
+			want: "cpe:2.3:a:babel:core:7.0.0:*:*:*:*:*:*:*",
+		},
+		{
+			name: "npm unscoped",
+			purl: "pkg:npm/lodash@4.17.21",
+			want: "cpe:2.3:a:lodash:lodash:4.17.21:*:*:*:*:*:*:*",
+		},
+
+		// PyPI: vendor and product both equal the name (NVD convention for python packages).
+		{
+			name: "pypi",
+			purl: "pkg:pypi/requests@2.31.0",
+			want: "cpe:2.3:a:requests:requests:2.31.0:*:*:*:*:*:*:*",
+		},
+
+		// Maven: vendor from groupId last segment, product = artifactId.
+		{
+			name: "maven",
+			purl: "pkg:maven/org.springframework/spring-core@5.3.31",
+			want: "cpe:2.3:a:springframework:spring-core:5.3.31:*:*:*:*:*:*:*",
+		},
+
+		// NuGet: vendor and product equal the name.
+		{
+			name: "nuget",
+			purl: "pkg:nuget/Newtonsoft.Json@13.0.3",
+			want: "cpe:2.3:a:newtonsoft.json:newtonsoft.json:13.0.3:*:*:*:*:*:*:*",
+		},
+
+		// Cargo: vendor and product equal the crate name.
+		{
+			name: "cargo",
+			purl: "pkg:cargo/serde@1.0.200",
+			want: "cpe:2.3:a:serde:serde:1.0.200:*:*:*:*:*:*:*",
+		},
+
+		// Composer (PHP): namespace becomes vendor.
+		{
+			name: "composer",
+			purl: "pkg:composer/symfony/console@6.4.0",
+			want: "cpe:2.3:a:symfony:console:6.4.0:*:*:*:*:*:*:*",
+		},
+
+		// Gem: vendor and product equal the gem name.
+		{
+			name: "gem",
+			purl: "pkg:gem/rails@7.1.0",
+			want: "cpe:2.3:a:rails:rails:7.1.0:*:*:*:*:*:*:*",
+		},
+
+		// OS packages: distro becomes vendor, package name becomes product, part = "o".
+		{
+			name: "deb",
+			purl: "pkg:deb/debian/openssl@3.0.11-1~deb12u2",
+			want: "cpe:2.3:o:debian:openssl:3.0.11-1~deb12u2:*:*:*:*:*:*:*",
+		},
+		{
+			name: "rpm",
+			purl: "pkg:rpm/fedora/curl@8.4.0-1.fc39",
+			want: "cpe:2.3:o:fedora:curl:8.4.0-1.fc39:*:*:*:*:*:*:*",
+		},
+		{
+			name: "apk",
+			purl: "pkg:apk/alpine/musl@1.2.4-r2",
+			want: "cpe:2.3:o:alpine:musl:1.2.4-r2:*:*:*:*:*:*:*",
+		},
+
+		// Edge cases: empty or unparsable PURLs return empty string.
+		{
+			name: "empty",
+			purl: "",
+			want: "",
+		},
+		{
+			name: "not a purl",
+			purl: "github.com/foo/bar",
+			want: "",
+		},
+		{
+			name: "purl missing version",
+			purl: "pkg:golang/github.com/google/uuid",
+			want: "cpe:2.3:a:google:uuid:*:*:*:*:*:*:*:*",
+		},
+		{
+			name: "unknown type falls back to name=name",
+			purl: "pkg:weirdtype/foo@1.0",
+			want: "cpe:2.3:a:foo:foo:1.0:*:*:*:*:*:*:*",
+		},
+
+		// Special characters: CPE spec requires escaping `:` and `\` in fields. We
+		// substitute these with `*` since they're vanishingly rare in package names
+		// and proper escaping is rarely matched by downstream tools anyway.
+		{
+			name: "colon in version is replaced",
+			purl: "pkg:deb/debian/apt@2:1.0",
+			want: "cpe:2.3:o:debian:apt:2*1.0:*:*:*:*:*:*:*",
+		},
+	}
+
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := cpeFromPURL(tc.purl)
+			if got != tc.want {
+				t.Errorf("cpeFromPURL(%q)\n  got:  %q\n  want: %q", tc.purl, got, tc.want)
+			}
+		})
+	}
+}

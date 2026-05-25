@@ -1,0 +1,183 @@
+// ABOUTME: Heuristic CPE 2.3 generation from PURLs.
+// ABOUTME: Bridges the gap between our PURL-first SBOMs and legacy CPE-only vuln matchers.
+package sbom
+
+import (
+	"net/url"
+	"strings"
+)
+
+// cpeFromPURL returns a CPE 2.3 string derived from a PURL, or "" if the PURL
+// is malformed or empty. The mapping is heuristic and per-ecosystem — it aims
+// to match what syft and the NVD conventionally produce, not to be canonically
+// correct. Tools that want CPE accuracy beyond this should consult the NVD CPE
+// dictionary directly.
+//
+// PURL syntax we accept: pkg:<type>/<namespace>/.../<name>@<version>[?qualifiers]
+func cpeFromPURL(rawPURL string) string {
+	t, namespace, name, version, ok := parsePURL(rawPURL)
+	if !ok {
+		return ""
+	}
+
+	part := "a"
+	var vendor, product string
+
+	switch t {
+	case "golang":
+		vendor, product = goVendorProduct(namespace, name)
+		// NVD convention drops the Go "v" prefix from semver versions.
+		version = strings.TrimPrefix(version, "v")
+	case "npm":
+		if namespace != "" {
+			vendor = strings.TrimPrefix(namespace, "@")
+			product = name
+		} else {
+			vendor, product = name, name
+		}
+	case "pypi", "cargo", "gem", "nuget":
+		vendor, product = name, name
+	case "maven":
+		// Maven groupIds are dotted (e.g. "org.springframework"); the last
+		// dot-separated segment is the conventional vendor on the NVD.
+		vendor = lastDotSegment(namespace)
+		product = name
+	case "composer":
+		vendor = namespace
+		product = name
+	case "deb", "rpm", "apk", "alpm":
+		part = "o"
+		vendor = namespace
+		product = name
+	default:
+		vendor, product = name, name
+	}
+
+	if product == "" {
+		return ""
+	}
+
+	v := version
+	if v == "" {
+		v = "*"
+	}
+	return formatCPE23(part, vendor, product, v)
+}
+
+// goVendorProduct picks vendor and product from a Go module path.
+//
+// Rules:
+//   - "stdlib" is a sentinel for the Go standard library: vendor=golang, product=go
+//   - For hosts like "github.com" or "gitlab.com", the next segment is the vendor
+//     and the final segment is the product (e.g. github.com/google/uuid → google/uuid)
+//   - Otherwise the namespace's last segment is the vendor and the package name is
+//     the product (e.g. deps.dev/util/maven → util/maven)
+//   - Bare modules with no namespace use the module name as both vendor and product
+func goVendorProduct(namespace, name string) (string, string) {
+	if namespace == "" && name == "stdlib" {
+		return "golang", "go"
+	}
+	if namespace == "" {
+		return name, name
+	}
+	segs := strings.Split(namespace, "/")
+	// For github/gitlab/bitbucket-style hosts, the first segment is the host.
+	if len(segs) >= 2 && isCodeHost(segs[0]) {
+		return segs[1], name
+	}
+	return lastPathSegment(namespace), name
+}
+
+func isCodeHost(host string) bool {
+	switch host {
+	case "github.com", "gitlab.com", "bitbucket.org", "codeberg.org", "sr.ht":
+		return true
+	}
+	return false
+}
+
+func lastPathSegment(p string) string {
+	if p == "" {
+		return ""
+	}
+	segs := strings.Split(p, "/")
+	return segs[len(segs)-1]
+}
+
+func lastDotSegment(p string) string {
+	if p == "" {
+		return ""
+	}
+	segs := strings.Split(p, ".")
+	return segs[len(segs)-1]
+}
+
+// formatCPE23 assembles a CPE 2.3 formatted string. We substitute the few
+// characters that have special meaning in CPE 2.3 (`:` and `\`) rather than
+// escaping them properly — downstream tools rarely honour escapes, and these
+// characters almost never appear in package names. Versions occasionally
+// contain `:` (debian epochs), which we substitute with `*`.
+func formatCPE23(part, vendor, product, version string) string {
+	return "cpe:2.3:" + part + ":" + cpeField(vendor) + ":" + cpeField(product) + ":" + cpeField(version) + ":*:*:*:*:*:*:*"
+}
+
+func cpeField(s string) string {
+	if s == "" {
+		return "*"
+	}
+	s = strings.ToLower(s)
+	s = strings.ReplaceAll(s, ":", "*")
+	s = strings.ReplaceAll(s, "\\", "*")
+	return s
+}
+
+// parsePURL is a minimal PURL parser sufficient for our CPE-generation needs.
+// We do not validate every PURL spec quirk — we extract type, namespace, name,
+// and version. Qualifiers and subpaths are discarded.
+func parsePURL(raw string) (purlType, namespace, name, version string, ok bool) {
+	if !strings.HasPrefix(raw, "pkg:") {
+		return "", "", "", "", false
+	}
+	rest := strings.TrimPrefix(raw, "pkg:")
+
+	// Drop qualifiers and subpaths.
+	if i := strings.IndexAny(rest, "?#"); i >= 0 {
+		rest = rest[:i]
+	}
+
+	// Split version from the rest at the last "@" (since versions can't contain "@").
+	if at := strings.LastIndex(rest, "@"); at >= 0 {
+		version = decode(rest[at+1:])
+		rest = rest[:at]
+	}
+
+	// rest is now <type>/<namespace>/.../<name>
+	segs := strings.Split(rest, "/")
+	if len(segs) == 0 || segs[0] == "" {
+		return "", "", "", "", false
+	}
+	purlType = strings.ToLower(segs[0])
+	if len(segs) == 1 {
+		return "", "", "", "", false
+	}
+
+	pathSegs := segs[1:]
+	name = decode(pathSegs[len(pathSegs)-1])
+	if len(pathSegs) > 1 {
+		namespace = decode(strings.Join(pathSegs[:len(pathSegs)-1], "/"))
+	}
+	return purlType, namespace, name, version, name != ""
+}
+
+// decode percent-decodes a single PURL segment. Errors are swallowed since
+// PURL spec only allows a small set of percent-encoded characters; on failure
+// we fall back to the raw value.
+func decode(s string) string {
+	if !strings.Contains(s, "%") {
+		return s
+	}
+	if dec, err := url.QueryUnescape(s); err == nil {
+		return dec
+	}
+	return s
+}

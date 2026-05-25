@@ -12,6 +12,7 @@ import (
 	"github.com/google/osv-scalibr/converter/spdx"
 	"github.com/google/uuid"
 	"github.com/spdx/tools-golang/spdx/v2/common"
+	spdx23 "github.com/spdx/tools-golang/spdx/v2/v2_3"
 
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
@@ -62,12 +63,58 @@ func encodeSPDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) err
 	}
 
 	doc := converter.ToSPDX23(result.Inventory, cfg)
+	injectCPEsSPDX(doc)
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
 	if err := enc.Encode(doc); err != nil {
 		return fmt.Errorf("encode spdx: %w", err)
 	}
 	return nil
+}
+
+// injectCPEsSPDX adds a SECURITY/cpe23Type external reference to every package
+// that has a PURL but no existing CPE reference. Same rationale as the CDX
+// counterpart: scalibr only emits CPEs for SBOM-sourced packages.
+func injectCPEsSPDX(doc *spdx23.Document) {
+	if doc == nil {
+		return
+	}
+	for _, p := range doc.Packages {
+		if p == nil || hasCPERef(p) {
+			continue
+		}
+		purl := purlFromRefs(p)
+		if purl == "" {
+			continue
+		}
+		cpe := cpeFromPURL(purl)
+		if cpe == "" {
+			continue
+		}
+		p.PackageExternalReferences = append(p.PackageExternalReferences, &spdx23.PackageExternalReference{
+			Category: "SECURITY",
+			RefType:  "cpe23Type",
+			Locator:  cpe,
+		})
+	}
+}
+
+func hasCPERef(p *spdx23.Package) bool {
+	for _, r := range p.PackageExternalReferences {
+		if r != nil && r.RefType == "cpe23Type" {
+			return true
+		}
+	}
+	return false
+}
+
+func purlFromRefs(p *spdx23.Package) string {
+	for _, r := range p.PackageExternalReferences {
+		if r != nil && r.RefType == "purl" {
+			return r.Locator
+		}
+	}
+	return ""
 }
 
 func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) error {
@@ -83,10 +130,28 @@ func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) erro
 	}
 
 	bom := converter.ToCDX(result.Inventory, cfg)
+	injectCPEsCDX(bom)
 	encoder := cyclonedx.NewBOMEncoder(out, cyclonedx.BOMFileFormatJSON)
 	encoder.SetPretty(true)
 	if err := encoder.Encode(bom); err != nil {
 		return fmt.Errorf("encode cyclonedx: %w", err)
 	}
 	return nil
+}
+
+// injectCPEsCDX fills in Component.CPE for any component that has a PURL but
+// no CPE yet. Scalibr only emits CPEs for packages that came from a parsed
+// SBOM input; for everything else we synthesise one.
+func injectCPEsCDX(bom *cyclonedx.BOM) {
+	if bom == nil || bom.Components == nil {
+		return
+	}
+	for i, c := range *bom.Components {
+		if c.CPE != "" || c.PackageURL == "" {
+			continue
+		}
+		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
+			(*bom.Components)[i].CPE = cpe
+		}
+	}
 }

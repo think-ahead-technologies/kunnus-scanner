@@ -29,6 +29,41 @@ func sampleResult() *scan.Result {
 	}
 }
 
+func TestEncode_CycloneDX_HasCPE(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Encode(&buf, FormatCycloneDX15, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	comps, _ := doc["components"].([]any)
+	if len(comps) == 0 {
+		t.Fatal("no components in output")
+	}
+	got, _ := comps[0].(map[string]any)["cpe"].(string)
+	want := "cpe:2.3:a:stretchr:testify:1.8.0:*:*:*:*:*:*:*"
+	if got != want {
+		t.Errorf("CDX component cpe = %q, want %q", got, want)
+	}
+}
+
+func TestEncode_SPDX_HasCPEExternalRef(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Encode(&buf, FormatSPDX23, sampleResult(), mode.ComponentInfo{Name: "x"}); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	body := buf.String()
+	if !strings.Contains(body, `"referenceType": "cpe23Type"`) {
+		t.Error("SPDX output missing cpe23Type external reference")
+	}
+	if !strings.Contains(body, "cpe:2.3:a:stretchr:testify:1.8.0:") {
+		t.Errorf("SPDX output missing expected CPE string: %s", body)
+	}
+}
+
 func TestParseFormat(t *testing.T) {
 	for _, ok := range []string{"spdx-2-3", "cyclonedx-1-5"} {
 		if _, err := ParseFormat(ok); err != nil {
