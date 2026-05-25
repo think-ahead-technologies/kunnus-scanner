@@ -18,16 +18,32 @@ type Hash struct {
 	Hex       string
 }
 
-// Map is the canonical return type of every hash source: purl-string → Hash.
-// A zero-value Hash means we found no hash for that PURL.
-type Map map[string]Hash
+// Map is the canonical return type of every hash source: purl-string → []Hash.
+// One PURL can carry multiple digests because Python wheels, conda channels, and
+// container manifests publish one hash per distribution file. CDX components
+// natively accept multiple hashes — the slice round-trips into component.hashes[].
+type Map map[string][]Hash
 
-// Merge folds other into m. m wins on conflicts — callers compose sources in
-// trust order, most-trusted first.
+// Add appends h under purl, deduplicating on (Algorithm, Hex) so the slice
+// stays free of identical entries even when multiple lockfiles agree on the
+// same digest.
+func (m Map) Add(purl string, h Hash) {
+	for _, existing := range m[purl] {
+		if existing == h {
+			return
+		}
+	}
+	m[purl] = append(m[purl], h)
+}
+
+// Merge folds other into m, deduplicating on (Algorithm, Hex). Two sources
+// that publish the same digest for the same PURL collapse to one entry;
+// disagreeing digests both survive — surfacing the discrepancy in the SBOM
+// is more informative than silently dropping one.
 func (m Map) Merge(other Map) {
-	for k, v := range other {
-		if _, exists := m[k]; !exists {
-			m[k] = v
+	for k, hs := range other {
+		for _, h := range hs {
+			m.Add(k, h)
 		}
 	}
 }

@@ -53,10 +53,10 @@ func parseCargoLock(path string) (hashes.Map, error) {
 		if _, err := hex.DecodeString(p.Checksum); err != nil {
 			continue
 		}
-		out[cargoPURL(p.Name, p.Version)] = hashes.Hash{
+		out.Add(cargoPURL(p.Name, p.Version), hashes.Hash{
 			Algorithm: hashes.AlgSHA256,
 			Hex:       p.Checksum,
-		}
+		})
 	}
 	return out, nil
 }

@@ -62,7 +62,7 @@ __metadata:
 	if err != nil {
 		t.Fatalf("parseYarnLock berry: %v", err)
 	}
-	h, ok := got["pkg:npm/lodash@4.17.21"]
+	h, ok := firstHash(t, got, "pkg:npm/lodash@4.17.21")
 	if !ok {
 		t.Fatalf("missing lodash: %v", got)
 	}

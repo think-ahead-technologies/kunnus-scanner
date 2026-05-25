@@ -28,6 +28,18 @@ func writeFixture(t *testing.T, name, content string) string {
 	return path
 }
 
+// firstHash returns the only hash recorded for purl. Single-hash ecosystems
+// (npm/cargo/nuget/conan/...) write one entry per PURL so a [0] access is
+// sufficient. Multi-hash ecosystems (Python) test the full slice directly.
+func firstHash(t *testing.T, m hashes.Map, purl string) (hashes.Hash, bool) {
+	t.Helper()
+	hs, ok := m[purl]
+	if !ok || len(hs) == 0 {
+		return hashes.Hash{}, false
+	}
+	return hs[0], true
+}
+
 func TestParseNPMLock_V2_Unscoped(t *testing.T) {
 	path := writeFixture(t, "package-lock.json", `{
   "lockfileVersion": 3,
@@ -45,7 +57,7 @@ func TestParseNPMLock_V2_Unscoped(t *testing.T) {
 		t.Fatalf("parseNPMLock: %v", err)
 	}
 	const purl = "pkg:npm/lodash@4.17.21"
-	h, ok := got[purl]
+	h, ok := firstHash(t, got, purl)
 	if !ok {
 		t.Fatalf("missing %q in result: %v", purl, got)
 	}

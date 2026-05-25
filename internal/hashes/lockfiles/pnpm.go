@@ -51,7 +51,7 @@ func parsePNPMLock(path string) (hashes.Map, error) {
 		if err != nil {
 			continue
 		}
-		out[npmPURL(name, version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
+		out.Add(npmPURL(name, version), hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest})
 	}
 	return out, nil
 }

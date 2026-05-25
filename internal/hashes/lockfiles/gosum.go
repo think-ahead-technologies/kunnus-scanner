@@ -58,10 +58,10 @@ func parseGoSum(path string) (hashes.Map, error) {
 		if err != nil || len(raw) != sha256.Size {
 			continue
 		}
-		out[golangPURL(module, version)] = hashes.Hash{
+		out.Add(golangPURL(module, version), hashes.Hash{
 			Algorithm: hashes.AlgSHA256,
 			Hex:       hex.EncodeToString(raw),
-		}
+		})
 	}
 	return out, scanner.Err()
 }

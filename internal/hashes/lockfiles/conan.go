@@ -58,10 +58,10 @@ func parseConanLock(path string) (hashes.Map, error) {
 			if !ok {
 				continue
 			}
-			out[conanPURL(ref.name, ref.version)] = hashes.Hash{
+			out.Add(conanPURL(ref.name, ref.version), hashes.Hash{
 				Algorithm: alg,
 				Hex:       ref.rrev,
-			}
+			})
 		}
 	}
 	return out, nil

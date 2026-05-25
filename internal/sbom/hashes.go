@@ -1,4 +1,4 @@
-// ABOUTME: Stage: attaches native SHA-512 hashes harvested from lockfiles to matching CDX components.
+// ABOUTME: Stage: attaches native hashes harvested from lockfiles to matching CDX components.
 // ABOUTME: Writes both component.hashes[] and a synthetic distribution externalReference for BSI conformance.
 package sbom
 
@@ -8,9 +8,10 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
-// injectHashesCDX attaches a native SHA-512 hash to every component whose PURL
-// appears in hashMap. Two artefacts are added so both human-readable SBOMs and
-// BSI TR-03183-2 v2.1 sbomqs checks find it:
+// injectHashesCDX attaches every hash recorded for a PURL to its component.
+// Python wheels and conda channels publish one digest per distribution file
+// (often dozens per package); the slice on hashes.Map preserves them all and
+// surfaces them in two CDX locations:
 //
 //   - component.hashes[] — the standard CDX location
 //   - component.externalReferences[type=distribution] with embedded hashes —
@@ -25,15 +26,24 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 		if c.PackageURL == "" {
 			return
 		}
-		h, ok := hashMap[c.PackageURL]
-		if !ok || h.Hex == "" {
+		hs, ok := hashMap[c.PackageURL]
+		if !ok {
 			return
 		}
-		cdxHash := cyclonedx.Hash{
-			Algorithm: algorithmToCDX(h.Algorithm),
-			Value:     h.Hex,
+		cdxHashes := make([]cyclonedx.Hash, 0, len(hs))
+		for _, h := range hs {
+			if h.Hex == "" {
+				continue
+			}
+			cdxHashes = append(cdxHashes, cyclonedx.Hash{
+				Algorithm: algorithmToCDX(h.Algorithm),
+				Value:     h.Hex,
+			})
 		}
-		c.Hashes = mergeHashes(c.Hashes, &[]cyclonedx.Hash{cdxHash})
+		if len(cdxHashes) == 0 {
+			return
+		}
+		c.Hashes = mergeHashes(c.Hashes, &cdxHashes)
 
 		// BSI v2.1 §5.2.2 requires the deployable hash to live on an
 		// externalReference of type "distribution" or "distribution-intake".
@@ -42,7 +52,7 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 		distRef := cyclonedx.ExternalReference{
 			URL:    "",
 			Type:   cyclonedx.ERTypeDistribution,
-			Hashes: &[]cyclonedx.Hash{cdxHash},
+			Hashes: &cdxHashes,
 		}
 		c.ExternalReferences = mergeExternalRefs(c.ExternalReferences, &[]cyclonedx.ExternalReference{distRef})
 	})

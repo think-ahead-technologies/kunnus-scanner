@@ -69,7 +69,7 @@ func parseNPMLock(path string) (hashes.Map, error) {
 		if derr != nil {
 			continue
 		}
-		out[npmPURL(name, entry.Version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
+		out.Add(npmPURL(name, entry.Version), hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest})
 	}
 
 	collectV1Deps(lock.Dependencies, out)
@@ -80,7 +80,7 @@ func collectV1Deps(deps map[string]npmDepEntry, out hashes.Map) {
 	for name, entry := range deps {
 		if entry.Integrity != "" && entry.Version != "" {
 			if digest, err := decodeSRI(entry.Integrity); err == nil {
-				out[npmPURL(name, entry.Version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
+				out.Add(npmPURL(name, entry.Version), hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest})
 			}
 		}
 		if len(entry.Dependencies) > 0 {

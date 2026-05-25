@@ -29,7 +29,7 @@ github.com/google/uuid v1.6.0/go.mod ` + realisticH1 + `
 		"pkg:golang/github.com/stretchr/testify@1.8.0",
 		"pkg:golang/github.com/google/uuid@1.6.0",
 	} {
-		h, ok := got[want]
+		h, ok := firstHash(t, got, want)
 		if !ok {
 			t.Errorf("missing %q in %v", want, got)
 			continue

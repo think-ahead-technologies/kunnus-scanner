@@ -36,7 +36,7 @@ dependencies = [
 		t.Fatalf("parseCargoLock: %v", err)
 	}
 	for _, want := range []string{"pkg:cargo/serde@1.0.200", "pkg:cargo/serde_json@1.0.117"} {
-		h, ok := got[want]
+		h, ok := firstHash(t, got, want)
 		if !ok {
 			t.Errorf("missing %q in %v", want, got)
 			continue

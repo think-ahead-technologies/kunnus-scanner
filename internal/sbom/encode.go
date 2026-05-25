@@ -16,8 +16,8 @@ import (
 )
 
 // Encode converts the scan result into a CycloneDX 1.7 SBOM and writes JSON
-// to out. hashMap is an optional map of PURL → native SHA-512 digest
-// (typically populated from lockfiles); pass nil if unavailable.
+// to out. hashMap is an optional map of PURL → native digests (one or more
+// per package, typically populated from lockfiles); pass nil if unavailable.
 func Encode(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
 	componentType := comp.Type
 	if componentType == "" {

@@ -51,10 +51,10 @@ func parseNuGetLock(path string) (hashes.Map, error) {
 			if err != nil || len(raw) != sha512.Size {
 				continue
 			}
-			out[nugetPURL(name, entry.Resolved)] = hashes.Hash{
+			out.Add(nugetPURL(name, entry.Resolved), hashes.Hash{
 				Algorithm: hashes.AlgSHA512,
 				Hex:       hex.EncodeToString(raw),
-			}
+			})
 		}
 	}
 	return out, nil

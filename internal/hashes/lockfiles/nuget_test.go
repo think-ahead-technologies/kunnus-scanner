@@ -39,7 +39,7 @@ func TestParseNuGetLock_DirectAndTransitive(t *testing.T) {
 		"pkg:nuget/Newtonsoft.Json@13.0.3",
 		"pkg:nuget/Microsoft.NETCore.Platforms@1.1.0",
 	} {
-		h, ok := got[want]
+		h, ok := firstHash(t, got, want)
 		if !ok {
 			t.Errorf("missing %q: %v", want, got)
 			continue

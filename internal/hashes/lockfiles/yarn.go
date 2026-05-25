@@ -99,11 +99,11 @@ func (s *yarnState) flush() {
 
 	if s.sri != "" {
 		if digest, err := decodeSRI(s.sri); err == nil {
-			s.out[npmPURL(name, s.version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
+			s.out.Add(npmPURL(name, s.version), hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest})
 		}
 	}
 	if s.checksum != "" && isHex(s.checksum) && len(s.checksum) == 128 {
-		s.out[npmPURL(name, s.version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: strings.ToLower(s.checksum)}
+		s.out.Add(npmPURL(name, s.version), hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: strings.ToLower(s.checksum)})
 	}
 }
 

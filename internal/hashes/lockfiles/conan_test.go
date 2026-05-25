@@ -28,7 +28,7 @@ func TestParseConanLock_RequiresMD5(t *testing.T) {
 	if err != nil {
 		t.Fatalf("parseConanLock: %v", err)
 	}
-	h, ok := got["pkg:conan/zlib@1.2.11"]
+	h, ok := firstHash(t, got, "pkg:conan/zlib@1.2.11")
 	if !ok {
 		t.Fatalf("missing zlib entry: %v", got)
 	}
@@ -77,7 +77,7 @@ func TestParseConanLock_SHA1RecipeRevision(t *testing.T) {
   ]
 }`)
 	got, _ := parseConanLock(path)
-	h, ok := got["pkg:conan/openssl@3.0.0"]
+	h, ok := firstHash(t, got, "pkg:conan/openssl@3.0.0")
 	if !ok {
 		t.Fatalf("missing openssl: %v", got)
 	}
@@ -100,7 +100,7 @@ func TestParseConanLock_UserChannelAndPackageRevision(t *testing.T) {
   ]
 }`)
 	got, _ := parseConanLock(path)
-	h, ok := got["pkg:conan/fmt@10.2.1"]
+	h, ok := firstHash(t, got, "pkg:conan/fmt@10.2.1")
 	if !ok {
 		t.Fatalf("missing fmt: %v", got)
 	}
