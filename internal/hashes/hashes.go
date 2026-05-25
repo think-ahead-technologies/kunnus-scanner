@@ -76,6 +76,10 @@ func FromLockfiles(scanRoot string) Map {
 			parsed, _ = parseBunLock(path)
 		case "packages.lock.json":
 			parsed, _ = parseNuGetLock(path)
+		case "Cargo.lock":
+			parsed, _ = parseCargoLock(path)
+		case "go.sum":
+			parsed, _ = parseGoSum(path)
 		}
 		out.Merge(parsed)
 		return nil
