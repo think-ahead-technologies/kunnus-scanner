@@ -30,7 +30,12 @@ var Parsers = []Parser{
 	goSumParser,
 	npmParser,
 	nugetParser,
+	pdmParser,
+	pipfileParser,
 	pnpmParser,
+	poetryParser,
+	requirementsParser,
+	uvParser,
 	yarnParser,
 }
 
