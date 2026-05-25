@@ -72,6 +72,8 @@ func FromLockfiles(scanRoot string) Map {
 			parsed, _ = parsePNPMLock(path)
 		case "yarn.lock":
 			parsed, _ = parseYarnLock(path)
+		case "bun.lock":
+			parsed, _ = parseBunLock(path)
 		case "packages.lock.json":
 			parsed, _ = parseNuGetLock(path)
 		}

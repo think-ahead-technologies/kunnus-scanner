@@ -26,6 +26,16 @@ func TestEcosystems(t *testing.T) {
 			want:  []string{"npm"},
 		},
 		{
+			name:  "bun project",
+			files: []string{"package.json", "bun.lock"},
+			want:  []string{"npm"},
+		},
+		{
+			name:  "bun-only project",
+			files: []string{"bun.lock"},
+			want:  []string{"npm"},
+		},
+		{
 			name:  "go project",
 			files: []string{"go.mod", "go.sum"},
 			want:  []string{"go"},

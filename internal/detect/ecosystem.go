@@ -64,7 +64,7 @@ func skipDir(name string) bool {
 func ecosystemForFile(name string) string {
 	lower := strings.ToLower(name)
 	switch lower {
-	case "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json":
+	case "package.json", "package-lock.json", "yarn.lock", "pnpm-lock.yaml", "npm-shrinkwrap.json", "bun.lock":
 		return "npm"
 	case "go.mod", "go.sum":
 		return "go"

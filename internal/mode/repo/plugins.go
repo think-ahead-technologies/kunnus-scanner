@@ -13,7 +13,7 @@ import (
 // Keep this table tight: only add a plugin here once we have integration coverage
 // confirming it produces useful output for that ecosystem.
 var ecosystemPlugins = map[string][]string{
-	"npm":      {"javascript/packagejson", "javascript/packagelockjson", "javascript/pnpmlock", "javascript/yarnlock"},
+	"npm":      {"javascript/packagejson", "javascript/packagelockjson", "javascript/pnpmlock", "javascript/yarnlock", "javascript/bunlock"},
 	"go":       {"go/gomod", "go/binary"},
 	"cargo":    {"rust/cargoauditable", "rust/cargolock"},
 	"dotnet":   {"dotnet/csproj", "dotnet/depsjson", "dotnet/nugetcpm", "dotnet/packagesconfig", "dotnet/packageslockjson", "dotnet/pe"},
