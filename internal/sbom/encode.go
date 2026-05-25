@@ -131,6 +131,7 @@ func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) erro
 	}
 
 	bom := converter.ToCDX(result.Inventory, cfg)
+	dedupCDXComponents(bom)
 	enrichCDXMetadata(bom)
 	enrichCDXComponents(bom, result.Inventory)
 	injectCPEsCDX(bom)
