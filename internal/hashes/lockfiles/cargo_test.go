@@ -1,8 +1,12 @@
 // ABOUTME: Tests for Cargo.lock hash extraction.
 // ABOUTME: checksum is hex SHA-256 (no SRI prefix); only registry packages carry one.
-package hashes
+package lockfiles
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+)
 
 // known-good SHA-256 hex string (64 chars). Doesn't have to be a real crate
 // hash — the parser cares about shape, not provenance.
@@ -37,7 +41,7 @@ dependencies = [
 			t.Errorf("missing %q in %v", want, got)
 			continue
 		}
-		if h.Algorithm != AlgSHA256 {
+		if h.Algorithm != hashes.AlgSHA256 {
 			t.Errorf("%q algorithm = %q, want SHA-256", want, h.Algorithm)
 		}
 		if h.Hex != cargoChecksum {

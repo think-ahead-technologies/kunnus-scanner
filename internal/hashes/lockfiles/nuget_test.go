@@ -1,8 +1,12 @@
 // ABOUTME: Tests for NuGet packages.lock.json hash extraction.
 // ABOUTME: contentHash is raw base64 SHA-512 (no "sha512-" prefix unlike npm SRI).
-package hashes
+package lockfiles
 
-import "testing"
+import (
+	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+)
 
 // newtonsoftHash is the contentHash for Newtonsoft.Json@13.0.3 from a real
 // generated lockfile. Stable, verifiable.
@@ -40,7 +44,7 @@ func TestParseNuGetLock_DirectAndTransitive(t *testing.T) {
 			t.Errorf("missing %q: %v", want, got)
 			continue
 		}
-		if h.Algorithm != AlgSHA512 || len(h.Hex) != 128 {
+		if h.Algorithm != hashes.AlgSHA512 || len(h.Hex) != 128 {
 			t.Errorf("%q: algorithm=%q hexlen=%d", want, h.Algorithm, len(h.Hex))
 		}
 	}

@@ -1,14 +1,23 @@
 // ABOUTME: Extracts SHA-512 hashes from NuGet packages.lock.json.
 // ABOUTME: contentHash is a raw base64 SHA-512 (no "sha512-" SRI prefix).
-package hashes
+package lockfiles
 
 import (
+	"crypto/sha512"
 	"encoding/base64"
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"os"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
+
+var nugetParser = Parser{
+	Name:      "nuget",
+	Filenames: []string{"packages.lock.json"},
+	Parse:     parseNuGetLock,
+}
 
 type nugetLockfile struct {
 	// Dependencies is keyed by target framework moniker (e.g. "net6.0"),
@@ -22,7 +31,7 @@ type nugetEntry struct {
 	ContentHash string `json:"contentHash"`
 }
 
-func parseNuGetLock(path string) (Map, error) {
+func parseNuGetLock(path string) (hashes.Map, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
@@ -32,18 +41,18 @@ func parseNuGetLock(path string) (Map, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	out := make(Map)
+	out := make(hashes.Map)
 	for _, tfmDeps := range lock.Dependencies {
 		for name, entry := range tfmDeps {
 			if entry.Resolved == "" || entry.ContentHash == "" {
 				continue
 			}
 			raw, err := base64.StdEncoding.DecodeString(entry.ContentHash)
-			if err != nil || len(raw) != 64 {
+			if err != nil || len(raw) != sha512.Size {
 				continue
 			}
-			out[nugetPURL(name, entry.Resolved)] = Hash{
-				Algorithm: AlgSHA512,
+			out[nugetPURL(name, entry.Resolved)] = hashes.Hash{
+				Algorithm: hashes.AlgSHA512,
 				Hex:       hex.EncodeToString(raw),
 			}
 		}

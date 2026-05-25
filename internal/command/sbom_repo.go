@@ -10,7 +10,7 @@ import (
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/hashes/lockfiles"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	repomode "github.com/think-ahead/kunnus-scanner/internal/mode/repo"
 	"github.com/think-ahead/kunnus-scanner/internal/sbom"
@@ -62,7 +62,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 	// Re-parse lockfiles for native SHA-512 deployable hashes. This is a
 	// workaround for scalibr dropping the hash data its lockfile extractors
 	// already see; remove once they surface them upstream.
-	hashMap := hashes.FromLockfiles(path)
+	hashMap := lockfiles.Hashes(path, os.Stderr)
 
 	out, closer, err := openOutput(cmd.String("output"))
 	if err != nil {

@@ -1,12 +1,14 @@
 // ABOUTME: Tests for package-lock.json hash extraction.
 // ABOUTME: Verifies scoped/unscoped naming, SHA-512 decode, and skip of non-sha512 entries.
-package hashes
+package lockfiles
 
 import (
 	"encoding/hex"
 	"os"
 	"path/filepath"
 	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 // sha512OfLodash is the integrity hash for lodash@4.17.21 as it appears on
@@ -47,7 +49,7 @@ func TestParseNPMLock_V2_Unscoped(t *testing.T) {
 	if !ok {
 		t.Fatalf("missing %q in result: %v", purl, got)
 	}
-	if h.Algorithm != AlgSHA512 {
+	if h.Algorithm != hashes.AlgSHA512 {
 		t.Errorf("algorithm = %q, want SHA-512", h.Algorithm)
 	}
 	if len(h.Hex) != 128 {

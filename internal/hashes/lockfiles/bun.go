@@ -1,6 +1,6 @@
 // ABOUTME: Extracts SHA-512 hashes from bun.lock (Bun's text lockfile format).
 // ABOUTME: Format is JSONC with packages-as-tuples; integrity sits at index 3 of each tuple.
-package hashes
+package lockfiles
 
 import (
 	"encoding/json"
@@ -8,7 +8,15 @@ import (
 	"os"
 
 	"github.com/tidwall/jsonc"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
+
+var bunParser = Parser{
+	Name:      "bun",
+	Filenames: []string{"bun.lock"},
+	Parse:     parseBunLock,
+}
 
 // bunLockfile mirrors the subset of bun.lock we read. Bun's lockfile is JSONC
 // (JSON with comments and trailing commas); we strip those via tidwall/jsonc
@@ -21,7 +29,7 @@ type bunLockfile struct {
 	Packages map[string][]any `json:"packages"`
 }
 
-func parseBunLock(path string) (Map, error) {
+func parseBunLock(path string) (hashes.Map, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
@@ -31,7 +39,7 @@ func parseBunLock(path string) (Map, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	out := make(Map)
+	out := make(hashes.Map)
 	for _, tuple := range lock.Packages {
 		if len(tuple) < 4 {
 			continue
@@ -44,7 +52,7 @@ func parseBunLock(path string) (Map, error) {
 		if !ok || integrity == "" {
 			continue
 		}
-		name, version, ok := bunSplitSpec(spec)
+		name, version, ok := splitNpmSpec(spec)
 		if !ok {
 			continue
 		}
@@ -52,29 +60,7 @@ func parseBunLock(path string) (Map, error) {
 		if err != nil {
 			continue
 		}
-		out[npmPURL(name, version)] = Hash{Algorithm: AlgSHA512, Hex: digest}
+		out[npmPURL(name, version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
 	}
 	return out, nil
-}
-
-// bunSplitSpec parses a "name@version" specifier into its components. Scoped
-// packages have two "@" characters ("@babel/core@7.0.0"); we split on the
-// LAST "@" so scope-prefix and version-prefix don't conflict.
-func bunSplitSpec(spec string) (string, string, bool) {
-	at := -1
-	for i := len(spec) - 1; i > 0; i-- {
-		if spec[i] == '@' {
-			at = i
-			break
-		}
-	}
-	if at <= 0 {
-		return "", "", false
-	}
-	name := spec[:at]
-	version := spec[at+1:]
-	if name == "" || version == "" {
-		return "", "", false
-	}
-	return name, version, true
 }

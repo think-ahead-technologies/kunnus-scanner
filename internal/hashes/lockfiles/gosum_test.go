@@ -1,10 +1,12 @@
 // ABOUTME: Tests for go.sum hash extraction.
 // ABOUTME: h1: lines are base64-encoded SHA-256 of the module zip; /go.mod lines are skipped.
-package hashes
+package lockfiles
 
 import (
 	"encoding/base64"
 	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 // realisticH1 is a known-shape SHA-256 produced from arbitrary bytes —
@@ -32,7 +34,7 @@ github.com/google/uuid v1.6.0/go.mod ` + realisticH1 + `
 			t.Errorf("missing %q in %v", want, got)
 			continue
 		}
-		if h.Algorithm != AlgSHA256 {
+		if h.Algorithm != hashes.AlgSHA256 {
 			t.Errorf("%q algorithm = %q, want SHA-256", want, h.Algorithm)
 		}
 		if len(h.Hex) != 64 {

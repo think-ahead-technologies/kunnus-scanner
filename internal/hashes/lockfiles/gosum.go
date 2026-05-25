@@ -1,24 +1,33 @@
 // ABOUTME: Extracts SHA-256 hashes from go.sum (Go module checksum file).
 // ABOUTME: Keeps zip-hashes (h1:<base64>), skips /go.mod-suffixed lines (manifest-only hashes).
-package hashes
+package lockfiles
 
 import (
 	"bufio"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
-func parseGoSum(path string) (Map, error) {
+var goSumParser = Parser{
+	Name:      "go",
+	Filenames: []string{"go.sum"},
+	Parse:     parseGoSum,
+}
+
+func parseGoSum(path string) (hashes.Map, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
 
-	out := make(Map)
+	out := make(hashes.Map)
 	scanner := bufio.NewScanner(f)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
@@ -46,16 +55,19 @@ func parseGoSum(path string) (Map, error) {
 			continue
 		}
 		raw, err := base64.StdEncoding.DecodeString(h1[len(prefix):])
-		if err != nil || len(raw) != 32 {
+		if err != nil || len(raw) != sha256.Size {
 			continue
 		}
-		// Scalibr's Go PURLs drop the conventional "v" prefix from
-		// semver versions; match that to keep our PURL keys join-able
-		// against scan output.
-		out["pkg:golang/"+module+"@"+strings.TrimPrefix(version, "v")] = Hash{
-			Algorithm: AlgSHA256,
+		out[golangPURL(module, version)] = hashes.Hash{
+			Algorithm: hashes.AlgSHA256,
 			Hex:       hex.EncodeToString(raw),
 		}
 	}
 	return out, scanner.Err()
+}
+
+// golangPURL builds the PURL form scalibr emits for Go modules: the conventional
+// "v" prefix is dropped from semver versions to match scalibr's normalisation.
+func golangPURL(module, version string) string {
+	return "pkg:golang/" + module + "@" + strings.TrimPrefix(version, "v")
 }

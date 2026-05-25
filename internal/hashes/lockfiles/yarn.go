@@ -1,6 +1,6 @@
 // ABOUTME: Extracts SHA-512 hashes from yarn.lock (v1 and berry v2+).
 // ABOUTME: v1 uses "integrity sha512-<base64>"; berry uses "checksum: <hex sha512>".
-package hashes
+package lockfiles
 
 import (
 	"bufio"
@@ -8,16 +8,24 @@ import (
 	"fmt"
 	"os"
 	"strings"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
-func parseYarnLock(path string) (Map, error) {
+var yarnParser = Parser{
+	Name:      "yarn",
+	Filenames: []string{"yarn.lock"},
+	Parse:     parseYarnLock,
+}
+
+func parseYarnLock(path string) (hashes.Map, error) {
 	f, err := os.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
 	}
 	defer func() { _ = f.Close() }()
 
-	out := make(Map)
+	out := make(hashes.Map)
 	state := &yarnState{out: out}
 
 	scanner := bufio.NewScanner(f)
@@ -33,7 +41,7 @@ func parseYarnLock(path string) (Map, error) {
 // The two formats share the structure "block header, indented body"; the
 // only differences are the body-line syntax and the integrity field name.
 type yarnState struct {
-	out Map
+	out hashes.Map
 
 	// Currently-open block.
 	header   string
@@ -91,11 +99,11 @@ func (s *yarnState) flush() {
 
 	if s.sri != "" {
 		if digest, err := decodeSRI(s.sri); err == nil {
-			s.out[npmPURL(name, s.version)] = Hash{Algorithm: AlgSHA512, Hex: digest}
+			s.out[npmPURL(name, s.version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
 		}
 	}
 	if s.checksum != "" && isHex(s.checksum) && len(s.checksum) == 128 {
-		s.out[npmPURL(name, s.version)] = Hash{Algorithm: AlgSHA512, Hex: strings.ToLower(s.checksum)}
+		s.out[npmPURL(name, s.version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: strings.ToLower(s.checksum)}
 	}
 }
 
@@ -108,22 +116,18 @@ func (s *yarnState) reset() {
 // v1 headers can be comma-separated specifiers (e.g.
 // `"lodash@^4.0.0", "lodash@~4.17.0"`). Berry headers are typically single
 // (e.g. `"lodash@npm:4.17.21"`). Both formats agree on "name@spec" — we
-// take the FIRST specifier and split off everything from the last "@"
-// before any version constraint.
+// take the FIRST specifier and discard the version portion via splitNpmSpec.
 func yarnNameFromHeader(header string) string {
 	header = strings.TrimSuffix(header, ":")
-	// First specifier when comma-separated.
 	if i := strings.Index(header, ","); i >= 0 {
 		header = header[:i]
 	}
 	spec := unquote(strings.TrimSpace(header))
-	// For scoped packages the first "@" is part of the name; split at the
-	// last "@" instead.
-	at := strings.LastIndex(spec, "@")
-	if at <= 0 {
+	name, _, ok := splitNpmSpec(spec)
+	if !ok {
 		return ""
 	}
-	return spec[:at]
+	return name
 }
 
 func unquote(s string) string {

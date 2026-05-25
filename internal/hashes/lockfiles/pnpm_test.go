@@ -1,6 +1,6 @@
 // ABOUTME: Tests for pnpm-lock.yaml hash extraction.
 // ABOUTME: Covers v6/v7/v9 lockfile syntax (the prefixed-key and key/name+version variants).
-package hashes
+package lockfiles
 
 import "testing"
 

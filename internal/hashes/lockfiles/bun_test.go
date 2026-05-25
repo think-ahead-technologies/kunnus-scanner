@@ -1,6 +1,6 @@
 // ABOUTME: Tests for bun.lock hash extraction.
 // ABOUTME: Format is JSONC ([name@ver, resolution, deps, integrity]); same SHA-512 SRI as npm.
-package hashes
+package lockfiles
 
 import "testing"
 

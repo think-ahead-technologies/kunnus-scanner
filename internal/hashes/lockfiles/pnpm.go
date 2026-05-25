@@ -1,6 +1,6 @@
 // ABOUTME: Extracts SHA-512 hashes from pnpm-lock.yaml.
 // ABOUTME: pnpm uses the same Subresource-Integrity format as npm in resolution.integrity.
-package hashes
+package lockfiles
 
 import (
 	"fmt"
@@ -8,7 +8,15 @@ import (
 	"strings"
 
 	"gopkg.in/yaml.v3"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
+
+var pnpmParser = Parser{
+	Name:      "pnpm",
+	Filenames: []string{"pnpm-lock.yaml"},
+	Parse:     parsePNPMLock,
+}
 
 type pnpmLockfile struct {
 	Packages map[string]pnpmPackageEntry `yaml:"packages"`
@@ -20,7 +28,7 @@ type pnpmPackageEntry struct {
 	} `yaml:"resolution"`
 }
 
-func parsePNPMLock(path string) (Map, error) {
+func parsePNPMLock(path string) (hashes.Map, error) {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("read %s: %w", path, err)
@@ -30,7 +38,7 @@ func parsePNPMLock(path string) (Map, error) {
 		return nil, fmt.Errorf("parse %s: %w", path, err)
 	}
 
-	out := make(Map)
+	out := make(hashes.Map)
 	for key, entry := range lock.Packages {
 		if entry.Resolution.Integrity == "" {
 			continue
@@ -43,7 +51,7 @@ func parsePNPMLock(path string) (Map, error) {
 		if err != nil {
 			continue
 		}
-		out[npmPURL(name, version)] = Hash{Algorithm: AlgSHA512, Hex: digest}
+		out[npmPURL(name, version)] = hashes.Hash{Algorithm: hashes.AlgSHA512, Hex: digest}
 	}
 	return out, nil
 }
@@ -57,21 +65,13 @@ func parsePNPMLock(path string) (Map, error) {
 //	/@scope/name@<version>       (scoped, leading slash)
 //	@scope/name@<version>        (scoped, no slash)
 //
-// The version is the substring after the LAST '@' before any '(' suffix.
+// pnpm-specific prefix/suffix handling lives here; the actual "split on last @"
+// rule comes from splitNpmSpec.
 func pnpmSplitKey(key string) (string, string, bool) {
 	key = strings.TrimPrefix(key, "/")
 	// Strip peer-dep suffix like "(react@18.0.0)" trailing the version.
 	if i := strings.Index(key, "("); i >= 0 {
 		key = key[:i]
 	}
-	at := strings.LastIndex(key, "@")
-	if at <= 0 {
-		return "", "", false
-	}
-	name := key[:at]
-	version := key[at+1:]
-	if name == "" || version == "" {
-		return "", "", false
-	}
-	return name, version, true
+	return splitNpmSpec(key)
 }

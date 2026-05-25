@@ -1,10 +1,12 @@
 // ABOUTME: Tests for yarn.lock hash extraction across v1 and berry formats.
 // ABOUTME: v1 uses "integrity sha512-<base64>", berry uses "checksum: <hex sha512>".
-package hashes
+package lockfiles
 
 import (
 	"strings"
 	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 func TestParseYarnLock_V1(t *testing.T) {
@@ -64,7 +66,7 @@ __metadata:
 	if !ok {
 		t.Fatalf("missing lodash: %v", got)
 	}
-	if h.Algorithm != AlgSHA512 {
+	if h.Algorithm != hashes.AlgSHA512 {
 		t.Errorf("algo = %q, want SHA-512", h.Algorithm)
 	}
 	if h.Hex != checksum {
