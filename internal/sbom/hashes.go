@@ -54,6 +54,10 @@ func algorithmToCDX(a hashes.Algorithm) cyclonedx.HashAlgorithm {
 		return cyclonedx.HashAlgoSHA512
 	case hashes.AlgSHA256:
 		return cyclonedx.HashAlgoSHA256
+	case hashes.AlgSHA1:
+		return cyclonedx.HashAlgoSHA1
+	case hashes.AlgMD5:
+		return cyclonedx.HashAlgoMD5
 	}
 	return cyclonedx.HashAlgoSHA512
 }

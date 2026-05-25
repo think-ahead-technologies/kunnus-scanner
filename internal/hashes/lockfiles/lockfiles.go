@@ -26,6 +26,7 @@ type Parser struct {
 var Parsers = []Parser{
 	bunParser,
 	cargoParser,
+	conanParser,
 	goSumParser,
 	npmParser,
 	nugetParser,

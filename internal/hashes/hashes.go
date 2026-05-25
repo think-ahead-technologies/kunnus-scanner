@@ -8,6 +8,8 @@ type Algorithm string
 const (
 	AlgSHA512 Algorithm = "SHA-512"
 	AlgSHA256 Algorithm = "SHA-256"
+	AlgSHA1   Algorithm = "SHA-1"
+	AlgMD5    Algorithm = "MD5"
 )
 
 // Hash pairs an algorithm with a lowercase hex digest.
