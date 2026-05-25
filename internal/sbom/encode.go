@@ -63,6 +63,7 @@ func encodeSPDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) err
 	}
 
 	doc := converter.ToSPDX23(result.Inventory, cfg)
+	enrichSPDXCreators(doc)
 	injectCPEsSPDX(doc)
 	enc := json.NewEncoder(out)
 	enc.SetIndent("", "  ")
@@ -130,6 +131,8 @@ func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) erro
 	}
 
 	bom := converter.ToCDX(result.Inventory, cfg)
+	enrichCDXMetadata(bom)
+	enrichCDXComponents(bom, result.Inventory)
 	injectCPEsCDX(bom)
 	encoder := cyclonedx.NewBOMEncoder(out, cyclonedx.BOMFileFormatJSON)
 	encoder.SetPretty(true)
