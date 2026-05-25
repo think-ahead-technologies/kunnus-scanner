@@ -1,0 +1,93 @@
+name: Pre-release check
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version tag to release (e.g. v1.2.3)"
+        required: true
+        type: string
+      commit:
+        description: "The commit hash to release"
+        required: true
+        type: string
+
+# Restrict jobs in this workflow to have no permissions by default; permissions
+# should be granted per job as needed using a dedicated `permissions` block
+permissions: {}
+
+jobs:
+  tidy:
+    permissions:
+      contents: read
+    name: go mod tidy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.commit }}
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - run: go mod tidy -diff
+  lint:
+    permissions:
+      contents: read
+    name: golangci-lint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.commit }}
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Run lint action
+        uses: ./.github/workflows/lint-action
+  tests:
+    permissions:
+      contents: read
+    name: Run unit tests
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+          ref: ${{ inputs.commit }}
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Run test action
+        uses: ./.github/workflows/test-action
+  release-helper:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    needs:
+      - tidy
+      - lint
+      - tests
+    steps:
+      - name: Print release script
+        env:
+          OUTPUT: |
+            git tag ${{ inputs.version }} ${{ inputs.commit }} &&
+            git push origin ${{ inputs.version }}
+        shell: bash
+        run: |
+          echo "$OUTPUT"

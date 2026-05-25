@@ -1,0 +1,9 @@
+name: test
+description: "Runs go tests"
+
+runs:
+  using: composite
+  steps:
+    - name: Run go test
+      shell: bash
+      run: go test -race -count=1 ./...

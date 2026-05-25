@@ -1,0 +1,47 @@
+name: Dependencies
+
+on:
+  schedule:
+    # weekly on Mondays at 06:47 UTC
+    - cron: "47 6 * * 1"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+# Restrict jobs in this workflow to have no permissions by default; permissions
+# should be granted per job as needed using a dedicated `permissions` block
+permissions: {}
+
+jobs:
+  update:
+    permissions:
+      contents: write # to fetch and commit code
+      pull-requests: write # to open a PR
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - id: update
+        run: |
+          latest_commit=$(git ls-remote https://github.com/google/osv-scalibr.git HEAD | cut -f1)
+          echo "updating osv-scalibr to $latest_commit"
+          go get github.com/google/osv-scalibr@"$latest_commit"
+          go mod tidy
+          echo "latest_scalibr_commit=$latest_commit" >> "$GITHUB_OUTPUT"
+      - run: go test ./... || true
+      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ secrets.PR_TOKEN_BOT }}
+          title: "feat: update osv-scalibr"
+          body: |
+            Bumps `osv-scalibr` to https://github.com/google/osv-scalibr/commit/${{ steps.update.outputs.latest_scalibr_commit }}
+          branch: "bot/update-scalibr"
+          commit-message: "feat: update osv-scalibr to ${{ steps.update.outputs.latest_scalibr_commit }}"
+          delete-branch: true
