@@ -1,0 +1,51 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - main: ./cmd/kunnus/
+    id: kunnus
+    binary: kunnus
+    env:
+      - CGO_ENABLED=0
+      - GO111MODULE=on
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - "-s -w"
+      - "-X github.com/think-ahead/kunnus-scanner/internal/version.Version={{.Version}}.nightly"
+      - "-X main.commit={{.Commit}}"
+      - "-X main.date={{.CommitDate}}"
+    goos:
+      - linux
+    goarch:
+      - amd64
+
+dockers_v2:
+  - id: kunnus
+    dockerfile: goreleaser.dockerfile
+    ids:
+      - kunnus
+    images:
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner"
+    tags:
+      - "nightly"
+    labels:
+      "org.opencontainers.image.title": "kunnus"
+      "org.opencontainers.image.description": "SBOM-generation CLI for the kunnus platform, built on osv-scalibr"
+      "org.opencontainers.image.licenses": "Apache-2.0"
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.url": "{{.GitURL}}"
+    platforms:
+      - linux/amd64
+
+release:
+  disable: true
+changelog:
+  disable: true

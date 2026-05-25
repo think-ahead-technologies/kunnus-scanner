@@ -1,0 +1,108 @@
+version: 2
+
+before:
+  hooks:
+    - go mod tidy
+builds:
+  - main: ./cmd/kunnus/
+    id: kunnus
+    binary: kunnus
+    env:
+      # goreleaser does not work with CGO, it could also complicate
+      # usage by users in CI/CD systems like Terraform Cloud where
+      # they are unable to install libraries.
+      - CGO_ENABLED=0
+      - GO111MODULE=on
+    mod_timestamp: "{{ .CommitTimestamp }}"
+    flags:
+      - -trimpath
+    ldflags:
+      - "-s -w"
+      - "-X github.com/think-ahead/kunnus-scanner/internal/version.Version={{.Version}}"
+      - "-X main.commit={{.Commit}}"
+      - "-X main.date={{.CommitDate}}"
+    goos:
+      - windows
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+dockers_v2:
+  - id: kunnus
+    dockerfile: goreleaser.dockerfile
+    ids:
+      - kunnus
+    images:
+      - "ghcr.io/think-ahead-technologies/kunnus-scanner"
+    tags:
+      - "{{ .Tag }}"
+      - "latest"
+      - '{{ if eq .Env.STABLE "true" }}stable{{ end }}'
+    labels:
+      "org.opencontainers.image.title": "kunnus"
+      "org.opencontainers.image.description": "SBOM-generation CLI for the kunnus platform, built on osv-scalibr"
+      "org.opencontainers.image.licenses": "Apache-2.0"
+      "org.opencontainers.image.created": "{{.Date}}"
+      "org.opencontainers.image.name": "{{.ProjectName}}"
+      "org.opencontainers.image.revision": "{{.FullCommit}}"
+      "org.opencontainers.image.version": "{{.Version}}"
+      "org.opencontainers.image.source": "{{.GitURL}}"
+      "org.opencontainers.image.url": "{{.GitURL}}"
+    platforms:
+      - linux/amd64
+      - linux/arm64
+
+homebrew_casks:
+  - name: kunnus
+    ids:
+      - kunnus
+    binaries:
+      - kunnus
+    repository:
+      owner: think-ahead-technologies
+      name: homebrew-tap
+      token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
+    homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
+    description: "SBOM-generation CLI for the kunnus platform"
+
+scoops:
+  - name: kunnus
+    ids:
+      - kunnus
+    repository:
+      owner: think-ahead-technologies
+      name: scoop-bucket
+      token: "{{ .Env.SCOOP_BUCKET_TOKEN }}"
+    homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
+    description: "SBOM-generation CLI for the kunnus platform"
+    license: "Apache-2.0"
+
+docker_signs:
+  - cmd: cosign
+    artifacts: all
+    output: true
+    args:
+      - "sign"
+      - "--yes"
+      - "${artifact}@${digest}"
+
+archives:
+  - id: kunnus
+    ids:
+      - kunnus
+    name_template: "{{ .Binary }}_{{ .Os }}_{{ .Arch }}"
+    formats:
+      - tar.gz
+    format_overrides:
+      - goos: windows
+        formats:
+          - zip
+checksum:
+  name_template: "{{ .ProjectName }}_SHA256SUMS"
+  algorithm: sha256
+release:
+  draft: true
+changelog:
+  disable: false
