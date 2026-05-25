@@ -14,6 +14,7 @@ import (
 	"github.com/spdx/tools-golang/spdx/v2/common"
 	spdx23 "github.com/spdx/tools-golang/spdx/v2/v2_3"
 
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
@@ -24,29 +25,40 @@ import (
 type Format string
 
 const (
-	FormatSPDX23      Format = "spdx-2-3"
-	FormatCycloneDX15 Format = "cyclonedx-1-5"
+	// FormatSPDX emits SPDX. The underlying library currently writes 2.3;
+	// BSI TR-03183-2 v2.1 requires 3.0.1+, which is unmet pending library work.
+	FormatSPDX Format = "spdx"
+
+	// FormatCycloneDX emits CycloneDX. cyclonedx-go writes 1.7, which
+	// satisfies BSI TR-03183-2 v2.1's "1.6 or higher" requirement.
+	FormatCycloneDX Format = "cyclonedx"
 )
 
 // Encode converts the scan result into the chosen format and writes JSON to out.
-func Encode(out io.Writer, format Format, result *scan.Result, comp mode.ComponentInfo) error {
+// hashMap is an optional map of PURL → native SHA-512 digest (typically
+// populated from lockfiles by internal/hashes); pass nil if unavailable.
+func Encode(out io.Writer, format Format, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
 	switch format {
-	case FormatSPDX23:
+	case FormatSPDX:
 		return encodeSPDX(out, result, comp)
-	case FormatCycloneDX15:
-		return encodeCDX(out, result, comp)
+	case FormatCycloneDX:
+		return encodeCDX(out, result, comp, hashMap)
 	default:
 		return fmt.Errorf("unknown sbom format %q", format)
 	}
 }
 
-// ParseFormat normalises a user-supplied format string.
+// ParseFormat normalises a user-supplied format string. Older version-suffixed
+// names ("spdx-2-3", "cyclonedx-1-5") are accepted as aliases so existing
+// scripts keep working — they map to the un-versioned canonical form.
 func ParseFormat(s string) (Format, error) {
-	switch Format(s) {
-	case FormatSPDX23, FormatCycloneDX15:
-		return Format(s), nil
+	switch s {
+	case string(FormatSPDX), "spdx-2-3", "spdx-2.3":
+		return FormatSPDX, nil
+	case string(FormatCycloneDX), "cyclonedx-1-5", "cyclonedx-1-6", "cyclonedx-1-7":
+		return FormatCycloneDX, nil
 	}
-	return "", fmt.Errorf("unsupported sbom format %q (want %s or %s)", s, FormatSPDX23, FormatCycloneDX15)
+	return "", fmt.Errorf("unsupported sbom format %q (want %s or %s)", s, FormatSPDX, FormatCycloneDX)
 }
 
 func encodeSPDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) error {
@@ -118,7 +130,7 @@ func purlFromRefs(p *spdx23.Package) string {
 	return ""
 }
 
-func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) error {
+func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = "application"
@@ -135,12 +147,65 @@ func encodeCDX(out io.Writer, result *scan.Result, comp mode.ComponentInfo) erro
 	enrichCDXMetadata(bom)
 	enrichCDXComponents(bom, result.Inventory)
 	injectCPEsCDX(bom)
+	injectHashesCDX(bom, hashMap)
+	injectDepGraphCDX(bom)
 	encoder := cyclonedx.NewBOMEncoder(out, cyclonedx.BOMFileFormatJSON)
 	encoder.SetPretty(true)
 	if err := encoder.Encode(bom); err != nil {
 		return fmt.Errorf("encode cyclonedx: %w", err)
 	}
 	return nil
+}
+
+// injectHashesCDX attaches a native SHA-512 hash to every component whose PURL
+// appears in hashMap. Two artefacts are added so both human-readable SBOMs and
+// BSI TR-03183-2 v2.1 sbomqs checks find it:
+//
+//   - component.hashes[] — the standard CDX location
+//   - component.externalReferences[type=distribution] with embedded hashes —
+//     the location BSI v2.1 §5.2.2 specifically queries
+//
+// hashMap may be nil; in that case the function is a no-op.
+func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
+	if bom == nil || bom.Components == nil || len(hashMap) == 0 {
+		return
+	}
+	for i := range *bom.Components {
+		c := &(*bom.Components)[i]
+		if c.PackageURL == "" {
+			continue
+		}
+		h, ok := hashMap[c.PackageURL]
+		if !ok || h.Hex == "" {
+			continue
+		}
+		cdxHash := cyclonedx.Hash{
+			Algorithm: algorithmToCDX(h.Algorithm),
+			Value:     h.Hex,
+		}
+		c.Hashes = appendHashes(c.Hashes, &[]cyclonedx.Hash{cdxHash})
+
+		// BSI v2.1 §5.2.2 requires the deployable hash to live on an
+		// externalReference of type "distribution" or "distribution-intake".
+		// We add a synthetic distribution reference rather than reuse the
+		// (possibly absent) registry URL.
+		distRef := cyclonedx.ExternalReference{
+			URL:    "",
+			Type:   cyclonedx.ERTypeDistribution,
+			Hashes: &[]cyclonedx.Hash{cdxHash},
+		}
+		c.ExternalReferences = mergeExternalRefs(c.ExternalReferences, &[]cyclonedx.ExternalReference{distRef})
+	}
+}
+
+func algorithmToCDX(a hashes.Algorithm) cyclonedx.HashAlgorithm {
+	switch a {
+	case hashes.AlgSHA512:
+		return cyclonedx.HashAlgoSHA512
+	case hashes.AlgSHA256:
+		return cyclonedx.HashAlgoSHA256
+	}
+	return cyclonedx.HashAlgoSHA512
 }
 
 // injectCPEsCDX fills in Component.CPE for any component that has a PURL but

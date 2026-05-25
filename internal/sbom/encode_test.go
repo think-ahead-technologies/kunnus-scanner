@@ -31,7 +31,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_CycloneDX_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, FormatCycloneDX15, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}); err != nil {
+	if err := Encode(&buf, FormatCycloneDX, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -52,7 +52,7 @@ func TestEncode_CycloneDX_HasCPE(t *testing.T) {
 
 func TestEncode_SPDX_HasCPEExternalRef(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, FormatSPDX23, sampleResult(), mode.ComponentInfo{Name: "x"}); err != nil {
+	if err := Encode(&buf, FormatSPDX, sampleResult(), mode.ComponentInfo{Name: "x"}, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	body := buf.String()
@@ -77,11 +77,11 @@ func TestParseFormat(t *testing.T) {
 
 func TestEncode_SPDX23(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, FormatSPDX23, sampleResult(), mode.ComponentInfo{
+	err := Encode(&buf, FormatSPDX, sampleResult(), mode.ComponentInfo{
 		Name:    "my-component",
 		Version: "1.0.0",
 		Type:    "application",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("Encode SPDX: %v", err)
 	}
@@ -109,11 +109,11 @@ func TestEncode_SPDX23(t *testing.T) {
 
 func TestEncode_CycloneDX15(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, FormatCycloneDX15, sampleResult(), mode.ComponentInfo{
+	err := Encode(&buf, FormatCycloneDX, sampleResult(), mode.ComponentInfo{
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	})
+	}, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -148,7 +148,7 @@ func TestEncode_CycloneDX15(t *testing.T) {
 }
 
 func TestEncode_UnknownFormat(t *testing.T) {
-	err := Encode(&bytes.Buffer{}, Format("yaml"), sampleResult(), mode.ComponentInfo{})
+	err := Encode(&bytes.Buffer{}, Format("yaml"), sampleResult(), mode.ComponentInfo{}, nil)
 	if err == nil {
 		t.Fatal("want error for unknown format")
 	}

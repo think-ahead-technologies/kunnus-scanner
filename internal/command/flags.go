@@ -10,6 +10,7 @@ import (
 
 	scalibr "github.com/google/osv-scalibr"
 
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/sbom"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
@@ -26,8 +27,8 @@ func commonSBOMFlags() []cli.Flag {
 		&cli.StringFlag{
 			Name:    "format",
 			Aliases: []string{"f"},
-			Value:   string(sbom.FormatCycloneDX15),
-			Usage:   "SBOM format: spdx-2-3 | cyclonedx-1-5",
+			Value:   string(sbom.FormatCycloneDX),
+			Usage:   "SBOM format: spdx | cyclonedx (older suffixed names still accepted)",
 		},
 		&cli.StringSliceFlag{
 			Name:  "enable",
@@ -51,6 +52,14 @@ func scanRun(ctx context.Context, cfg *scalibr.ScanConfig, logOut io.Writer) (*s
 }
 
 // encodeSBOM is a thin shim so subcommands don't import the sbom package directly.
-func encodeSBOM(out io.Writer, format sbom.Format, result *scan.Result, comp mode.ComponentInfo) error {
-	return sbom.Encode(out, format, result, comp)
+// hashMap is optional native-hash data harvested from lockfiles under the scan
+// root; pass nil for OS-mode scans where no lockfiles exist.
+func encodeSBOM(out io.Writer, format sbom.Format, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
+	return sbom.Encode(out, format, result, comp, hashMap)
+}
+
+// collectLockfileHashes is a thin shim that re-parses lockfiles under root
+// for SHA-512 deployable hashes. Empty/missing lockfiles produce an empty map.
+func collectLockfileHashes(root string) hashes.Map {
+	return hashes.FromLockfiles(root)
 }

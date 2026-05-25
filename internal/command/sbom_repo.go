@@ -61,13 +61,18 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 		return fmt.Errorf("run scan: %w", err)
 	}
 
+	// Re-parse lockfiles for native SHA-512 deployable hashes. This is a
+	// workaround for scalibr dropping the hash data its lockfile extractors
+	// already see; remove once they surface them upstream.
+	hashMap := collectLockfileHashes(path)
+
 	out, closer, err := openOutput(cmd.String("output"))
 	if err != nil {
 		return fmt.Errorf("open output: %w", err)
 	}
 	defer closer()
 
-	if err := encodeSBOM(out, format, result, comp); err != nil {
+	if err := encodeSBOM(out, format, result, comp, hashMap); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	return nil
