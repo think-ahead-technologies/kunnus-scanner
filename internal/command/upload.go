@@ -13,8 +13,8 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/upload"
 )
 
-// Upload returns the `kunnus upload` command.
-func Upload() *cli.Command {
+// uploadCmd returns the `kunnus upload` command.
+func uploadCmd() *cli.Command {
 	return &cli.Command{
 		Name:      "upload",
 		Usage:     "upload an SBOM file to the Kunnus platform",

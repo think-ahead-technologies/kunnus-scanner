@@ -32,6 +32,13 @@ func Encode(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap
 	}
 
 	bom := converter.ToCDX(result.Inventory, cfg)
+	// Order matters here. Constraints:
+	//   1. dedupCDXComponents BEFORE enrichCDXComponents: enrichment indexes by
+	//      PURL, and duplicates would shadow each other in that index.
+	//   2. enrichCDXMetadata BEFORE injectDepGraphCDX: the dep graph reads the
+	//      root component's BOMRef, which metadata enrichment may populate.
+	//   3. injectDepGraphCDX LAST: it iterates every component's BOMRef, so any
+	//      mutation that adds or renames components must precede it.
 	dedupCDXComponents(bom)
 	enrichCDXMetadata(bom)
 	enrichCDXComponents(bom, result.Inventory)

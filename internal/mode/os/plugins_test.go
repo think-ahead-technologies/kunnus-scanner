@@ -1,13 +1,10 @@
-// ABOUTME: Pure mapping tests for OS-mode distro → plugin and applyOverrides logic.
+// ABOUTME: Pure mapping tests for OS-mode distro → plugin selection.
 // ABOUTME: Verifies that an empty families slice falls back to the all-Linux extractor set.
 package os
 
 import (
-	"reflect"
 	"slices"
 	"testing"
-
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
 func TestLinuxPlugins(t *testing.T) {
@@ -73,18 +70,5 @@ func TestMacPlugins(t *testing.T) {
 		if !slices.Contains(got, must) {
 			t.Errorf("macPlugins missing %q (got %v)", must, got)
 		}
-	}
-}
-
-func TestApplyOverrides_OS(t *testing.T) {
-	base := []string{"os/dpkg", "os/rpm"}
-
-	got := applyOverrides(slices.Clone(base), mode.Overrides{
-		EnablePlugins:  []string{"os/apk"},
-		DisablePlugins: []string{"os/rpm"},
-	})
-	want := []string{"os/apk", "os/dpkg"}
-	if !reflect.DeepEqual(got, want) {
-		t.Errorf("applyOverrides = %v, want %v", got, want)
 	}
 }

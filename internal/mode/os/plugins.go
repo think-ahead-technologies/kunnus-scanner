@@ -2,12 +2,7 @@
 // ABOUTME: One source of truth for "what do we run on Linux/Windows/macOS by default?"
 package os
 
-import (
-	"slices"
-	"sort"
-
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
-)
+import "sort"
 
 // linuxFamilyPlugins maps a distro family name (debian, rhel, alpine, ...) to
 // the scalibr filesystem extractors that read its package database.
@@ -71,18 +66,4 @@ func macPlugins() []string {
 		"os/macports",
 		"os/macapps",
 	}
-}
-
-// applyOverrides adds names from ov.EnablePlugins and removes names in ov.DisablePlugins.
-func applyOverrides(plugins []string, ov mode.Overrides) []string {
-	for _, add := range ov.EnablePlugins {
-		if !slices.Contains(plugins, add) {
-			plugins = append(plugins, add)
-		}
-	}
-	plugins = slices.DeleteFunc(plugins, func(p string) bool {
-		return slices.Contains(ov.DisablePlugins, p)
-	})
-	sort.Strings(plugins)
-	return plugins
 }

@@ -72,7 +72,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		return nil, mode.ComponentInfo{}, fmt.Errorf("unsupported target OS %q", targetOS)
 	}
 
-	pluginNames = applyOverrides(pluginNames, ov)
+	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 	if len(pluginNames) == 0 {
 		return nil, mode.ComponentInfo{}, errors.New("no extractors selected for OS scan")
 	}

@@ -13,6 +13,7 @@ import (
 	pl "github.com/google/osv-scalibr/plugin/list"
 
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
+	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
@@ -43,7 +44,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 	}
 
 	pluginNames := pluginsFor(ecosystems)
-	pluginNames = applyOverrides(pluginNames, ov)
+	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
 	if len(pluginNames) == 0 {
 		return nil, mode.ComponentInfo{}, fmt.Errorf("no extractors selected for %s (detected ecosystems: %v)", abs, ecosystems)
@@ -62,7 +63,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		Plugins:      plugins,
 		Capabilities: &plugin.Capabilities{OS: plugin.OSAny},
 		UseGitignore: true,
-		DirsToSkip:   skipDirsUnder(abs),
+		DirsToSkip:   fswalk.AbsoluteSkipPaths(abs),
 	}
 
 	return cfg, mode.ComponentInfo{
@@ -70,16 +71,4 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		Version: "",
 		Type:    "application",
 	}, nil
-}
-
-// skipDirsUnder returns absolute paths for the heavy directories we never want
-// scalibr to descend into. scalibr's DirsToSkip expects absolute paths rooted
-// under one of the scan roots, not bare names.
-func skipDirsUnder(scanRoot string) []string {
-	names := []string{".git", "node_modules", "vendor", "target", "dist", "build"}
-	out := make([]string, 0, len(names))
-	for _, n := range names {
-		out = append(out, filepath.Join(scanRoot, n))
-	}
-	return out
 }

@@ -3,6 +3,7 @@ module github.com/think-ahead/kunnus-scanner
 go 1.26.3
 
 require (
+	github.com/BurntSushi/toml v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/google/osv-scalibr v0.4.5
 	github.com/google/uuid v1.6.0
@@ -22,7 +23,6 @@ require (
 	deps.dev/util/semver v0.0.0-20250903005441-604c45d5b44b // indirect
 	github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6 // indirect
 	github.com/AdamKorcz/go-118-fuzz-build v0.0.0-20230306123547-8075edf89bb0 // indirect
-	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/Microsoft/hcsshim v0.13.0 // indirect

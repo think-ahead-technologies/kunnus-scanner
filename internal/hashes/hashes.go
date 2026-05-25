@@ -9,6 +9,8 @@ import (
 	"io/fs"
 	"path/filepath"
 	"strings"
+
+	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 )
 
 // Algorithm identifies a hash algorithm in the form CDX/SPDX expects.
@@ -58,7 +60,7 @@ func FromLockfiles(scanRoot string) Map {
 			return nil
 		}
 		if d.IsDir() {
-			if skipDir(d.Name()) && path != abs {
+			if fswalk.SkipDir(d.Name()) && path != abs {
 				return fs.SkipDir
 			}
 			return nil
@@ -86,20 +88,6 @@ func FromLockfiles(scanRoot string) Map {
 	})
 
 	return out
-}
-
-// skipDir mirrors detect/ecosystem.go's skip set so we don't waste time
-// re-reading vendored copies of lockfiles.
-func skipDir(name string) bool {
-	switch name {
-	case ".git", ".hg", ".svn",
-		"node_modules", "bower_components",
-		"vendor", "target", "dist", "build", "out",
-		".venv", "venv", "__pycache__",
-		".gradle", ".idea", ".vscode":
-		return true
-	}
-	return false
 }
 
 // decodeSRI converts a Subresource-Integrity string (e.g. "sha512-<base64>")

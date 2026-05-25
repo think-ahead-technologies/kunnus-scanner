@@ -5,8 +5,6 @@ package repo
 import (
 	"slices"
 	"sort"
-
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
 // ecosystemPlugins lists the scalibr plugin names enabled per detected ecosystem.
@@ -42,20 +40,6 @@ func pluginsFor(ecosystems []string) []string {
 	}
 	sort.Strings(out)
 	return out
-}
-
-// applyOverrides adds names from ov.EnablePlugins and removes names from ov.DisablePlugins.
-func applyOverrides(plugins []string, ov mode.Overrides) []string {
-	for _, add := range ov.EnablePlugins {
-		if !slices.Contains(plugins, add) {
-			plugins = append(plugins, add)
-		}
-	}
-	plugins = slices.DeleteFunc(plugins, func(p string) bool {
-		return slices.Contains(ov.DisablePlugins, p)
-	})
-	sort.Strings(plugins)
-	return plugins
 }
 
 // intersect returns the elements of a that also appear in b.

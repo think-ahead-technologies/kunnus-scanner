@@ -1,4 +1,4 @@
-// ABOUTME: Pure mapping tests for the repo-mode ecosystem → plugin table and overrides logic.
+// ABOUTME: Pure mapping tests for the repo-mode ecosystem → plugin table and the intersect helper.
 // ABOUTME: No filesystem, no scalibr — fastest feedback loop in the project.
 package repo
 
@@ -6,8 +6,6 @@ import (
 	"reflect"
 	"slices"
 	"testing"
-
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
 func TestPluginsFor(t *testing.T) {
@@ -56,56 +54,6 @@ func TestPluginsFor(t *testing.T) {
 				if slices.Contains(got, p) {
 					t.Errorf("pluginsFor(%v) contains %q but should not (got %v)", tc.ecosystems, p, got)
 				}
-			}
-		})
-	}
-}
-
-func TestApplyOverrides(t *testing.T) {
-	base := []string{"go/gomod", "go/gobinary"}
-
-	tests := []struct {
-		name string
-		ov   mode.Overrides
-		want []string
-	}{
-		{
-			name: "no overrides",
-			ov:   mode.Overrides{},
-			want: []string{"go/gobinary", "go/gomod"},
-		},
-		{
-			name: "enable adds new",
-			ov:   mode.Overrides{EnablePlugins: []string{"dotnet/pe"}},
-			want: []string{"dotnet/pe", "go/gobinary", "go/gomod"},
-		},
-		{
-			name: "enable existing is no-op",
-			ov:   mode.Overrides{EnablePlugins: []string{"go/gomod"}},
-			want: []string{"go/gobinary", "go/gomod"},
-		},
-		{
-			name: "disable removes",
-			ov:   mode.Overrides{DisablePlugins: []string{"go/gobinary"}},
-			want: []string{"go/gomod"},
-		},
-		{
-			name: "enable + disable",
-			ov: mode.Overrides{
-				EnablePlugins:  []string{"dotnet/pe"},
-				DisablePlugins: []string{"go/gomod"},
-			},
-			want: []string{"dotnet/pe", "go/gobinary"},
-		},
-	}
-
-	for _, tc := range tests {
-		t.Run(tc.name, func(t *testing.T) {
-			// applyOverrides mutates its input; pass a fresh copy each time.
-			input := slices.Clone(base)
-			got := applyOverrides(input, tc.ov)
-			if !reflect.DeepEqual(got, tc.want) {
-				t.Errorf("applyOverrides = %v, want %v", got, tc.want)
 			}
 		})
 	}

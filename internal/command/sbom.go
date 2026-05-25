@@ -4,8 +4,8 @@ package command
 
 import "github.com/urfave/cli/v3"
 
-// SBOM returns the `kunnus sbom` parent command.
-func SBOM() *cli.Command {
+// sbomCmd returns the `kunnus sbom` parent command.
+func sbomCmd() *cli.Command {
 	return &cli.Command{
 		Name:  "sbom",
 		Usage: "generate a Software Bill of Materials",

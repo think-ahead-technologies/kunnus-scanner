@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"slices"
 	"strings"
+
+	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 )
 
 // Ecosystems walks scanRoot and returns the set of language ecosystems it found,
@@ -25,7 +27,7 @@ func Ecosystems(scanRoot string) ([]string, error) {
 			return nil
 		}
 		if d.IsDir() {
-			if skipDir(d.Name()) && path != scanRoot {
+			if fswalk.SkipDir(d.Name()) && path != scanRoot {
 				return fs.SkipDir
 			}
 			return nil
@@ -45,18 +47,6 @@ func Ecosystems(scanRoot string) ([]string, error) {
 	}
 	slices.Sort(out)
 	return out, nil
-}
-
-func skipDir(name string) bool {
-	switch name {
-	case ".git", ".hg", ".svn",
-		"node_modules", "bower_components",
-		"vendor", "target", "dist", "build", "out",
-		".venv", "venv", "__pycache__",
-		".gradle", ".idea", ".vscode":
-		return true
-	}
-	return false
 }
 
 // ecosystemForFile maps a filename to a canonical ecosystem name, or "" if unknown.

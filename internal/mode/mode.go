@@ -4,6 +4,8 @@ package mode
 
 import (
 	"context"
+	"slices"
+	"sort"
 
 	scalibr "github.com/google/osv-scalibr"
 )
@@ -51,4 +53,20 @@ type ComponentInfo struct {
 	Name    string
 	Version string
 	Type    string // "application" | "operating-system" | "firmware"
+}
+
+// ApplyOverrides folds ov.EnablePlugins and ov.DisablePlugins into the given
+// plugin list. The result is sorted and free of names listed in DisablePlugins.
+// Duplicates are not introduced — names already in plugins are not re-added.
+func ApplyOverrides(plugins []string, ov Overrides) []string {
+	for _, add := range ov.EnablePlugins {
+		if !slices.Contains(plugins, add) {
+			plugins = append(plugins, add)
+		}
+	}
+	plugins = slices.DeleteFunc(plugins, func(p string) bool {
+		return slices.Contains(ov.DisablePlugins, p)
+	})
+	sort.Strings(plugins)
+	return plugins
 }

@@ -10,9 +10,9 @@ import (
 // `compositions[]` entry declaring how complete that graph is. The two-step
 // rationale comes straight from TR-03183-2 v2.1:
 //
-//   - Claim 177: every component MUST appear in `dependencies[]`, even those
+//   - every component MUST appear in `dependencies[]`, even those
 //     with no known transitive edges (with `dependsOn` empty/omitted).
-//   - Claim 176: completeness of the dependency graph MUST be declared via
+//   - completeness of the dependency graph MUST be declared via
 //     `compositions[].aggregate` — we say "incomplete" because our scan
 //     observes presence-of-component, not transitive edges between them.
 //

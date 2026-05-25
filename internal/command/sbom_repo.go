@@ -10,8 +10,11 @@ import (
 
 	"github.com/urfave/cli/v3"
 
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	repomode "github.com/think-ahead/kunnus-scanner/internal/mode/repo"
+	"github.com/think-ahead/kunnus-scanner/internal/sbom"
+	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
 func sbomRepo() *cli.Command {
@@ -51,7 +54,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 		return fmt.Errorf("plan %s scan: %w", m.Name(), err)
 	}
 
-	result, err := scanRun(ctx, cfg, os.Stderr)
+	result, err := scan.Run(ctx, cfg, os.Stderr)
 	if err != nil {
 		return fmt.Errorf("run scan: %w", err)
 	}
@@ -59,7 +62,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 	// Re-parse lockfiles for native SHA-512 deployable hashes. This is a
 	// workaround for scalibr dropping the hash data its lockfile extractors
 	// already see; remove once they surface them upstream.
-	hashMap := collectLockfileHashes(path)
+	hashMap := hashes.FromLockfiles(path)
 
 	out, closer, err := openOutput(cmd.String("output"))
 	if err != nil {
@@ -67,7 +70,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 	}
 	defer closer()
 
-	if err := encodeSBOM(out, result, comp, hashMap); err != nil {
+	if err := sbom.Encode(out, result, comp, hashMap); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	return nil
