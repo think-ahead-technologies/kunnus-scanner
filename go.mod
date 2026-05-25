@@ -6,7 +6,6 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/google/osv-scalibr v0.4.5
 	github.com/google/uuid v1.6.0
-	github.com/spdx/tools-golang v0.5.7
 	github.com/urfave/cli/v3 v3.9.0
 	gopkg.in/yaml.v3 v3.0.1
 )
@@ -114,6 +113,7 @@ require (
 	github.com/shirou/gopsutil v3.21.11+incompatible // indirect
 	github.com/sirupsen/logrus v1.9.4-0.20230606125235-dd1b4c2e81af // indirect
 	github.com/spdx/gordf v0.0.0-20221230105357-b735bd5aac89 // indirect
+	github.com/spdx/tools-golang v0.5.7 // indirect
 	github.com/thoas/go-funk v0.9.3 // indirect
 	github.com/tidwall/gjson v1.18.0 // indirect
 	github.com/tidwall/jsonc v0.3.2 // indirect

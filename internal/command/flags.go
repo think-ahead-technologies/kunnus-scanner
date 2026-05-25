@@ -17,18 +17,14 @@ import (
 )
 
 // commonSBOMFlags are the flags accepted by every sbom subcommand.
+// Output format is CycloneDX 1.7 (BSI TR-03183-2 v2.1 compliant); we do not
+// expose a format flag because there is only one supported format.
 func commonSBOMFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{
 			Name:    "output",
 			Aliases: []string{"o"},
 			Usage:   "write SBOM to file (default: stdout)",
-		},
-		&cli.StringFlag{
-			Name:    "format",
-			Aliases: []string{"f"},
-			Value:   string(sbom.FormatCycloneDX),
-			Usage:   "SBOM format: spdx | cyclonedx (older suffixed names still accepted)",
 		},
 		&cli.StringSliceFlag{
 			Name:  "enable",
@@ -41,11 +37,6 @@ func commonSBOMFlags() []cli.Flag {
 	}
 }
 
-// parseFormatFlag is a thin shim so subcommands don't import the sbom package directly.
-func parseFormatFlag(s string) (sbom.Format, error) {
-	return sbom.ParseFormat(s)
-}
-
 // scanRun is a thin shim so subcommands don't import the scan package directly.
 func scanRun(ctx context.Context, cfg *scalibr.ScanConfig, logOut io.Writer) (*scan.Result, error) {
 	return scan.Run(ctx, cfg, logOut)
@@ -54,8 +45,8 @@ func scanRun(ctx context.Context, cfg *scalibr.ScanConfig, logOut io.Writer) (*s
 // encodeSBOM is a thin shim so subcommands don't import the sbom package directly.
 // hashMap is optional native-hash data harvested from lockfiles under the scan
 // root; pass nil for OS-mode scans where no lockfiles exist.
-func encodeSBOM(out io.Writer, format sbom.Format, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
-	return sbom.Encode(out, format, result, comp, hashMap)
+func encodeSBOM(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
+	return sbom.Encode(out, result, comp, hashMap)
 }
 
 // collectLockfileHashes is a thin shim that re-parses lockfiles under root

@@ -1,4 +1,4 @@
-// ABOUTME: Post-conversion CDX/SPDX metadata fixups (creator identity, serial number, per-component supplier/properties).
+// ABOUTME: Post-conversion CDX metadata fixups (creator identity, serial number, per-component supplier/properties).
 // ABOUTME: Closes the BSI TR-03183-2 v2.1 gaps that scalibr's converter doesn't fill in by default.
 package sbom
 
@@ -7,8 +7,6 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/google/uuid"
-	"github.com/spdx/tools-golang/spdx/v2/common"
-	spdx23 "github.com/spdx/tools-golang/spdx/v2/v2_3"
 
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
@@ -178,24 +176,4 @@ func applyBSIProps(c *cyclonedx.Component, props map[string]string) {
 	}
 	combined := append(*c.Properties, additions...)
 	c.Properties = &combined
-}
-
-// enrichSPDXCreators replaces the SPDX creator block with one that carries the
-// kunnus email. BSI checks the SBOM creator for a contactable identity; in
-// SPDX that's an Organization creator with an email in parentheses.
-func enrichSPDXCreators(doc *spdx23.Document) {
-	if doc == nil || doc.CreationInfo == nil {
-		return
-	}
-	creators := []common.Creator{
-		{CreatorType: "Organization", Creator: creatorName + " (" + creatorEmail + ")"},
-		{CreatorType: "Tool", Creator: "kunnus-" + version.Version},
-	}
-	// Preserve any tool creators scalibr already added (notably SCALIBR itself).
-	for _, c := range doc.CreationInfo.Creators {
-		if c.CreatorType == "Tool" && c.Creator != "kunnus-"+version.Version {
-			creators = append(creators, c)
-		}
-	}
-	doc.CreationInfo.Creators = creators
 }

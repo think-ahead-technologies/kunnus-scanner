@@ -78,7 +78,6 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 
 	stdout, stderr, err := runKunnus(t,
 		"sbom", "repo",
-		"--format", "cyclonedx-1-5",
 		"--output", outPath,
 		root,
 	)
@@ -100,28 +99,6 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	}
 	if !strings.Contains(string(data), "testify") {
 		t.Error("SBOM missing testify dependency")
-	}
-}
-
-func TestCLI_SBOM_Repo_StdoutSPDX(t *testing.T) {
-	root := t.TempDir()
-	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
-
-	stdout, stderr, err := runKunnus(t,
-		"sbom", "repo",
-		"--format", "spdx-2-3",
-		root,
-	)
-	if err != nil {
-		t.Fatalf("sbom repo: %v\nstderr:\n%s", err, stderr)
-	}
-
-	var doc map[string]any
-	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
-		t.Fatalf("stdout SPDX not valid JSON: %v\n%s", err, stdout)
-	}
-	if v, _ := doc["spdxVersion"].(string); v != "SPDX-2.3" {
-		t.Errorf("spdxVersion = %v, want SPDX-2.3", doc["spdxVersion"])
 	}
 }
 

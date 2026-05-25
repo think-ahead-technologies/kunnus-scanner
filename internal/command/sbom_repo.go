@@ -46,11 +46,6 @@ func runRepoScan(ctx context.Context, cmd *cli.Command) error {
 // It takes the chosen mode, plans the scan, runs it, and encodes the SBOM to the
 // requested output (file or stdout).
 func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov mode.Overrides) error {
-	format, err := parseFormatFlag(cmd.String("format"))
-	if err != nil {
-		return err
-	}
-
 	cfg, comp, err := m.Plan(ctx, path, ov)
 	if err != nil {
 		return fmt.Errorf("plan %s scan: %w", m.Name(), err)
@@ -72,7 +67,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 	}
 	defer closer()
 
-	if err := encodeSBOM(out, format, result, comp, hashMap); err != nil {
+	if err := encodeSBOM(out, result, comp, hashMap); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	return nil
