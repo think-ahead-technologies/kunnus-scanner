@@ -2,21 +2,42 @@
 // ABOUTME: One source of truth for "what do we run on Linux/Windows/macOS by default?"
 package os
 
-import "sort"
+import (
+	"sort"
+
+	"github.com/google/osv-scalibr/extractor/filesystem/os/apk"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/chocolatey"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/cos"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/dpkg"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/flatpak"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/homebrew"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/macapps"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/macports"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/nix"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/pacman"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/portage"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/rpm"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/snap"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/winget"
+	"github.com/google/osv-scalibr/extractor/standalone/windows/dismpatch"
+	"github.com/google/osv-scalibr/extractor/standalone/windows/ospackages"
+	"github.com/google/osv-scalibr/extractor/standalone/windows/regosversion"
+	"github.com/google/osv-scalibr/extractor/standalone/windows/regpatchlevel"
+)
 
 // linuxFamilyPlugins maps a distro family name (debian, rhel, alpine, ...) to
 // the scalibr filesystem extractors that read its package database.
 var linuxFamilyPlugins = map[string][]string{
-	"debian":  {"os/dpkg"},
-	"rhel":    {"os/rpm"},
-	"suse":    {"os/rpm"},
-	"alpine":  {"os/apk"},
-	"arch":    {"os/pacman"},
-	"gentoo":  {"os/portage"},
-	"nix":     {"os/nix"},
-	"flatpak": {"os/flatpak"},
-	"snap":    {"os/snap"},
-	"cos":     {"os/cos"},
+	"debian":  {dpkg.Name},
+	"rhel":    {rpm.Name},
+	"suse":    {rpm.Name},
+	"alpine":  {apk.Name},
+	"arch":    {pacman.Name},
+	"gentoo":  {portage.Name},
+	"nix":     {nix.Name},
+	"flatpak": {flatpak.Name},
+	"snap":    {snap.Name},
+	"cos":     {cos.Name},
 }
 
 // linuxPlugins returns the deduplicated plugin set for the detected distro families.
@@ -50,20 +71,20 @@ func linuxPlugins(families []string) []string {
 // filesystem extractors. Scalibr runs both flavours in a single Scan() call.
 func windowsPlugins() []string {
 	return []string{
-		"windows/ospackages",
-		"windows/regosversion",
-		"windows/regpatchlevel",
-		"windows/dismpatch",
-		"os/chocolatey",
-		"os/winget",
+		ospackages.Name,
+		regosversion.Name,
+		regpatchlevel.Name,
+		dismpatch.Name,
+		chocolatey.Name,
+		winget.Name,
 	}
 }
 
 // macPlugins returns the scalibr extractors used on macOS hosts.
 func macPlugins() []string {
 	return []string{
-		"os/homebrew",
-		"os/macports",
-		"os/macapps",
+		homebrew.Name,
+		macports.Name,
+		macapps.Name,
 	}
 }
