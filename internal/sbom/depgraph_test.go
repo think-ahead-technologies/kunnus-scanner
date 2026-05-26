@@ -1,5 +1,5 @@
-// ABOUTME: Tests injectDepGraphCDX — synthesises BSI-required dependencies[] and compositions[].
-// ABOUTME: Per TR-03183-2 v2.1 §5.2.2 c.177 every component must appear in dependencies[].
+// ABOUTME: Tests injectDepGraphCDX — synthesises the dependencies[] and compositions[] arrays.
+// ABOUTME: Every component must appear in dependencies[]; completeness is declared via compositions[].
 package sbom
 
 import (
@@ -51,7 +51,7 @@ func TestInjectDepGraphCDX_PopulatesDependenciesArray(t *testing.T) {
 		t.Errorf("root should depend on 2 components, got %d", len(*rootEntry.Dependencies))
 	}
 
-	// Every non-root entry must exist with empty dependsOn (BSI claim 177).
+	// Every non-root entry must exist with empty dependsOn.
 	for _, d := range deps {
 		if d.Ref == "root-ref" {
 			continue
@@ -129,7 +129,7 @@ func TestInjectDepGraphCDX_NilSafe(t *testing.T) {
 
 func TestInjectDepGraphCDX_NoRootIsHandled(t *testing.T) {
 	// If for any reason the BOM has no metadata.component, every component
-	// still gets an entry (BSI requires it) and there's no root entry.
+	// still gets an entry (the spec requires it) and there's no root entry.
 	bom := &cyclonedx.BOM{
 		Components: &[]cyclonedx.Component{
 			{BOMRef: "a"},

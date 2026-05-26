@@ -1,4 +1,4 @@
-// ABOUTME: BSI TR-03183-2 v2.1 component-property keys, classifier, and the applier shared by both enrichment stages.
+// ABOUTME: BSI component-property keys, classifier, and the applier shared by both enrichment stages.
 // ABOUTME: Both per-component enrichment and root-component enrichment write these properties.
 package sbom
 

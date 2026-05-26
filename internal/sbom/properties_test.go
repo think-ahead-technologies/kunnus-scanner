@@ -1,5 +1,5 @@
 // ABOUTME: Tests bsi-property derivation from extractor metadata.
-// ABOUTME: Per BSI TR-03183-2 v2.1: filename / executable / archive / structured.
+// ABOUTME: Four properties: filename, executable, archive, structured.
 package sbom
 
 import (

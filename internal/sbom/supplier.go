@@ -1,5 +1,5 @@
 // ABOUTME: Heuristic supplier-identity derivation from PURLs.
-// ABOUTME: BSI TR-03183-2 wants every component to carry a supplier email or URL; we synthesise one.
+// ABOUTME: BSI conformance wants every component to carry a supplier email or URL; we synthesise one.
 package sbom
 
 import "strings"

@@ -5,7 +5,7 @@ package command
 import "github.com/urfave/cli/v3"
 
 // commonSBOMFlags are the flags accepted by every sbom subcommand.
-// Output format is CycloneDX 1.7 (BSI TR-03183-2 v2.1 compliant)
+// Output format is CycloneDX 1.7 (BSI-conformant).
 func commonSBOMFlags() []cli.Flag {
 	return []cli.Flag{
 		&cli.StringFlag{

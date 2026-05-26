@@ -1,4 +1,4 @@
-// ABOUTME: Synthesises the CDX dependencies[] graph and compositions[] aggregate per BSI claims 176-178.
+// ABOUTME: Synthesises the CDX dependencies[] graph and compositions[] aggregate.
 // ABOUTME: Honest about scan depth: root depends on every discovered component, transitive edges are unknown.
 package sbom
 
@@ -7,12 +7,11 @@ import (
 )
 
 // injectDepGraphCDX backfills the BOM's `dependencies[]` array and adds a
-// `compositions[]` entry declaring how complete that graph is. The two-step
-// rationale comes straight from TR-03183-2 v2.1:
+// `compositions[]` entry declaring how complete that graph is:
 //
-//   - every component MUST appear in `dependencies[]`, even those
+//   - every component must appear in `dependencies[]`, even those
 //     with no known transitive edges (with `dependsOn` empty/omitted).
-//   - completeness of the dependency graph MUST be declared via
+//   - completeness of the dependency graph must be declared via
 //     `compositions[].aggregate` — we say "incomplete" because our scan
 //     observes presence-of-component, not transitive edges between them.
 //
@@ -60,7 +59,8 @@ func injectDepGraphCDX(bom *cyclonedx.BOM) {
 		have[rootRef] = true
 	}
 
-	// Every non-root component: empty dependsOn (per claim 177).
+	// Every non-root component must have an entry; dependsOn stays empty
+	// because we don't observe transitive edges.
 	for _, ref := range allRefs {
 		if have[ref] {
 			continue
@@ -71,9 +71,9 @@ func injectDepGraphCDX(bom *cyclonedx.BOM) {
 
 	bom.Dependencies = &existing
 
-	// Composition completeness — claim 176. Reference every bom-ref we now
-	// have a dependency entry for, so consumers can tie the assertion to the
-	// specific graph.
+	// Composition completeness: reference every bom-ref we now have a
+	// dependency entry for, so consumers can tie the "incomplete" assertion
+	// to the specific graph.
 	refs := make([]cyclonedx.BOMReference, 0, len(existing))
 	for _, d := range existing {
 		refs = append(refs, cyclonedx.BOMReference(d.Ref))
