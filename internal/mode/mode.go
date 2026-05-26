@@ -8,6 +8,8 @@ import (
 	"sort"
 
 	scalibr "github.com/google/osv-scalibr"
+
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 // Mode is a scan flavour. Implementations live in subpackages (mode/repo, mode/os).
@@ -20,12 +22,23 @@ type Mode interface {
 	Name() string
 
 	// Plan inspects the target and the overrides, then returns a fully-populated
-	// scalibr ScanConfig along with metadata describing the root SBOM component.
+	// scalibr ScanConfig together with the root component metadata and any
+	// native digests harvested during planning.
 	//
 	// Plan must not perform the scan itself. It may read the filesystem for
 	// auto-detection (e.g. /etc/os-release, walking for lockfiles), but must
 	// not invoke any scalibr plugin.
-	Plan(ctx context.Context, path string, overrides Overrides) (*scalibr.ScanConfig, ComponentInfo, error)
+	Plan(ctx context.Context, path string, overrides Overrides) (*Plan, error)
+}
+
+// Plan is everything a Mode produces from one planning pass: the scalibr
+// ScanConfig, the root component metadata, and any native deployable hashes
+// the mode harvested while it was already walking the tree. Hashes is nil for
+// modes that have no per-package hash sources (e.g. OS scans).
+type Plan struct {
+	Config    *scalibr.ScanConfig
+	Component ComponentInfo
+	Hashes    hashes.Map
 }
 
 // Overrides captures user-facing flags that adjust what auto-detection chose.

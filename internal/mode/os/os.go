@@ -28,10 +28,10 @@ func (*Mode) Name() string { return "os" }
 
 // Plan picks plugins based on the target OS (auto-detected from runtime.GOOS,
 // overridable via ov.TargetOS) and, for Linux, the distro family found at the scan root.
-func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.ScanConfig, mode.ComponentInfo, error) {
+func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("resolve path: %w", err)
+		return nil, fmt.Errorf("resolve path: %w", err)
 	}
 
 	targetOS := ov.TargetOS
@@ -44,10 +44,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 
 	switch targetOS {
 	case "linux":
-		families, derr := detect.LinuxDistroFamilies(abs)
-		if derr != nil {
-			return nil, mode.ComponentInfo{}, fmt.Errorf("detect linux distro: %w", derr)
-		}
+		families := detect.LinuxDistroFamilies(abs)
 		pluginNames = linuxPlugins(families)
 		component = mode.ComponentInfo{
 			Name:    filepath.Base(abs),
@@ -61,7 +58,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 			Version: "",
 			Type:    mode.ComponentTypeOS,
 		}
-	case "mac", "darwin":
+	case "mac":
 		pluginNames = macPlugins()
 		component = mode.ComponentInfo{
 			Name:    "macOS",
@@ -69,17 +66,17 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 			Type:    mode.ComponentTypeOS,
 		}
 	default:
-		return nil, mode.ComponentInfo{}, fmt.Errorf("unsupported target OS %q", targetOS)
+		return nil, fmt.Errorf("unsupported target OS %q", targetOS)
 	}
 
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 	if len(pluginNames) == 0 {
-		return nil, mode.ComponentInfo{}, errors.New("no extractors selected for OS scan")
+		return nil, errors.New("no extractors selected for OS scan")
 	}
 
 	plugins, err := pl.FromNames(pluginNames, nil)
 	if err != nil {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("load plugins %v: %w", pluginNames, err)
+		return nil, fmt.Errorf("load plugins %v: %w", pluginNames, err)
 	}
 
 	cfg := &scalibr.ScanConfig{
@@ -91,7 +88,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		Capabilities: capabilitiesFor(targetOS),
 	}
 
-	return cfg, component, nil
+	return &mode.Plan{
+		Config:    cfg,
+		Component: component,
+	}, nil
 }
 
 func capabilitiesFor(targetOS string) *plugin.Capabilities {
@@ -100,7 +100,7 @@ func capabilitiesFor(targetOS string) *plugin.Capabilities {
 		return &plugin.Capabilities{OS: plugin.OSLinux, DirectFS: true}
 	case "windows":
 		return &plugin.Capabilities{OS: plugin.OSWindows, DirectFS: true}
-	case "mac", "darwin":
+	case "mac":
 		return &plugin.Capabilities{OS: plugin.OSMac, DirectFS: true}
 	}
 	return &plugin.Capabilities{OS: plugin.OSAny}

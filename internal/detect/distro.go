@@ -13,16 +13,16 @@ import (
 )
 
 // LinuxDistroFamilies inspects the filesystem root at scanRoot and returns the
-// distro families it recognises. Returns an empty slice (not an error) when nothing
-// is found — callers can then fall back to a broad "all Linux extractors" set.
+// distro families it recognises. Returns an empty slice when nothing is found —
+// callers can then fall back to a broad "all Linux extractors" set.
 //
 // Detection strategy, in order:
 //  1. Parse /etc/os-release ID and ID_LIKE if present.
 //  2. Fall back to package-database fingerprints (dpkg/rpm/apk paths).
-func LinuxDistroFamilies(scanRoot string) ([]string, error) {
+func LinuxDistroFamilies(scanRoot string) []string {
 	families := familiesFromOSRelease(scanRoot)
 	families = append(families, familiesFromPackageDBs(scanRoot)...)
-	return dedup(families), nil
+	return dedup(families)
 }
 
 func familiesFromOSRelease(scanRoot string) []string {

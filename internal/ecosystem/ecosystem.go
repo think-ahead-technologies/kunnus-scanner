@@ -132,14 +132,20 @@ func buildParsersByFilename(ecos []Ecosystem) map[string]*Parser {
 	return m
 }
 
-// Hashes walks scanRoot for known lockfiles and returns the merged hash map.
+// Survey walks scanRoot once and returns both the ecosystems detected from
+// marker filenames and the merged native-digest map mined from lockfiles. One
+// pass replaces the previous detect+hash double walk.
+//
 // Per-parser failures are reported to logOut (nil writer is silent) but never
 // fail the walk — a single broken lockfile must not block SBOM output.
-func Hashes(scanRoot string, logOut io.Writer) hashes.Map {
-	out := make(hashes.Map)
+// Permission errors on subtrees are skipped, not surfaced.
+func Survey(scanRoot string, logOut io.Writer) (ecosystems []string, digests hashes.Map) {
+	digests = make(hashes.Map)
+	found := make(map[string]struct{})
+
 	abs, err := filepath.Abs(scanRoot)
 	if err != nil {
-		return out
+		return nil, digests
 	}
 
 	_ = filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
@@ -155,16 +161,24 @@ func Hashes(scanRoot string, logOut io.Writer) hashes.Map {
 			}
 			return nil
 		}
-		p, ok := parsersByFilename[d.Name()]
-		if !ok {
-			return nil
+		name := d.Name()
+		if eco := ForFile(name); eco != "" {
+			found[eco] = struct{}{}
 		}
-		m, err := p.Parse(path)
-		if err != nil && logOut != nil {
-			_, _ = fmt.Fprintf(logOut, "hashes: %s parser failed on %s: %v\n", p.Name, path, err)
+		if p, ok := parsersByFilename[name]; ok {
+			m, perr := p.Parse(path)
+			if perr != nil && logOut != nil {
+				_, _ = fmt.Fprintf(logOut, "hashes: %s parser failed on %s: %v\n", p.Name, path, perr)
+			}
+			digests.Merge(m)
 		}
-		out.Merge(m)
 		return nil
 	})
-	return out
+
+	ecosystems = make([]string, 0, len(found))
+	for e := range found {
+		ecosystems = append(ecosystems, e)
+	}
+	sort.Strings(ecosystems)
+	return ecosystems, digests
 }

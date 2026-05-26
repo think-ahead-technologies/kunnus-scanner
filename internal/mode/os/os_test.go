@@ -19,10 +19,11 @@ func TestPlan_LinuxWithDpkgFixture(t *testing.T) {
 	mkdir(t, filepath.Join(root, "var", "lib", "dpkg"))
 	writeFile(t, filepath.Join(root, "var", "lib", "dpkg", "status"), "")
 
-	cfg, comp, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "linux"})
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "linux"})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
+	cfg := plan.Config
 	if cfg.Capabilities == nil || cfg.Capabilities.OS != plugin.OSLinux {
 		t.Errorf("want Capabilities.OS = OSLinux, got %+v", cfg.Capabilities)
 	}
@@ -32,53 +33,67 @@ func TestPlan_LinuxWithDpkgFixture(t *testing.T) {
 	if len(cfg.Plugins) == 0 {
 		t.Error("want at least one plugin for Linux dpkg fixture")
 	}
-	if comp.Type != "operating-system" {
-		t.Errorf("ComponentInfo.Type = %q, want operating-system", comp.Type)
+	if plan.Component.Type != "operating-system" {
+		t.Errorf("ComponentInfo.Type = %q, want operating-system", plan.Component.Type)
+	}
+	if plan.Hashes != nil {
+		t.Errorf("OS-mode Plan.Hashes should be nil, got %v", plan.Hashes)
 	}
 }
 
 func TestPlan_LinuxNoDistroFallsBackToAll(t *testing.T) {
 	root := t.TempDir() // empty — no os-release, no package DB
-	cfg, _, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "linux"})
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "linux"})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	if len(cfg.Plugins) == 0 {
+	if len(plan.Config.Plugins) == 0 {
 		t.Error("want fallback to all linux extractors when no distro detected")
 	}
 }
 
 func TestPlan_WindowsTarget(t *testing.T) {
 	root := t.TempDir()
-	cfg, comp, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "windows"})
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{TargetOS: "windows"})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
+	cfg := plan.Config
 	if cfg.Capabilities == nil || cfg.Capabilities.OS != plugin.OSWindows {
 		t.Errorf("want Capabilities.OS = OSWindows, got %+v", cfg.Capabilities)
 	}
 	if len(cfg.Plugins) == 0 {
 		t.Error("want at least one plugin for Windows target")
 	}
-	if comp.Name != "Windows" {
-		t.Errorf("ComponentInfo.Name = %q, want Windows", comp.Name)
+	if plan.Component.Name != "Windows" {
+		t.Errorf("ComponentInfo.Name = %q, want Windows", plan.Component.Name)
 	}
 }
 
 func TestPlan_MacTarget(t *testing.T) {
-	cfg, _, err := New().Plan(context.Background(), t.TempDir(), mode.Overrides{TargetOS: "mac"})
+	plan, err := New().Plan(context.Background(), t.TempDir(), mode.Overrides{TargetOS: "mac"})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
+	cfg := plan.Config
 	if cfg.Capabilities == nil || cfg.Capabilities.OS != plugin.OSMac {
 		t.Errorf("want Capabilities.OS = OSMac, got %+v", cfg.Capabilities)
 	}
 }
 
 func TestPlan_UnsupportedTargetOS(t *testing.T) {
-	_, _, err := New().Plan(context.Background(), t.TempDir(), mode.Overrides{TargetOS: "plan9"})
+	_, err := New().Plan(context.Background(), t.TempDir(), mode.Overrides{TargetOS: "plan9"})
 	if err == nil {
 		t.Fatal("expected error for unsupported target OS, got nil")
+	}
+}
+
+func TestPlan_DarwinIsNotAccepted(t *testing.T) {
+	// detect.Host() always converts darwin → "mac"; the flag advertises only mac.
+	// "darwin" passed explicitly must be rejected to match the documented contract.
+	_, err := New().Plan(context.Background(), t.TempDir(), mode.Overrides{TargetOS: "darwin"})
+	if err == nil {
+		t.Fatal("expected error for TargetOS=darwin, got nil")
 	}
 }
 
@@ -91,24 +106,24 @@ func TestPlan_AutoDetectMatchesHost(t *testing.T) {
 	}
 
 	root := t.TempDir()
-	cfg, _, err := New().Plan(context.Background(), root, mode.Overrides{})
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{})
 	if err != nil {
 		t.Fatalf("Plan: %v", err)
 	}
-	if cfg.Capabilities == nil {
+	if plan.Config.Capabilities == nil {
 		t.Fatal("Plan returned nil capabilities")
 	}
 }
 
 func TestPlan_DisableOverrideTrimsPluginSet(t *testing.T) {
 	root := t.TempDir()
-	cfg, _, err := New().Plan(context.Background(), root, mode.Overrides{
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{
 		TargetOS:       "linux",
 		DisablePlugins: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage", "os/nix", "os/flatpak", "os/snap", "os/cos"},
 	})
 	// Disabling everything should produce the "no extractors selected" error.
 	if err == nil {
-		t.Fatalf("expected error when all plugins disabled, got cfg with %d plugins", len(cfg.Plugins))
+		t.Fatalf("expected error when all plugins disabled, got plan with %d plugins", len(plan.Config.Plugins))
 	}
 }
 

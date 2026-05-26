@@ -4,6 +4,8 @@ package ecosystem
 
 import (
 	"bytes"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"testing"
@@ -135,14 +137,90 @@ func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 	}
 }
 
-func TestHashes_EmptyTreeReturnsEmptyMap(t *testing.T) {
-	got := Hashes(t.TempDir(), nil)
-	if len(got) != 0 {
-		t.Errorf("empty tree: got %d entries, want 0", len(got))
+func TestSurvey_EmptyTree(t *testing.T) {
+	ecos, digests := Survey(t.TempDir(), nil)
+	if len(ecos) != 0 {
+		t.Errorf("empty tree: got ecosystems %v, want []", ecos)
+	}
+	if len(digests) != 0 {
+		t.Errorf("empty tree: got %d digest entries, want 0", len(digests))
 	}
 }
 
-func TestHashes_DispatchesByFilename(t *testing.T) {
+func TestSurvey_DetectsEcosystems(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string // file paths relative to scan root
+		want  []string // expected canonical ecosystems, sorted
+	}{
+		{"node project", []string{"package.json", "package-lock.json"}, []string{"npm"}},
+		{"bun project", []string{"package.json", "bun.lock"}, []string{"npm"}},
+		{"bun-only project", []string{"bun.lock"}, []string{"npm"}},
+		{"go project", []string{"go.mod", "go.sum"}, []string{"go"}},
+		{"rust project", []string{"Cargo.toml", "Cargo.lock"}, []string{"cargo"}},
+		{"dotnet csproj", []string{"myapp/MyApp.csproj"}, []string{"dotnet"}},
+		{"dotnet packages.lock.json", []string{"packages.lock.json"}, []string{"dotnet"}},
+		{"python pyproject + poetry", []string{"pyproject.toml", "poetry.lock"}, []string{"python"}},
+		{"python uv-only project", []string{"uv.lock"}, []string{"python"}},
+		{"cpp conan project", []string{"conanfile.py", "conan.lock"}, []string{"cpp"}},
+		{"cpp conanfile.txt only", []string{"conanfile.txt"}, []string{"cpp"}},
+		{
+			name: "mixed monorepo",
+			files: []string{
+				"backend/go.mod",
+				"frontend/package.json",
+				"frontend/pnpm-lock.yaml",
+				"services/api/MyApi.csproj",
+			},
+			want: []string{"dotnet", "go", "npm"},
+		},
+		{
+			name: "skip-dir contents ignored",
+			files: []string{
+				"go.mod",
+				"node_modules/foo/package.json",
+				".git/HEAD",
+				"vendor/cargo/Cargo.toml",
+			},
+			want: []string{"go"},
+		},
+		{"case-insensitive lockfile names", []string{"Gemfile", "Gemfile.lock"}, []string{"ruby"}},
+		{"unrelated files ignored", []string{"README.md", "src/main.go", "LICENSE"}, []string{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, rel := range tc.files {
+				writeAt(t, root, rel, "")
+			}
+			got, _ := Survey(root, nil)
+			if got == nil {
+				got = []string{}
+			}
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("Survey(%q) ecosystems = %v, want %v", root, got, tc.want)
+			}
+		})
+	}
+}
+
+func TestSurvey_PermissionErrorOnSubdirSkipped(t *testing.T) {
+	root := t.TempDir()
+	writeAt(t, root, "go.mod", "")
+
+	bad := filepath.Join(root, "locked")
+	if err := os.Mkdir(bad, 0o000); err != nil {
+		t.Fatalf("mkdir locked: %v", err)
+	}
+	t.Cleanup(func() { _ = os.Chmod(bad, 0o755) })
+
+	got, _ := Survey(root, nil)
+	if !slices.Equal(got, []string{"go"}) {
+		t.Errorf("Survey with unreadable subdir: %v, want [go]", got)
+	}
+}
+
+func TestSurvey_DispatchesByFilename(t *testing.T) {
 	// A minimal valid Cargo.lock under a tree with no other lockfiles proves
 	// the walker → registry → parser chain wires through end-to-end.
 	root := t.TempDir()
@@ -154,13 +232,13 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
-	got := Hashes(root, nil)
-	if _, ok := got["pkg:cargo/serde@1.0.0"]; !ok {
-		t.Errorf("walker did not dispatch Cargo.lock through cargo parser; got %v", got)
+	_, digests := Survey(root, nil)
+	if _, ok := digests["pkg:cargo/serde@1.0.0"]; !ok {
+		t.Errorf("walker did not dispatch Cargo.lock through cargo parser; got %v", digests)
 	}
 }
 
-func TestHashes_ParseErrorLogsButContinues(t *testing.T) {
+func TestSurvey_ParseErrorLogsButContinues(t *testing.T) {
 	// One broken lockfile must not block another parser's output.
 	root := t.TempDir()
 	writeAt(t, root, "Cargo.lock", "[[package broken toml")
@@ -173,9 +251,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
 	var logBuf bytes.Buffer
-	got := Hashes(root, &logBuf)
-	if _, ok := got["pkg:cargo/ok@1.0.0"]; !ok {
-		t.Errorf("sibling parser output lost: %v", got)
+	_, digests := Survey(root, &logBuf)
+	if _, ok := digests["pkg:cargo/ok@1.0.0"]; !ok {
+		t.Errorf("sibling parser output lost: %v", digests)
 	}
 	if !strings.Contains(logBuf.String(), "cargo") {
 		t.Errorf("expected parse-error log mentioning cargo, got %q", logBuf.String())

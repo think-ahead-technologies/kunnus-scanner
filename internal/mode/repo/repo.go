@@ -13,7 +13,6 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
-	"github.com/think-ahead/kunnus-scanner/internal/detect"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
@@ -28,18 +27,16 @@ func New() *Mode { return &Mode{} }
 // Name returns the user-facing name.
 func (*Mode) Name() string { return "repo" }
 
-// Plan walks path looking for lockfile signatures, maps them to scalibr plugin
-// names, applies overrides, and returns a ScanConfig that scans only path.
-func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.ScanConfig, mode.ComponentInfo, error) {
+// Plan walks path once, surveying both lockfile-based ecosystems and the
+// native digests inside those lockfiles, then maps the detected ecosystems
+// to scalibr plugin names and returns a ScanConfig that scans only path.
+func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan, error) {
 	abs, err := filepath.Abs(path)
 	if err != nil {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("resolve path: %w", err)
+		return nil, fmt.Errorf("resolve path: %w", err)
 	}
 
-	ecosystems, err := detect.Ecosystems(abs)
-	if err != nil {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("detect ecosystems: %w", err)
-	}
+	ecosystems, hashMap := ecosystem.Survey(abs, nil)
 
 	if len(ov.Ecosystems) > 0 {
 		ecosystems = intersect(ecosystems, ov.Ecosystems)
@@ -49,12 +46,12 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
 	if len(pluginNames) == 0 {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("no extractors selected for %s (detected ecosystems: %v)", abs, ecosystems)
+		return nil, fmt.Errorf("no extractors selected for %s (detected ecosystems: %v)", abs, ecosystems)
 	}
 
 	plugins, err := pl.FromNames(pluginNames, nil)
 	if err != nil {
-		return nil, mode.ComponentInfo{}, fmt.Errorf("load plugins %v: %w", pluginNames, err)
+		return nil, fmt.Errorf("load plugins %v: %w", pluginNames, err)
 	}
 
 	cfg := &scalibr.ScanConfig{
@@ -68,10 +65,14 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		DirsToSkip:   fswalk.AbsoluteSkipPaths(abs),
 	}
 
-	return cfg, mode.ComponentInfo{
-		Name:    filepath.Base(abs),
-		Version: "",
-		Type:    mode.ComponentTypeApplication,
+	return &mode.Plan{
+		Config: cfg,
+		Component: mode.ComponentInfo{
+			Name:    filepath.Base(abs),
+			Version: "",
+			Type:    mode.ComponentTypeApplication,
+		},
+		Hashes: hashMap,
 	}, nil
 }
 

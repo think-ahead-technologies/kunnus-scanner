@@ -1,14 +1,12 @@
 // ABOUTME: Wires the `kunnus sbom repo` subcommand: source-code SBOM generation.
-// ABOUTME: Owns its flags and harvests lockfile hashes; the shared pipeline lives in pipeline.go.
+// ABOUTME: Owns its flags; the shared scan-and-encode pipeline lives in pipeline.go.
 package command
 
 import (
 	"context"
-	"os"
 
 	"github.com/urfave/cli/v3"
 
-	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	repomode "github.com/think-ahead/kunnus-scanner/internal/mode/repo"
 )
@@ -38,11 +36,5 @@ func runRepoScan(ctx context.Context, cmd *cli.Command) error {
 		EnablePlugins:  cmd.StringSlice("enable"),
 		DisablePlugins: cmd.StringSlice("disable"),
 	}
-
-	// Re-parse lockfiles for native deployable hashes. This is a workaround
-	// for scalibr dropping the hash data its lockfile extractors already see;
-	// remove once they surface them upstream.
-	hashMap := ecosystem.Hashes(path, os.Stderr)
-
-	return runScan(ctx, cmd, repomode.New(), path, ov, hashMap)
+	return runScan(ctx, cmd, repomode.New(), path, ov)
 }

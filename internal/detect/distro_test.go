@@ -102,10 +102,7 @@ func TestLinuxDistroFamilies(t *testing.T) {
 				}
 			}
 
-			got, err := LinuxDistroFamilies(root)
-			if err != nil {
-				t.Fatalf("LinuxDistroFamilies: %v", err)
-			}
+			got := LinuxDistroFamilies(root)
 			// Normalise nil vs empty slice for comparison.
 			if got == nil {
 				got = []string{}
