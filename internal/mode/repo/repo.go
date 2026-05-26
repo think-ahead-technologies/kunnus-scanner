@@ -13,6 +13,7 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
@@ -45,12 +46,12 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	// picks them up without a second code path.
 	vendoredHits, vendoredHashes := vendored.Survey(abs, nil)
 	hashMap.Merge(vendoredHashes)
-	extras := make([]mode.ExtraComponent, 0, len(vendoredHits))
+	extras := make([]bom.ExtraComponent, 0, len(vendoredHits))
 	for _, hit := range vendoredHits {
-		extras = append(extras, mode.ExtraComponent{
+		extras = append(extras, bom.ExtraComponent{
 			PURL:   hit.PURL,
 			Name:   hit.Name,
-			Type:   mode.ComponentTypeLibrary,
+			Type:   bom.ComponentTypeLibrary,
 			BomRef: "vendored:" + filepath.ToSlash(hit.RelPath),
 		})
 	}
@@ -87,10 +88,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 
 	return &mode.Plan{
 		Config: cfg,
-		Component: mode.ComponentInfo{
+		Component: bom.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",
-			Type:    mode.ComponentTypeApplication,
+			Type:    bom.ComponentTypeApplication,
 		},
 		Hashes:          hashMap,
 		ExtraComponents: extras,

@@ -13,6 +13,7 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
@@ -40,30 +41,30 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	}
 
 	var pluginNames []string
-	var component mode.ComponentInfo
+	var component bom.ComponentInfo
 
 	switch targetOS {
 	case "linux":
 		families := detect.LinuxDistroFamilies(abs)
 		pluginNames = linuxPlugins(families)
-		component = mode.ComponentInfo{
+		component = bom.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",
-			Type:    mode.ComponentTypeOS,
+			Type:    bom.ComponentTypeOS,
 		}
 	case "windows":
 		pluginNames = windowsPlugins()
-		component = mode.ComponentInfo{
+		component = bom.ComponentInfo{
 			Name:    "Windows",
 			Version: "",
-			Type:    mode.ComponentTypeOS,
+			Type:    bom.ComponentTypeOS,
 		}
 	case "mac":
 		pluginNames = macPlugins()
-		component = mode.ComponentInfo{
+		component = bom.ComponentInfo{
 			Name:    "macOS",
 			Version: "",
-			Type:    mode.ComponentTypeOS,
+			Type:    bom.ComponentTypeOS,
 		}
 	default:
 		return nil, fmt.Errorf("unsupported target OS %q", targetOS)

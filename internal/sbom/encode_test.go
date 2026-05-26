@@ -11,8 +11,8 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
@@ -32,7 +32,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -53,7 +53,7 @@ func TestEncode_HasCPE(t *testing.T) {
 
 func TestEncode_CycloneDX(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, sampleResult(), mode.ComponentInfo{
+	err := Encode(&buf, sampleResult(), bom.ComponentInfo{
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
@@ -97,10 +97,10 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	// list and one "kunnus:vendored:file" property per file (path-bearing
 	// hashes only — lockfile hashes have no Path and stay properties-free).
 	const vendoredPURL = "pkg:generic/zlib?vendored_path=third_party/zlib"
-	extras := []mode.ExtraComponent{{
+	extras := []bom.ExtraComponent{{
 		PURL:   vendoredPURL,
 		Name:   "zlib",
-		Type:   mode.ComponentTypeLibrary,
+		Type:   bom.ComponentTypeLibrary,
 		BomRef: "vendored:third_party/zlib",
 	}}
 	hashMap := hashes.Map{
@@ -111,7 +111,7 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), mode.ComponentInfo{Name: "repo", Type: "application"}, hashMap, extras); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, hashMap, extras); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 

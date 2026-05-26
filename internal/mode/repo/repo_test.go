@@ -9,6 +9,7 @@ import (
 	"reflect"
 	"testing"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
@@ -143,8 +144,8 @@ func TestPlan_VendoredCppSurfacesAsExtraComponent(t *testing.T) {
 	if ec.Name != "zlib" {
 		t.Errorf("Name = %q, want %q", ec.Name, "zlib")
 	}
-	if ec.Type != mode.ComponentTypeLibrary {
-		t.Errorf("Type = %q, want %q", ec.Type, mode.ComponentTypeLibrary)
+	if ec.Type != bom.ComponentTypeLibrary {
+		t.Errorf("Type = %q, want %q", ec.Type, bom.ComponentTypeLibrary)
 	}
 	if ec.PURL == "" {
 		t.Error("PURL must be set on vendored ExtraComponent")

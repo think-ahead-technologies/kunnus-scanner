@@ -9,6 +9,7 @@ import (
 
 	scalibr "github.com/google/osv-scalibr"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
@@ -42,27 +43,9 @@ type Mode interface {
 // under the same PURL so the standard injector picks them up.
 type Plan struct {
 	Config          *scalibr.ScanConfig
-	Component       ComponentInfo
+	Component       bom.ComponentInfo
 	Hashes          hashes.Map
-	ExtraComponents []ExtraComponent
-}
-
-// ExtraComponent is one BOM component sourced outside scalibr. The fields are
-// the minimum a CycloneDX library entry needs; everything else (hashes,
-// per-file properties) flows through Hashes keyed on PURL.
-type ExtraComponent struct {
-	// PURL is the package-url for the component. Vendored libs use the
-	// pkg:generic type with a vendored_path qualifier.
-	PURL string
-
-	// Name is the short human-readable name (the vendored directory's basename).
-	Name string
-
-	// Type is the CycloneDX component type — "library" for vendored sources.
-	Type string
-
-	// BomRef is a stable identifier within the BOM ("vendored:<rel-path>").
-	BomRef string
+	ExtraComponents []bom.ExtraComponent
 }
 
 // Overrides captures user-facing flags that adjust what auto-detection chose.
@@ -82,24 +65,6 @@ type Overrides struct {
 
 	// DisablePlugins removes the named scalibr plugins from the selection.
 	DisablePlugins []string
-}
-
-// Component type values for ComponentInfo.Type. These are the CycloneDX
-// `metadata.component.type` strings; we list them here because mode is the
-// canonical place that decides which type a scan produces.
-const (
-	ComponentTypeApplication = "application"
-	ComponentTypeOS          = "operating-system"
-	ComponentTypeFirmware    = "firmware"
-	ComponentTypeLibrary     = "library"
-)
-
-// ComponentInfo describes the root component of the resulting SBOM.
-// CycloneDX puts this in metadata.component.
-type ComponentInfo struct {
-	Name    string
-	Version string
-	Type    string // one of ComponentType* constants above
 }
 
 // ApplyOverrides folds ov.EnablePlugins and ov.DisablePlugins into the given

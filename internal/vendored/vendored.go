@@ -33,8 +33,8 @@ var cppFileExts = map[string]struct{}{
 const maxFilesPerLib = 10000
 
 // Hit describes one vendored library directory the survey found.
-// mode/repo translates this into a mode.ExtraComponent; this package stays
-// free of mode imports so the package dependency graph remains a DAG.
+// mode/repo translates this into a bom.ExtraComponent; this package stays
+// free of bom/mode imports so the package dependency graph remains a DAG.
 type Hit struct {
 	// Name is the basename of the vendored library directory (e.g. "zlib").
 	Name string

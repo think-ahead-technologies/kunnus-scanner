@@ -7,7 +7,7 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 
-	"github.com/think-ahead/kunnus-scanner/internal/mode"
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 )
 
 // enrichCDXComponents walks every component in the BOM, finds the matching
@@ -46,16 +46,16 @@ func enrichCDXComponents(bom *cyclonedx.BOM, inv inventory.Inventory) {
 //
 // CDX components are stored as a pointer to a slice on the BOM; we allocate
 // one if nil so callers don't have to special-case the empty BOM.
-func appendExtraComponents(bom *cyclonedx.BOM, extras []mode.ExtraComponent) {
+func appendExtraComponents(b *cyclonedx.BOM, extras []bom.ExtraComponent) {
 	if len(extras) == 0 {
 		return
 	}
-	if bom.Components == nil {
+	if b.Components == nil {
 		empty := make([]cyclonedx.Component, 0, len(extras))
-		bom.Components = &empty
+		b.Components = &empty
 	}
 	for _, e := range extras {
-		*bom.Components = append(*bom.Components, cyclonedx.Component{
+		*b.Components = append(*b.Components, cyclonedx.Component{
 			BOMRef:     e.BomRef,
 			Type:       cyclonedx.ComponentType(e.Type),
 			Name:       e.Name,
