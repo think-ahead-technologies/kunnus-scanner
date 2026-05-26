@@ -8,12 +8,18 @@ import (
 	"encoding/hex"
 	"errors"
 	"strings"
+
+	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/bunlock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/packagejson"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/packagelockjson"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/pnpmlock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/yarnlock"
 )
 
 var npm = Ecosystem{
 	Name:           "npm",
 	Filenames:      []string{"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock"},
-	ScalibrPlugins: []string{"javascript/packagejson", "javascript/packagelockjson", "javascript/pnpmlock", "javascript/yarnlock", "javascript/bunlock"},
+	ScalibrPlugins: []string{packagejson.Name, packagelockjson.Name, pnpmlock.Name, yarnlock.Name, bunlock.Name},
 	HashParsers: []Parser{
 		{Name: "npm", Filenames: []string{"package-lock.json", "npm-shrinkwrap.json"}, Parse: parseNPMLock},
 		{Name: "pnpm", Filenames: []string{"pnpm-lock.yaml"}, Parse: parsePNPMLock},

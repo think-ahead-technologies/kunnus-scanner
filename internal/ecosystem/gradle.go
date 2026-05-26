@@ -2,8 +2,13 @@
 // ABOUTME: No kunnus-side hash parser yet.
 package ecosystem
 
+import (
+	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradlelockfile"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/java/gradleverificationmetadataxml"
+)
+
 var gradle = Ecosystem{
 	Name:           "gradle",
 	Filenames:      []string{"build.gradle", "build.gradle.kts", "gradle.lockfile"},
-	ScalibrPlugins: []string{"java/gradlelockfile", "java/gradleverificationmetadataxml"},
+	ScalibrPlugins: []string{gradlelockfile.Name, gradleverificationmetadataxml.Name},
 }

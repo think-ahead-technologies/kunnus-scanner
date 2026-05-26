@@ -9,13 +9,15 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/osv-scalibr/extractor/filesystem/language/cpp/conanlock"
+
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 var cpp = Ecosystem{
 	Name:           "cpp",
 	Filenames:      []string{"conan.lock", "conanfile.txt", "conanfile.py"},
-	ScalibrPlugins: []string{"cpp/conanlock"},
+	ScalibrPlugins: []string{conanlock.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "conan",

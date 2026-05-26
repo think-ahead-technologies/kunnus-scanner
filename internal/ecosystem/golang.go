@@ -11,13 +11,16 @@ import (
 	"os"
 	"strings"
 
+	"github.com/google/osv-scalibr/extractor/filesystem/language/golang/gobinary"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/golang/gomod"
+
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
 var golang = Ecosystem{
 	Name:           "go",
 	Filenames:      []string{"go.mod", "go.sum"},
-	ScalibrPlugins: []string{"go/gomod", "go/binary"},
+	ScalibrPlugins: []string{gomod.Name, gobinary.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "go",

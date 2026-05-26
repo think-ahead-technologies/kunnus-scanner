@@ -2,12 +2,22 @@
 // ABOUTME: poetry.lock and pdm.lock share the same TOML schema and parse function.
 package ecosystem
 
+import (
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pdmlock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pipfilelock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/poetrylock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/requirements"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/setup"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/uvlock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
+)
+
 var python = Ecosystem{
 	Name:      "python",
 	Filenames: []string{"pyproject.toml", "poetry.lock", "pdm.lock", "Pipfile.lock", "requirements.txt", "setup.py", "uv.lock"},
 	ScalibrPlugins: []string{
-		"python/poetrylock", "python/pdmlock", "python/pipfilelock",
-		"python/requirements", "python/setup", "python/uvlock", "python/wheelegg",
+		poetrylock.Name, pdmlock.Name, pipfilelock.Name,
+		requirements.Name, setup.Name, uvlock.Name, wheelegg.Name,
 	},
 	HashParsers: []Parser{
 		{Name: "poetry", Filenames: []string{"poetry.lock"}, Parse: parsePyPIPackagesFilesLock},

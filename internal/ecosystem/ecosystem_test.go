@@ -102,21 +102,21 @@ func TestRegistry_EcosystemFieldsAreComplete(t *testing.T) {
 
 func TestForFile_KnownAndUnknown(t *testing.T) {
 	tests := map[string]string{
-		"Cargo.lock":         "cargo",
-		"cargo.lock":         "cargo",
-		"CARGO.LOCK":         "cargo",
-		"go.sum":             "go",
-		"package-lock.json":  "npm",
-		"yarn.lock":          "npm",
-		"uv.lock":            "python",
-		"poetry.lock":        "python",
-		"conan.lock":         "cpp",
-		"conanfile.py":       "cpp",
-		"renv.lock":          "r",
-		"unknown.file":       "",
-		"":                   "",
-		"MyApp.csproj":       "dotnet", // suffix match
-		"x.deps.json":        "dotnet", // suffix match
+		"Cargo.lock":        "cargo",
+		"cargo.lock":        "cargo",
+		"CARGO.LOCK":        "cargo",
+		"go.sum":            "go",
+		"package-lock.json": "npm",
+		"yarn.lock":         "npm",
+		"uv.lock":           "python",
+		"poetry.lock":       "python",
+		"conan.lock":        "cpp",
+		"conanfile.py":      "cpp",
+		"renv.lock":         "r",
+		"unknown.file":      "",
+		"":                  "",
+		"MyApp.csproj":      "dotnet", // suffix match
+		"x.deps.json":       "dotnet", // suffix match
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {

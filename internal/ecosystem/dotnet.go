@@ -10,6 +10,13 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/csproj"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/depsjson"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/dotnetpe"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/nugetcpm"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/packagesconfig"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/packageslockjson"
+
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
@@ -17,7 +24,7 @@ var dotnet = Ecosystem{
 	Name:             "dotnet",
 	Filenames:        []string{"packages.config", "packages.lock.json", "project.assets.json"},
 	FilenameSuffixes: []string{".csproj", ".deps.json"},
-	ScalibrPlugins:   []string{"dotnet/csproj", "dotnet/depsjson", "dotnet/nugetcpm", "dotnet/packagesconfig", "dotnet/packageslockjson", "dotnet/pe"},
+	ScalibrPlugins:   []string{csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name, packageslockjson.Name, dotnetpe.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "nuget",

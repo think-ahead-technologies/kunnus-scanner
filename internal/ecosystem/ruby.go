@@ -2,8 +2,12 @@
 // ABOUTME: No kunnus-side hash parser yet.
 package ecosystem
 
+import (
+	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemfilelock"
+)
+
 var ruby = Ecosystem{
 	Name:           "ruby",
 	Filenames:      []string{"Gemfile", "Gemfile.lock"},
-	ScalibrPlugins: []string{"ruby/gemfilelock"},
+	ScalibrPlugins: []string{gemfilelock.Name},
 }

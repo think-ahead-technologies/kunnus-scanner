@@ -2,8 +2,12 @@
 // ABOUTME: No kunnus-side hash parser yet — Composer's lockfile carries integrity values but we don't mine them.
 package ecosystem
 
+import (
+	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
+)
+
 var composer = Ecosystem{
 	Name:           "composer",
 	Filenames:      []string{"composer.json", "composer.lock"},
-	ScalibrPlugins: []string{"php/composerlock"},
+	ScalibrPlugins: []string{composerlock.Name},
 }
