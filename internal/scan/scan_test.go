@@ -3,7 +3,6 @@
 package scan
 
 import (
-	"bytes"
 	"context"
 	"os"
 	"path/filepath"
@@ -17,7 +16,7 @@ import (
 )
 
 func TestRun_NilConfigErrors(t *testing.T) {
-	_, err := Run(context.Background(), nil, &bytes.Buffer{})
+	_, err := Run(context.Background(), nil)
 	if err == nil {
 		t.Fatal("expected error for nil config")
 	}
@@ -42,16 +41,15 @@ func TestRun_ScansGoModFixture(t *testing.T) {
 		Capabilities: &plugin.Capabilities{OS: plugin.OSAny},
 	}
 
-	var logBuf bytes.Buffer
-	res, err := Run(context.Background(), cfg, &logBuf)
+	res, err := Run(context.Background(), cfg)
 	if err != nil {
-		t.Fatalf("Run: %v\nlog:\n%s", err, logBuf.String())
+		t.Fatalf("Run: %v", err)
 	}
 	if res == nil {
 		t.Fatal("Run returned nil result")
 	}
 	if len(res.Inventory.Packages) == 0 {
-		t.Errorf("expected packages from go.mod scan, got 0. log:\n%s", logBuf.String())
+		t.Errorf("expected packages from go.mod scan, got 0")
 	}
 
 	// Sanity: one of the packages should be the testify require we declared.
@@ -80,7 +78,7 @@ func TestRun_EmptyTreeProducesEmptyInventory(t *testing.T) {
 		Capabilities: &plugin.Capabilities{OS: plugin.OSAny},
 	}
 
-	res, err := Run(context.Background(), cfg, &bytes.Buffer{})
+	res, err := Run(context.Background(), cfg)
 	if err != nil {
 		t.Fatalf("Run: %v", err)
 	}

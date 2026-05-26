@@ -24,7 +24,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 		return fmt.Errorf("plan %s scan: %w", m.Name(), err)
 	}
 
-	result, err := scan.Run(ctx, plan.Config, os.Stderr)
+	result, err := scan.Run(ctx, plan.Config)
 	if err != nil {
 		return fmt.Errorf("run scan: %w", err)
 	}

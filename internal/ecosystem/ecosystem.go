@@ -3,9 +3,8 @@
 package ecosystem
 
 import (
-	"fmt"
-	"io"
 	"io/fs"
+	"log/slog"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -137,10 +136,10 @@ func buildParsersByFilename(ecos []Ecosystem) map[string]*Parser {
 // marker filenames and the merged native-digest map mined from lockfiles. One
 // pass replaces the previous detect+hash double walk.
 //
-// Per-parser failures are reported to logOut (nil writer is silent) but never
+// Per-parser failures are logged at warn level via slog.Default() but never
 // fail the walk — a single broken lockfile must not block SBOM output.
 // Permission errors on subtrees are skipped, not surfaced.
-func Survey(scanRoot string, logOut io.Writer) (ecosystems []string, digests hashes.Map) {
+func Survey(scanRoot string) (ecosystems []string, digests hashes.Map) {
 	digests = make(hashes.Map)
 	found := make(map[string]struct{})
 
@@ -168,8 +167,12 @@ func Survey(scanRoot string, logOut io.Writer) (ecosystems []string, digests has
 		}
 		if p, ok := parsersByFilename[name]; ok {
 			m, perr := p.Parse(path)
-			if perr != nil && logOut != nil {
-				_, _ = fmt.Fprintf(logOut, "hashes: %s parser failed on %s: %v\n", p.Name, path, perr)
+			if perr != nil {
+				slog.Warn("lockfile parser failed",
+					"ecosystem", p.Name,
+					"path", path,
+					"err", perr,
+				)
 			}
 			digests.Merge(m)
 		}

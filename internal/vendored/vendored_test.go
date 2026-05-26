@@ -41,7 +41,7 @@ func TestSurvey_BasicCppTree(t *testing.T) {
 	writeAt(t, root, "third_party/zlib/inflate.c", "// inflate impl\n")
 	writeAt(t, root, "third_party/zlib/zlib.h", "// header\n")
 
-	hits, hashMap := Survey(root, nil)
+	hits, hashMap := Survey(root)
 
 	if len(hits) != 1 {
 		t.Fatalf("expected 1 vendored hit, got %d: %+v", len(hits), hits)
@@ -85,7 +85,7 @@ func TestSurvey_NoCppFilesSkipsDir(t *testing.T) {
 	writeAt(t, root, "vendor/golang.org/x/sys/unix/syscall.go", "package unix\n")
 	writeAt(t, root, "vendor/modules.txt", "# explicit\n")
 
-	hits, hashMap := Survey(root, nil)
+	hits, hashMap := Survey(root)
 
 	if len(hits) != 0 {
 		t.Errorf("expected 0 hits for non-C/C++ vendor dir, got %d: %+v", len(hits), hits)
@@ -103,7 +103,7 @@ func TestSurvey_NestedVendoredCollapses(t *testing.T) {
 	writeAt(t, root, "third_party/libfoo/foo.c", "// outer\n")
 	writeAt(t, root, "third_party/libfoo/external/libbar/bar.c", "// nested\n")
 
-	hits, _ := Survey(root, nil)
+	hits, _ := Survey(root)
 
 	if len(hits) != 1 {
 		t.Fatalf("expected 1 hit (outer only), got %d: %+v", len(hits), hits)
@@ -122,7 +122,7 @@ func TestSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	writeAt(t, root, "third_party/libfoo/.git/objects/00/aa", "junk binary\n")
 	writeAt(t, root, "third_party/libfoo/.git/HEAD", "ref: refs/heads/main\n")
 
-	_, hashMap := Survey(root, nil)
+	_, hashMap := Survey(root)
 
 	for purl, hs := range hashMap {
 		for _, h := range hs {
@@ -141,7 +141,7 @@ func TestSurvey_NonCppFilesIgnored(t *testing.T) {
 	writeAt(t, root, "third_party/zlib/README.md", "# skip\n")
 	writeAt(t, root, "third_party/zlib/build.py", "# skip\n")
 
-	_, hashMap := Survey(root, nil)
+	_, hashMap := Survey(root)
 
 	wantPURL := "pkg:generic/zlib?vendored_path=" + filepath.ToSlash(filepath.Join("third_party", "zlib"))
 	hs := hashMap[wantPURL]
@@ -165,7 +165,7 @@ func TestSurvey_AllDirNameVariants(t *testing.T) {
 		writeAt(t, root, filepath.Join(n, "libfoo", "foo.c"), "// src\n")
 	}
 
-	hits, _ := Survey(root, nil)
+	hits, _ := Survey(root)
 
 	gotDirs := make([]string, 0, len(hits))
 	for _, h := range hits {
@@ -187,7 +187,7 @@ func TestSurvey_AllExtVariants(t *testing.T) {
 		writeAt(t, root, filepath.Join("third_party", "lib1", "f"+string(rune('a'+i))+e), "// src\n")
 	}
 
-	_, hashMap := Survey(root, nil)
+	_, hashMap := Survey(root)
 	wantPURL := "pkg:generic/lib1?vendored_path=" + filepath.ToSlash(filepath.Join("third_party", "lib1"))
 	hs := hashMap[wantPURL]
 	if len(hs) != len(exts) {

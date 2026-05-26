@@ -5,6 +5,7 @@ package upload
 import (
 	"bytes"
 	"context"
+	"errors"
 	"fmt"
 	"io"
 	"mime/multipart"
@@ -30,10 +31,10 @@ type Options struct {
 // Do uploads opts.File to opts.URL and returns the server response body on success.
 func Do(ctx context.Context, opts Options) ([]byte, error) {
 	if opts.File == "" {
-		return nil, fmt.Errorf("file path is required")
+		return nil, errors.New("file path is required")
 	}
 	if opts.APIKey == "" {
-		return nil, fmt.Errorf("api key is required")
+		return nil, errors.New("api key is required")
 	}
 	if opts.URL == "" {
 		opts.URL = DefaultURL

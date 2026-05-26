@@ -5,10 +5,14 @@ package command
 import (
 	"context"
 	"fmt"
+	"log/slog"
 	"os"
+	"strings"
 
+	scalibrlog "github.com/google/osv-scalibr/log"
 	"github.com/urfave/cli/v3"
 
+	klog "github.com/think-ahead/kunnus-scanner/internal/log"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
 
@@ -17,9 +21,18 @@ import (
 // `kunnus --version`. Returns the process exit code.
 func Run(ctx context.Context, args []string, commit, date string) int {
 	app := &cli.Command{
-		Name:                  "kunnus",
-		Usage:                 "Generate SBOMs and upload them to the Kunnus platform",
-		Version:               version.Version,
+		Name:    "kunnus",
+		Usage:   "Generate SBOMs and upload them to the Kunnus platform",
+		Version: version.Version,
+		Flags: []cli.Flag{
+			&cli.StringFlag{
+				Name:    "verbosity",
+				Value:   "warn",
+				Sources: cli.EnvVars("KUNNUS_VERBOSITY"),
+				Usage:   "log level: " + strings.Join(klog.Levels(), " | "),
+			},
+		},
+		Before:                installLogger,
 		Commands:              []*cli.Command{sbomCmd(), uploadCmd()},
 		EnableShellCompletion: true,
 	}
@@ -33,4 +46,18 @@ func Run(ctx context.Context, args []string, commit, date string) int {
 		return 1
 	}
 	return 0
+}
+
+// installLogger reads --verbosity, builds a stderr text logger, and installs
+// it as the slog default plus scalibr's logger. Operational output goes to
+// stderr unconditionally so stdout can carry the SBOM payload.
+func installLogger(ctx context.Context, cmd *cli.Command) (context.Context, error) {
+	lvl, err := klog.ParseLevel(cmd.String("verbosity"))
+	if err != nil {
+		return ctx, err
+	}
+	logger := klog.New(lvl, os.Stderr)
+	slog.SetDefault(logger)
+	scalibrlog.SetLogger(&klog.ScalibrAdapter{Logger: logger})
+	return ctx, nil
 }

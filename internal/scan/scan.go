@@ -4,8 +4,9 @@ package scan
 
 import (
 	"context"
+	"errors"
 	"fmt"
-	"io"
+	"log/slog"
 
 	scalibr "github.com/google/osv-scalibr"
 	"github.com/google/osv-scalibr/inventory"
@@ -20,18 +21,18 @@ type Result struct {
 	PluginStatuses []*plugin.Status
 }
 
-// Run executes the scan described by cfg and writes a one-line summary of any
-// plugin failures to logOut. It returns Result on overall success or partial
-// success, and an error only when the scan as a whole failed (bad config,
-// no scan root, etc.). Per-plugin failures are reported via logOut, not error.
-func Run(ctx context.Context, cfg *scalibr.ScanConfig, logOut io.Writer) (*Result, error) {
+// Run executes the scan described by cfg. Per-plugin failures are logged at
+// warn level via slog.Default() and surfaced as Result.PluginStatuses; an
+// error is returned only when the scan as a whole failed (bad config, no scan
+// root, etc.).
+func Run(ctx context.Context, cfg *scalibr.ScanConfig) (*Result, error) {
 	if cfg == nil {
-		return nil, fmt.Errorf("nil ScanConfig")
+		return nil, errors.New("nil ScanConfig")
 	}
 
 	res := scalibr.New().Scan(ctx, cfg)
 	if res == nil {
-		return nil, fmt.Errorf("scalibr returned nil result")
+		return nil, errors.New("scalibr returned nil result")
 	}
 
 	if res.Status != nil && res.Status.Status == plugin.ScanStatusFailed {
@@ -42,7 +43,11 @@ func Run(ctx context.Context, cfg *scalibr.ScanConfig, logOut io.Writer) (*Resul
 		if ps == nil || ps.Status == nil || ps.Status.FailureReason == "" {
 			continue
 		}
-		_, _ = fmt.Fprintf(logOut, "plugin %s v%d: %s\n", ps.Name, ps.Version, ps.Status.FailureReason)
+		slog.Warn("scalibr plugin failed",
+			"name", ps.Name,
+			"version", ps.Version,
+			"reason", ps.Status.FailureReason,
+		)
 	}
 
 	return &Result{

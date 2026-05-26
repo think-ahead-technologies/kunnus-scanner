@@ -4,6 +4,7 @@ package ecosystem
 
 import (
 	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"slices"
@@ -140,7 +141,7 @@ func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 }
 
 func TestSurvey_EmptyTree(t *testing.T) {
-	ecos, digests := Survey(t.TempDir(), nil)
+	ecos, digests := Survey(t.TempDir())
 	if len(ecos) != 0 {
 		t.Errorf("empty tree: got ecosystems %v, want []", ecos)
 	}
@@ -197,7 +198,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 			for _, rel := range tc.files {
 				writeAt(t, root, rel, "")
 			}
-			got, _ := Survey(root, nil)
+			got, _ := Survey(root)
 			if got == nil {
 				got = []string{}
 			}
@@ -218,7 +219,7 @@ func TestSurvey_PermissionErrorOnSubdirSkipped(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o755) })
 
-	got, _ := Survey(root, nil)
+	got, _ := Survey(root)
 	if !slices.Equal(got, []string{"go"}) {
 		t.Errorf("Survey with unreadable subdir: %v, want [go]", got)
 	}
@@ -236,7 +237,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
-	_, digests := Survey(root, nil)
+	_, digests := Survey(root)
 	if _, ok := digests["pkg:cargo/serde@1.0.0"]; !ok {
 		t.Errorf("walker did not dispatch Cargo.lock through cargo parser; got %v", digests)
 	}
@@ -254,12 +255,25 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
-	var logBuf bytes.Buffer
-	_, digests := Survey(root, &logBuf)
+	logBuf, restore := captureSlog(t)
+	defer restore()
+
+	_, digests := Survey(root)
 	if _, ok := digests["pkg:cargo/ok@1.0.0"]; !ok {
 		t.Errorf("sibling parser output lost: %v", digests)
 	}
 	if !strings.Contains(logBuf.String(), "cargo") {
 		t.Errorf("expected parse-error log mentioning cargo, got %q", logBuf.String())
 	}
+}
+
+// captureSlog installs a buffer-backed slog.Default for the duration of one
+// test and returns the buffer plus a restore func. Used by tests that assert
+// on log output rather than return values.
+func captureSlog(t *testing.T) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	return buf, func() { slog.SetDefault(prev) }
 }

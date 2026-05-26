@@ -5,9 +5,9 @@ package vendored
 import (
 	"crypto/md5" //nolint:gosec // file fingerprint, not security
 	"encoding/hex"
-	"fmt"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"sort"
@@ -68,10 +68,10 @@ type Hit struct {
 //     duplicate components).
 //
 // Errors:
-//   - File read failures are logged to logOut (nil = silent) and the file is
-//     skipped. The survey never aborts on a single bad file.
+//   - File read failures are logged at warn level via slog.Default() and the
+//     file is skipped. The survey never aborts on a single bad file.
 //   - WalkDir errors on subtrees are silently skipped (permission errors etc.).
-func Survey(scanRoot string, logOut io.Writer) ([]Hit, hashes.Map) {
+func Survey(scanRoot string) ([]Hit, hashes.Map) {
 	digests := make(hashes.Map)
 
 	abs, err := filepath.Abs(scanRoot)
@@ -87,7 +87,7 @@ func Survey(scanRoot string, logOut io.Writer) ([]Hit, hashes.Map) {
 
 	hits := make([]Hit, 0, len(candidates))
 	for _, libDir := range candidates {
-		fileHashes, hasCpp := hashLib(libDir, logOut)
+		fileHashes, hasCpp := hashLib(libDir)
 		if !hasCpp {
 			continue
 		}
@@ -173,7 +173,7 @@ func findCandidates(abs string) []string {
 //
 // .git subtrees and nested vendored-name containers inside the library are
 // skipped to avoid double-counting.
-func hashLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
+func hashLib(libDir string) ([]hashes.Hash, bool) {
 	var out []hashes.Hash
 	hasCpp := false
 	capped := false
@@ -214,9 +214,7 @@ func hashLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
 		}
 		hex, herr := md5File(path)
 		if herr != nil {
-			if logOut != nil {
-				_, _ = fmt.Fprintf(logOut, "vendored: hash failed on %s: %v\n", path, herr)
-			}
+			slog.Warn("vendored md5 failed", "path", path, "err", herr)
 			return nil
 		}
 		out = append(out, hashes.Hash{
@@ -226,9 +224,7 @@ func hashLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
 		})
 		if len(out) >= maxFilesPerLib {
 			capped = true
-			if logOut != nil {
-				_, _ = fmt.Fprintf(logOut, "vendored: file cap (%d) reached in %s\n", maxFilesPerLib, libDir)
-			}
+			slog.Warn("vendored file cap reached", "cap", maxFilesPerLib, "lib", libDir)
 			return filepath.SkipAll
 		}
 		return nil
