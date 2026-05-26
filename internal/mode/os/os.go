@@ -16,6 +16,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
+	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
 )
 
 // Mode implements mode.Mode for OS-package scans.
@@ -45,22 +46,22 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 
 	switch targetOS {
 	case "linux":
-		families := detect.LinuxDistroFamilies(abs)
-		pluginNames = linuxPlugins(families)
+		families := detect.LinuxDistroFamilies(abs, osfamily.LinuxDetectionRules())
+		pluginNames = osfamily.LinuxPluginsFor(families)
 		component = bom.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",
 			Type:    bom.ComponentTypeOS,
 		}
 	case "windows":
-		pluginNames = windowsPlugins()
+		pluginNames = osfamily.WindowsPlugins()
 		component = bom.ComponentInfo{
 			Name:    "Windows",
 			Version: "",
 			Type:    bom.ComponentTypeOS,
 		}
 	case "mac":
-		pluginNames = macPlugins()
+		pluginNames = osfamily.MacPlugins()
 		component = bom.ComponentInfo{
 			Name:    "macOS",
 			Version: "",

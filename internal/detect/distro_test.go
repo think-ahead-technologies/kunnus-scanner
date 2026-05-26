@@ -1,6 +1,6 @@
 // ABOUTME: Tests LinuxDistroFamilies() against fixture filesystem roots.
 // ABOUTME: Covers os-release parsing, ID_LIKE handling, package-DB fallbacks, dedup, and missing files.
-package detect
+package detect_test
 
 import (
 	"os"
@@ -8,6 +8,9 @@ import (
 	"reflect"
 	"slices"
 	"testing"
+
+	"github.com/think-ahead/kunnus-scanner/internal/detect"
+	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
 )
 
 func TestLinuxDistroFamilies(t *testing.T) {
@@ -102,7 +105,7 @@ func TestLinuxDistroFamilies(t *testing.T) {
 				}
 			}
 
-			got := LinuxDistroFamilies(root)
+			got := detect.LinuxDistroFamilies(root, osfamily.LinuxDetectionRules())
 			// Normalise nil vs empty slice for comparison.
 			if got == nil {
 				got = []string{}
@@ -118,7 +121,7 @@ func TestLinuxDistroFamilies(t *testing.T) {
 
 func TestHost_ReturnsCanonicalName(t *testing.T) {
 	// Host() reads runtime.GOOS — we just verify it's one of the canonical names.
-	got := Host()
+	got := detect.Host()
 	allowed := []string{"linux", "windows", "mac", "freebsd", "openbsd", "netbsd"}
 	if !slices.Contains(allowed, got) {
 		t.Errorf("Host() = %q, want one of %v", got, allowed)

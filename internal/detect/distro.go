@@ -8,24 +8,77 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 )
 
-// LinuxDistroFamilies inspects the filesystem root at scanRoot and returns the
-// distro families it recognises. Returns an empty slice when nothing is found —
-// callers can then fall back to a broad "all Linux extractors" set.
-//
-// Detection strategy, in order:
-//  1. Parse /etc/os-release ID and ID_LIKE if present.
-//  2. Fall back to package-database fingerprints (dpkg/rpm/apk paths).
-func LinuxDistroFamilies(scanRoot string) []string {
-	families := familiesFromOSRelease(scanRoot)
-	families = append(families, familiesFromPackageDBs(scanRoot)...)
-	return dedup(families)
+// FamilyRule describes one Linux distro family for LinuxDistroFamilies.
+// internal/osfamily owns the canonical rule set and folds it together with
+// scalibr plugin selection; callers obtain a slice via
+// osfamily.LinuxDetectionRules() and pass it in. The split keeps detect
+// scalibr-free (architecture rule #1) while the rule data lives next to the
+// plugin-name mapping it informs.
+type FamilyRule struct {
+	// Name is the family identifier returned by LinuxDistroFamilies on a match.
+	Name string
+
+	// OSReleaseIDs lists /etc/os-release ID and ID_LIKE values that map to
+	// this family. Empty means no os-release fingerprint for this rule.
+	OSReleaseIDs []string
+
+	// PackageDBPath is a path relative to the scan root whose existence
+	// proves the family is installed. Empty means no DB fingerprint.
+	PackageDBPath string
 }
 
-func familiesFromOSRelease(scanRoot string) []string {
+// LinuxDistroFamilies inspects the filesystem root at scanRoot and returns the
+// distro families it recognises, evaluated against rules. Returns an empty
+// slice when nothing matched — callers can then fall back to a broad "all
+// Linux extractors" set.
+//
+// Detection strategy, in order:
+//  1. Parse /etc/os-release ID and ID_LIKE if present; match each value
+//     against every rule's OSReleaseIDs.
+//  2. For each rule with a PackageDBPath, check whether the path exists
+//     relative to scanRoot.
+//
+// Order in the output matches discovery order; duplicates are collapsed.
+func LinuxDistroFamilies(scanRoot string, rules []FamilyRule) []string {
+	var families []string
+	seen := make(map[string]bool)
+	addFamily := func(name string) {
+		if seen[name] {
+			return
+		}
+		seen[name] = true
+		families = append(families, name)
+	}
+
+	for _, id := range parseOSReleaseIDs(scanRoot) {
+		for _, r := range rules {
+			for _, ruleID := range r.OSReleaseIDs {
+				if id == ruleID {
+					addFamily(r.Name)
+				}
+			}
+		}
+	}
+
+	for _, r := range rules {
+		if r.PackageDBPath == "" {
+			continue
+		}
+		if exists(filepath.Join(scanRoot, r.PackageDBPath)) {
+			addFamily(r.Name)
+		}
+	}
+
+	return families
+}
+
+// parseOSReleaseIDs reads scanRoot/etc/os-release and returns every ID and
+// ID_LIKE value found. Missing file or read errors yield nil — callers treat
+// "no IDs" identically to "file absent", which matches the fallback contract.
+func parseOSReleaseIDs(scanRoot string) []string {
 	path := filepath.Join(scanRoot, "etc", "os-release")
 	f, err := os.Open(path)
 	if err != nil {
@@ -47,59 +100,7 @@ func familiesFromOSRelease(scanRoot string) []string {
 			ids = append(ids, strings.Fields(parseOSReleaseValue(strings.TrimPrefix(line, "ID_LIKE=")))...)
 		}
 	}
-
-	var families []string
-	for _, id := range ids {
-		if fam := osReleaseIDToFamily(id); fam != "" {
-			families = append(families, fam)
-		}
-	}
-	return families
-}
-
-func familiesFromPackageDBs(scanRoot string) []string {
-	var families []string
-	if exists(filepath.Join(scanRoot, "var", "lib", "dpkg", "status")) {
-		families = append(families, "debian")
-	}
-	if exists(filepath.Join(scanRoot, "var", "lib", "rpm")) {
-		families = append(families, "rhel")
-	}
-	if exists(filepath.Join(scanRoot, "lib", "apk", "db", "installed")) {
-		families = append(families, "alpine")
-	}
-	if exists(filepath.Join(scanRoot, "var", "lib", "pacman", "local")) {
-		families = append(families, "arch")
-	}
-	if exists(filepath.Join(scanRoot, "var", "db", "pkg")) {
-		families = append(families, "gentoo")
-	}
-	if exists(filepath.Join(scanRoot, "nix", "store")) {
-		families = append(families, "nix")
-	}
-	return families
-}
-
-func osReleaseIDToFamily(id string) string {
-	switch id {
-	case "ubuntu", "debian", "raspbian", "linuxmint", "kali":
-		return "debian"
-	case "rhel", "centos", "fedora", "rocky", "almalinux", "amzn", "ol":
-		return "rhel"
-	case "sles", "opensuse", "opensuse-leap", "opensuse-tumbleweed":
-		return "suse"
-	case "alpine":
-		return "alpine"
-	case "arch", "manjaro":
-		return "arch"
-	case "gentoo":
-		return "gentoo"
-	case "nixos":
-		return "nix"
-	case "cos":
-		return "cos"
-	}
-	return ""
+	return ids
 }
 
 func parseOSReleaseValue(v string) string {
@@ -114,14 +115,4 @@ func parseOSReleaseValue(v string) string {
 func exists(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil
-}
-
-func dedup(in []string) []string {
-	out := make([]string, 0, len(in))
-	for _, x := range in {
-		if !slices.Contains(out, x) {
-			out = append(out, x)
-		}
-	}
-	return out
 }
