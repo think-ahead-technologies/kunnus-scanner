@@ -15,7 +15,7 @@ import (
 //
 //   - component.hashes[] — the standard CDX location
 //   - component.externalReferences[type=distribution] with embedded hashes —
-//     the location BSI v2.1 §5.2.2 specifically queries
+//     the location the BSI conformance check specifically queries
 //
 // hashMap may be nil or empty; in that case the stage is a no-op.
 func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
@@ -39,8 +39,14 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 			if h.Hex == "" {
 				continue
 			}
+			algo, ok := algorithmToCDX(h.Algorithm)
+			if !ok {
+				// Unrecognised algorithm: skip rather than mislabel it.
+				// Extend algorithmToCDX when a new hashes.Algorithm lands.
+				continue
+			}
 			cdxHashes = append(cdxHashes, cyclonedx.Hash{
-				Algorithm: algorithmToCDX(h.Algorithm),
+				Algorithm: algo,
 				Value:     h.Hex,
 			})
 			if h.Path != "" {
@@ -63,7 +69,7 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 			}
 		}
 
-		// BSI v2.1 §5.2.2 requires the deployable hash to live on an
+		// BSI conformance requires the deployable hash to live on an
 		// externalReference of type "distribution" or "distribution-intake".
 		// We add a synthetic distribution reference rather than reuse the
 		// (possibly absent) registry URL.
@@ -76,16 +82,19 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 	})
 }
 
-func algorithmToCDX(a hashes.Algorithm) cyclonedx.HashAlgorithm {
+// algorithmToCDX maps our internal algorithm tag to the cyclonedx constant.
+// Returns ok=false for any unrecognised algorithm so the caller can drop the
+// hash rather than emit a digest labelled with the wrong algorithm.
+func algorithmToCDX(a hashes.Algorithm) (cyclonedx.HashAlgorithm, bool) {
 	switch a {
 	case hashes.AlgSHA512:
-		return cyclonedx.HashAlgoSHA512
+		return cyclonedx.HashAlgoSHA512, true
 	case hashes.AlgSHA256:
-		return cyclonedx.HashAlgoSHA256
+		return cyclonedx.HashAlgoSHA256, true
 	case hashes.AlgSHA1:
-		return cyclonedx.HashAlgoSHA1
+		return cyclonedx.HashAlgoSHA1, true
 	case hashes.AlgMD5:
-		return cyclonedx.HashAlgoMD5
+		return cyclonedx.HashAlgoMD5, true
 	}
-	return cyclonedx.HashAlgoSHA512
+	return "", false
 }
