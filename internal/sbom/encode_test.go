@@ -11,6 +11,7 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
@@ -31,7 +32,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), mode.ComponentInfo{Name: "x", Type: "application"}, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -56,7 +57,7 @@ func TestEncode_CycloneDX(t *testing.T) {
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, nil)
+	}, nil, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -87,5 +88,78 @@ func TestEncode_CycloneDX(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "testify") {
 		t.Error("CycloneDX output missing testify")
+	}
+}
+
+func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
+	// Vendored hits must appear as library components in the BOM, alongside
+	// scalibr's own components, and carry both the standard component.hashes[]
+	// list and one "kunnus:vendored:file" property per file (path-bearing
+	// hashes only — lockfile hashes have no Path and stay properties-free).
+	const vendoredPURL = "pkg:generic/zlib?vendored_path=third_party/zlib"
+	extras := []mode.ExtraComponent{{
+		PURL:   vendoredPURL,
+		Name:   "zlib",
+		Type:   mode.ComponentTypeLibrary,
+		BomRef: "vendored:third_party/zlib",
+	}}
+	hashMap := hashes.Map{
+		vendoredPURL: []hashes.Hash{
+			{Algorithm: hashes.AlgMD5, Hex: "deadbeefdeadbeefdeadbeefdeadbeef", Path: "deflate.c"},
+			{Algorithm: hashes.AlgMD5, Hex: "cafebabecafebabecafebabecafebabe", Path: "zlib.h"},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), mode.ComponentInfo{Name: "repo", Type: "application"}, hashMap, extras); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v\nbody:\n%s", err, buf.String())
+	}
+
+	comps, _ := doc["components"].([]any)
+	var vendored map[string]any
+	for _, c := range comps {
+		m, _ := c.(map[string]any)
+		if purl, _ := m["purl"].(string); purl == vendoredPURL {
+			vendored = m
+			break
+		}
+	}
+	if vendored == nil {
+		t.Fatalf("no vendored component in output\ncomponents: %+v", comps)
+	}
+
+	if v, _ := vendored["type"].(string); v != "library" {
+		t.Errorf("vendored component type = %q, want library", v)
+	}
+	if v, _ := vendored["name"].(string); v != "zlib" {
+		t.Errorf("vendored component name = %q, want zlib", v)
+	}
+	if v, _ := vendored["bom-ref"].(string); v != "vendored:third_party/zlib" {
+		t.Errorf("vendored component bom-ref = %q, want vendored:third_party/zlib", v)
+	}
+
+	// Standard component.hashes[] list is populated by injectHashesCDX.
+	hs, _ := vendored["hashes"].([]any)
+	if len(hs) != 2 {
+		t.Errorf("vendored component hashes = %d entries, want 2", len(hs))
+	}
+
+	// Per-file property list — one entry per Path-bearing hash. Without it the
+	// platform has no way to know which file each MD5 belongs to.
+	props, _ := vendored["properties"].([]any)
+	fileProps := 0
+	for _, p := range props {
+		m, _ := p.(map[string]any)
+		if name, _ := m["name"].(string); name == "kunnus:vendored:file" {
+			fileProps++
+		}
+	}
+	if fileProps != 2 {
+		t.Errorf("kunnus:vendored:file properties = %d, want 2 (one per source file)", fileProps)
 	}
 }

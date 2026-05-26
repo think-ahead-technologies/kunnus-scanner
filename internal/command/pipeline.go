@@ -35,7 +35,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov
 	}
 	defer closer()
 
-	if err := sbom.Encode(out, result, plan.Component, plan.Hashes); err != nil {
+	if err := sbom.Encode(out, result, plan.Component, plan.Hashes, plan.ExtraComponents); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	return nil

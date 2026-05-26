@@ -12,10 +12,15 @@ const (
 	AlgMD5    Algorithm = "MD5"
 )
 
-// Hash pairs an algorithm with a lowercase hex digest.
+// Hash pairs an algorithm with a lowercase hex digest. Path is optional and
+// set only for per-file evidence (today: vendored C/C++ source files). When
+// non-empty it participates in dedup so two distinct files that happen to
+// share a digest both survive — without it, an MD5 collision (or two empty
+// files) would silently collapse to one entry.
 type Hash struct {
 	Algorithm Algorithm
 	Hex       string
+	Path      string
 }
 
 // Map is the canonical return type of every hash source: purl-string → []Hash.

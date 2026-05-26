@@ -6,6 +6,8 @@ import (
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+
+	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
 // enrichCDXComponents walks every component in the BOM, finds the matching
@@ -35,6 +37,31 @@ func enrichCDXComponents(bom *cyclonedx.BOM, inv inventory.Inventory) {
 		}
 		applyBSIProps(c, bsiProperties(pkg))
 	})
+}
+
+// appendExtraComponents adds one CDX library Component per ExtraComponent.
+// Hashes are not attached here — they live in hashMap keyed by PURL and the
+// later injectHashesCDX stage stamps them onto every component (scalibr's and
+// ours alike). A no-op when extras is empty.
+//
+// CDX components are stored as a pointer to a slice on the BOM; we allocate
+// one if nil so callers don't have to special-case the empty BOM.
+func appendExtraComponents(bom *cyclonedx.BOM, extras []mode.ExtraComponent) {
+	if len(extras) == 0 {
+		return
+	}
+	if bom.Components == nil {
+		empty := make([]cyclonedx.Component, 0, len(extras))
+		bom.Components = &empty
+	}
+	for _, e := range extras {
+		*bom.Components = append(*bom.Components, cyclonedx.Component{
+			BOMRef:     e.BomRef,
+			Type:       cyclonedx.ComponentType(e.Type),
+			Name:       e.Name,
+			PackageURL: e.PURL,
+		})
+	}
 }
 
 func indexInventoryByPURL(inv inventory.Inventory) map[string]*extractor.Package {

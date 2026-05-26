@@ -102,6 +102,46 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
+	// A vendored-only C/C++ repo (no Conan lockfile, no other manifest) must
+	// produce a valid SBOM containing the vendored library as a component.
+	// This exercises the full Plan → scan.Run (with zero scalibr plugins) →
+	// sbom.Encode path; the unit tests cover each leg individually.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "deflate.c"), "// vendored\n")
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "zlib.h"), "// header\n")
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "repo",
+		"--output", outPath,
+		root,
+	)
+	if err != nil {
+		t.Fatalf("sbom repo failed on vendored-only tree: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v\n%s", err, data)
+	}
+	if v, _ := doc["bomFormat"].(string); v != "CycloneDX" {
+		t.Errorf("bomFormat = %v, want CycloneDX", v)
+	}
+	// The vendored component must appear with its generic PURL.
+	if !strings.Contains(string(data), "pkg:generic/zlib?vendored_path=third_party/zlib") {
+		t.Errorf("SBOM missing vendored zlib component; output:\n%s", data)
+	}
+	// And the per-file properties must be there so the platform can match.
+	if !strings.Contains(string(data), "kunnus:vendored:file") {
+		t.Error("SBOM missing kunnus:vendored:file properties")
+	}
+}
+
 func TestCLI_SBOM_Repo_EmptyTreeFails(t *testing.T) {
 	root := t.TempDir() // no manifests
 	_, stderr, err := runKunnus(t, "sbom", "repo", root)

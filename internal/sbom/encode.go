@@ -18,7 +18,10 @@ import (
 // Encode converts the scan result into a CycloneDX 1.7 SBOM and writes JSON
 // to out. hashMap is an optional map of PURL → native digests (one or more
 // per package, typically populated from lockfiles); pass nil if unavailable.
-func Encode(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map) error {
+// extras carries components scalibr did not produce — today, vendored C/C++
+// libraries surfaced by the kunnus walker. Their per-file hashes ride in
+// hashMap under the same PURL.
+func Encode(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap hashes.Map, extras []mode.ExtraComponent) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = mode.ComponentTypeApplication
@@ -42,6 +45,10 @@ func Encode(out io.Writer, result *scan.Result, comp mode.ComponentInfo, hashMap
 	enrichCDXMetadata(bom)
 	enrichCDXComponents(bom, result.Inventory)
 	injectCPEsCDX(bom)
+	// Extras must be appended before injectHashesCDX so the hash injector sees
+	// them in its PURL index, and before injectDepGraphCDX so their BOMRefs
+	// participate in the dep graph.
+	appendExtraComponents(bom, extras)
 	injectHashesCDX(bom, hashMap)
 	injectDepGraphCDX(bom)
 

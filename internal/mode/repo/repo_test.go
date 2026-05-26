@@ -97,6 +97,75 @@ func TestPlan_EveryShippedPluginResolves(t *testing.T) {
 	}
 }
 
+func TestPlan_VendoredOnlyRepoStillSucceeds(t *testing.T) {
+	// A C/C++ project with vendored deps but no lockfile (e.g. CMake project
+	// pulling third_party/zlib via git submodule) is the common case in OSS C++.
+	// Without this guard the user gets "no extractors selected" and the vendored
+	// SBOM data we worked to collect is dropped on the floor.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "deflate.c"), "// vendored zlib\n")
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "zlib.h"), "// header\n")
+	writeFile(t, filepath.Join(root, "README.md"), "# my cpp app\n") // unrelated noise
+
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{})
+	if err != nil {
+		t.Fatalf("Plan should succeed for vendored-only repo: %v", err)
+	}
+	if plan.Config == nil {
+		t.Fatal("Plan.Config must be non-nil even when no scalibr plugins selected")
+	}
+	if len(plan.ExtraComponents) != 1 {
+		t.Errorf("ExtraComponents = %d, want 1: %+v", len(plan.ExtraComponents), plan.ExtraComponents)
+	}
+	if len(plan.Hashes) == 0 {
+		t.Error("Plan.Hashes should carry the per-file vendored hashes")
+	}
+}
+
+func TestPlan_VendoredCppSurfacesAsExtraComponent(t *testing.T) {
+	// Mixed tree: a Go module (so detection succeeds and Plan returns) plus a
+	// vendored C/C++ library. The vendored hit must land in Plan.ExtraComponents
+	// and the per-file hashes must be in Plan.Hashes under the same PURL.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "deflate.c"), "// vendored\n")
+	writeFile(t, filepath.Join(root, "third_party", "zlib", "zlib.h"), "// header\n")
+
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+
+	if len(plan.ExtraComponents) != 1 {
+		t.Fatalf("ExtraComponents = %d, want 1: %+v", len(plan.ExtraComponents), plan.ExtraComponents)
+	}
+	ec := plan.ExtraComponents[0]
+	if ec.Name != "zlib" {
+		t.Errorf("Name = %q, want %q", ec.Name, "zlib")
+	}
+	if ec.Type != mode.ComponentTypeLibrary {
+		t.Errorf("Type = %q, want %q", ec.Type, mode.ComponentTypeLibrary)
+	}
+	if ec.PURL == "" {
+		t.Error("PURL must be set on vendored ExtraComponent")
+	}
+	if ec.BomRef == "" {
+		t.Error("BomRef must be set on vendored ExtraComponent")
+	}
+
+	// Per-file hashes must flow into Plan.Hashes under the same PURL so the
+	// existing sbom.injectHashesCDX picks them up.
+	hs, ok := plan.Hashes[ec.PURL]
+	if !ok || len(hs) != 2 {
+		t.Fatalf("Plan.Hashes[%q] = %v, want 2 entries (deflate.c + zlib.h)", ec.PURL, hs)
+	}
+	for _, h := range hs {
+		if h.Path == "" {
+			t.Errorf("vendored Hash.Path must be set: %+v", h)
+		}
+	}
+}
+
 func writeFile(t *testing.T, path, content string) {
 	t.Helper()
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {

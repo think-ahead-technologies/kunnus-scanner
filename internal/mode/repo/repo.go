@@ -38,6 +38,22 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 
 	ecosystems, hashMap := ecosystem.Survey(abs, nil)
 
+	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
+	// check inside VendoredSurvey keeps it quiet for Go/Python/JS-only vendor
+	// directories. Hashes merge directly into the same map so the SBOM injector
+	// picks them up without a second code path.
+	vendoredHits, vendoredHashes := ecosystem.VendoredSurvey(abs, nil)
+	hashMap.Merge(vendoredHashes)
+	extras := make([]mode.ExtraComponent, 0, len(vendoredHits))
+	for _, hit := range vendoredHits {
+		extras = append(extras, mode.ExtraComponent{
+			PURL:   hit.PURL,
+			Name:   hit.Name,
+			Type:   mode.ComponentTypeLibrary,
+			BomRef: "vendored:" + filepath.ToSlash(hit.RelPath),
+		})
+	}
+
 	if len(ov.Ecosystems) > 0 {
 		ecosystems = intersect(ecosystems, ov.Ecosystems)
 	}
@@ -45,7 +61,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	pluginNames := ecosystem.PluginsFor(ecosystems)
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
-	if len(pluginNames) == 0 {
+	// We need something to ship — either a scalibr plugin selection or at least
+	// one ExtraComponent (a vendored-only C/C++ repo is a valid scan target).
+	// Without either, there is genuinely nothing for the SBOM to describe.
+	if len(pluginNames) == 0 && len(extras) == 0 {
 		return nil, fmt.Errorf("no extractors selected for %s (detected ecosystems: %v)", abs, ecosystems)
 	}
 
@@ -72,7 +91,8 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 			Version: "",
 			Type:    mode.ComponentTypeApplication,
 		},
-		Hashes: hashMap,
+		Hashes:          hashMap,
+		ExtraComponents: extras,
 	}, nil
 }
 

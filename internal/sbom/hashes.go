@@ -31,6 +31,10 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 			return
 		}
 		cdxHashes := make([]cyclonedx.Hash, 0, len(hs))
+		// Path-bearing hashes (vendored C/C++ source files today) also surface
+		// as a kunnus:vendored:file property so the platform can recover which
+		// file each digest belongs to. Lockfile hashes have no Path → no property.
+		var fileProps []cyclonedx.Property
 		for _, h := range hs {
 			if h.Hex == "" {
 				continue
@@ -39,11 +43,25 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 				Algorithm: algorithmToCDX(h.Algorithm),
 				Value:     h.Hex,
 			})
+			if h.Path != "" {
+				fileProps = append(fileProps, cyclonedx.Property{
+					Name:  "kunnus:vendored:file",
+					Value: h.Path + ":" + string(h.Algorithm) + ":" + h.Hex,
+				})
+			}
 		}
 		if len(cdxHashes) == 0 {
 			return
 		}
 		c.Hashes = mergeHashes(c.Hashes, &cdxHashes)
+		if len(fileProps) > 0 {
+			if c.Properties == nil {
+				c.Properties = &fileProps
+			} else {
+				combined := append(*c.Properties, fileProps...)
+				c.Properties = &combined
+			}
+		}
 
 		// BSI v2.1 §5.2.2 requires the deployable hash to live on an
 		// externalReference of type "distribution" or "distribution-intake".

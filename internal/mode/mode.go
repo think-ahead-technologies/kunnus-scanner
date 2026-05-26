@@ -35,10 +35,34 @@ type Mode interface {
 // ScanConfig, the root component metadata, and any native deployable hashes
 // the mode harvested while it was already walking the tree. Hashes is nil for
 // modes that have no per-package hash sources (e.g. OS scans).
+//
+// ExtraComponents covers components scalibr did not produce — today, vendored
+// C/C++ directories surfaced by the kunnus walker. The SBOM encoder appends
+// these alongside scalibr's components; per-component hashes ride in Hashes
+// under the same PURL so the standard injector picks them up.
 type Plan struct {
-	Config    *scalibr.ScanConfig
-	Component ComponentInfo
-	Hashes    hashes.Map
+	Config          *scalibr.ScanConfig
+	Component       ComponentInfo
+	Hashes          hashes.Map
+	ExtraComponents []ExtraComponent
+}
+
+// ExtraComponent is one BOM component sourced outside scalibr. The fields are
+// the minimum a CycloneDX library entry needs; everything else (hashes,
+// per-file properties) flows through Hashes keyed on PURL.
+type ExtraComponent struct {
+	// PURL is the package-url for the component. Vendored libs use the
+	// pkg:generic type with a vendored_path qualifier.
+	PURL string
+
+	// Name is the short human-readable name (the vendored directory's basename).
+	Name string
+
+	// Type is the CycloneDX component type — "library" for vendored sources.
+	Type string
+
+	// BomRef is a stable identifier within the BOM ("vendored:<rel-path>").
+	BomRef string
 }
 
 // Overrides captures user-facing flags that adjust what auto-detection chose.
@@ -67,6 +91,7 @@ const (
 	ComponentTypeApplication = "application"
 	ComponentTypeOS          = "operating-system"
 	ComponentTypeFirmware    = "firmware"
+	ComponentTypeLibrary     = "library"
 )
 
 // ComponentInfo describes the root component of the resulting SBOM.
