@@ -16,6 +16,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
+	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 )
 
 // Mode implements mode.Mode for source-code scans.
@@ -39,10 +40,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	ecosystems, hashMap := ecosystem.Survey(abs, nil)
 
 	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
-	// check inside VendoredSurvey keeps it quiet for Go/Python/JS-only vendor
+	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor
 	// directories. Hashes merge directly into the same map so the SBOM injector
 	// picks them up without a second code path.
-	vendoredHits, vendoredHashes := ecosystem.VendoredSurvey(abs, nil)
+	vendoredHits, vendoredHashes := vendored.Survey(abs, nil)
 	hashMap.Merge(vendoredHashes)
 	extras := make([]mode.ExtraComponent, 0, len(vendoredHits))
 	for _, hit := range vendoredHits {

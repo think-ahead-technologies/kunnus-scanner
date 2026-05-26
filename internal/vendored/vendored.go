@@ -1,6 +1,6 @@
 // ABOUTME: Detects C/C++ vendored libraries (third_party/, libs/, vendor/, …) and per-file MD5 fingerprints them.
-// ABOUTME: Not an Ecosystem entry — detection is directory-shaped, not lockfile-shaped, and must descend into names fswalk.SkipDir blocks.
-package ecosystem
+// ABOUTME: Directory-shaped detection, not lockfile-shaped — sibling to ecosystem rather than an entry in its registry.
+package vendored
 
 import (
 	"crypto/md5" //nolint:gosec // file fingerprint, not security
@@ -13,25 +13,9 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
-
-// vendoredDirNames is the (case-insensitive) basename set that marks a directory
-// as a candidate vendored-libraries container. Lifted verbatim from v1 to keep
-// detection parity with the osv-scanner fork customers already deploy.
-var vendoredDirNames = map[string]struct{}{
-	"3rdparty":    {},
-	"dep":         {},
-	"deps":        {},
-	"thirdparty":  {},
-	"third-party": {},
-	"third_party": {},
-	"libs":        {},
-	"external":    {},
-	"externals":   {},
-	"vendor":      {},
-	"vendored":    {},
-}
 
 // cppFileExts is the extension set considered C/C++ source. Lifted from v1.
 var cppFileExts = map[string]struct{}{
@@ -43,15 +27,15 @@ var cppFileExts = map[string]struct{}{
 	".hpp": {},
 }
 
-// maxVendoredFilesPerLib caps hashes per detected library. Matches v1's
+// maxFilesPerLib caps hashes per detected library. Matches v1's
 // maxDetermineVersionFiles — a real-world OpenSSL vendor is ~700 files, so
 // 10000 leaves headroom while protecting against pathological trees.
-const maxVendoredFilesPerLib = 10000
+const maxFilesPerLib = 10000
 
-// VendoredHit describes one vendored library directory the survey found.
-// mode/repo translates this into a mode.ExtraComponent; ecosystem stays free
-// of mode imports so the package dependency graph remains a DAG.
-type VendoredHit struct {
+// Hit describes one vendored library directory the survey found.
+// mode/repo translates this into a mode.ExtraComponent; this package stays
+// free of mode imports so the package dependency graph remains a DAG.
+type Hit struct {
 	// Name is the basename of the vendored library directory (e.g. "zlib").
 	Name string
 
@@ -66,17 +50,19 @@ type VendoredHit struct {
 	PURL string
 }
 
-// VendoredSurvey walks scanRoot looking for C/C++ vendored library directories.
-// For each candidate it emits one VendoredHit plus an entry in the returned
+// Survey walks scanRoot looking for C/C++ vendored library directories.
+// For each candidate it emits one Hit plus an entry in the returned
 // hashes.Map (keyed by the hit's PURL) containing one Hash per source file.
 //
 // Discovery rules:
-//   - A directory matches if its basename is in vendoredDirNames AND it contains
-//     at least one C/C++ source file (transitively, before nested vendored).
-//     The C/C++ check is what lets the survey run unconditionally without
-//     producing noise for Go's vendor/, Python's external/, etc.
-//   - The walker descends into vendoredDirNames even though fswalk.SkipDir
-//     blanket-skips "vendor". It still skips .git, node_modules, etc. inside.
+//   - A directory matches if its basename is a fswalk vendored-family name
+//     AND it contains at least one C/C++ source file (transitively, before
+//     nested vendored). The C/C++ check is what lets the survey run
+//     unconditionally without producing noise for Go's vendor/, Python's
+//     external/, etc.
+//   - The walker descends into vendored-family names even though
+//     fswalk.SkipDir blanket-skips "vendor". It still skips .git,
+//     node_modules, etc. inside.
 //   - Nested vendored directories collapse into the outer match — only the
 //     outermost candidate produces a hit (otherwise layered vendor trees emit
 //     duplicate components).
@@ -85,7 +71,7 @@ type VendoredHit struct {
 //   - File read failures are logged to logOut (nil = silent) and the file is
 //     skipped. The survey never aborts on a single bad file.
 //   - WalkDir errors on subtrees are silently skipped (permission errors etc.).
-func VendoredSurvey(scanRoot string, logOut io.Writer) ([]VendoredHit, hashes.Map) {
+func Survey(scanRoot string, logOut io.Writer) ([]Hit, hashes.Map) {
 	digests := make(hashes.Map)
 
 	abs, err := filepath.Abs(scanRoot)
@@ -97,11 +83,11 @@ func VendoredSurvey(scanRoot string, logOut io.Writer) ([]VendoredHit, hashes.Ma
 	// dedicated walk because the hashing pass needs to descend into a single
 	// candidate as a unit (file cap, nested-vendored detection) and mixing the
 	// two passes makes the per-candidate state hard to reason about.
-	candidates := findVendoredCandidates(abs)
+	candidates := findCandidates(abs)
 
-	hits := make([]VendoredHit, 0, len(candidates))
+	hits := make([]Hit, 0, len(candidates))
 	for _, libDir := range candidates {
-		fileHashes, hasCpp := hashVendoredLib(libDir, logOut)
+		fileHashes, hasCpp := hashLib(libDir, logOut)
 		if !hasCpp {
 			continue
 		}
@@ -110,8 +96,8 @@ func VendoredSurvey(scanRoot string, logOut io.Writer) ([]VendoredHit, hashes.Ma
 			continue
 		}
 		name := filepath.Base(libDir)
-		purl := vendoredPURL(name, rel)
-		hits = append(hits, VendoredHit{Name: name, RelPath: rel, PURL: purl})
+		purl := libPURL(name, rel)
+		hits = append(hits, Hit{Name: name, RelPath: rel, PURL: purl})
 		for _, h := range fileHashes {
 			digests.Add(purl, h)
 		}
@@ -121,13 +107,13 @@ func VendoredSurvey(scanRoot string, logOut io.Writer) ([]VendoredHit, hashes.Ma
 	return hits, digests
 }
 
-// findVendoredCandidates returns every library-dir candidate under abs.
-// "Candidate" means: parent directory's basename matches vendoredDirNames.
+// findCandidates returns every library-dir candidate under abs.
+// "Candidate" means: parent directory's basename is a vendored-family name.
 // We collect the parent-named dir's *children* (each child is one library),
 // not the parent itself — `third_party/zlib` is a candidate, `third_party` is
 // not. Nested vendored containers under an already-claimed library are pruned
 // to avoid duplicate matches.
-func findVendoredCandidates(abs string) []string {
+func findCandidates(abs string) []string {
 	var candidates []string
 	// claimedPrefixes lists subtree roots already covered by an outer candidate.
 	// We use prefix matching with a trailing separator to avoid `lib` matching
@@ -153,11 +139,10 @@ func findVendoredCandidates(abs string) []string {
 		// We are at directory `path`. Its children are candidates if `path`
 		// itself has a vendored name. Don't recurse into hidden / build dirs
 		// inside the wider tree though.
-		if path != abs && shouldSkipDuringSearch(d.Name()) {
+		if path != abs && fswalk.SkipDirForVendoredSearch(d.Name()) {
 			return fs.SkipDir
 		}
-		base := strings.ToLower(d.Name())
-		if _, ok := vendoredDirNames[base]; !ok {
+		if !fswalk.IsVendoredDir(d.Name()) {
 			return nil
 		}
 		// Enumerate one level: each subdirectory is a library candidate.
@@ -174,36 +159,21 @@ func findVendoredCandidates(abs string) []string {
 			claimedPrefixes = append(claimedPrefixes, libDir+string(filepath.Separator))
 		}
 		// We've claimed this entire vendored container — don't descend further
-		// from here; child libraries are scanned via hashVendoredLib.
+		// from here; child libraries are scanned via hashLib.
 		return fs.SkipDir
 	})
 
 	return candidates
 }
 
-// shouldSkipDuringSearch is the search-phase analogue of fswalk.SkipDir, with
-// the vendor-family names removed (we want to descend *into* them here). Hidden
-// VCS dirs and language build outputs still get pruned.
-func shouldSkipDuringSearch(name string) bool {
-	switch name {
-	case ".git", ".hg", ".svn",
-		"node_modules", "bower_components",
-		"target", "dist", "build", "out",
-		".venv", "venv", "__pycache__",
-		".gradle", ".idea", ".vscode":
-		return true
-	}
-	return false
-}
-
-// hashVendoredLib walks libDir and MD5-hashes every C/C++ source file.
+// hashLib walks libDir and MD5-hashes every C/C++ source file.
 // Returns the hash slice plus a bool indicating whether at least one C/C++
 // file was found — callers use it to drop directories that match the name
 // heuristic but contain only Go/Python/JS (the unconditional-discovery rule).
 //
 // .git subtrees and nested vendored-name containers inside the library are
 // skipped to avoid double-counting.
-func hashVendoredLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
+func hashLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
 	var out []hashes.Hash
 	hasCpp := false
 	capped := false
@@ -224,11 +194,11 @@ func hashVendoredLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
 				return nil
 			}
 			// Skip nested vendored containers — their contents would be a second
-			// VendoredHit if we ever ran the survey rooted at this libDir.
-			if _, ok := vendoredDirNames[strings.ToLower(name)]; ok {
+			// Hit if we ever ran the survey rooted at this libDir.
+			if fswalk.IsVendoredDir(name) {
 				return fs.SkipDir
 			}
-			if shouldSkipDuringSearch(name) {
+			if fswalk.SkipDirForVendoredSearch(name) {
 				return fs.SkipDir
 			}
 			return nil
@@ -254,10 +224,10 @@ func hashVendoredLib(libDir string, logOut io.Writer) ([]hashes.Hash, bool) {
 			Hex:       hex,
 			Path:      filepath.ToSlash(rel),
 		})
-		if len(out) >= maxVendoredFilesPerLib {
+		if len(out) >= maxFilesPerLib {
 			capped = true
 			if logOut != nil {
-				_, _ = fmt.Fprintf(logOut, "vendored: file cap (%d) reached in %s\n", maxVendoredFilesPerLib, libDir)
+				_, _ = fmt.Fprintf(logOut, "vendored: file cap (%d) reached in %s\n", maxFilesPerLib, libDir)
 			}
 			return filepath.SkipAll
 		}
@@ -280,9 +250,9 @@ func md5File(path string) (string, error) {
 	return hex.EncodeToString(h.Sum(nil)), nil
 }
 
-// vendoredPURL builds the canonical PURL for one vendored library hit.
+// libPURL builds the canonical PURL for one vendored library hit.
 // The vendored_path qualifier uses posix separators so the PURL is stable
 // across Windows and Unix scans of the same source tree.
-func vendoredPURL(name, relPath string) string {
+func libPURL(name, relPath string) string {
 	return "pkg:generic/" + name + "?vendored_path=" + filepath.ToSlash(relPath)
 }

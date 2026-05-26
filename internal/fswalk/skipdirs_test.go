@@ -33,6 +33,47 @@ func TestSkipDir_CaseSensitive(t *testing.T) {
 	}
 }
 
+func TestIsVendoredDir_KnownNamesCaseInsensitive(t *testing.T) {
+	for _, name := range []string{
+		"vendor", "vendored", "third_party", "third-party", "thirdparty",
+		"3rdparty", "dep", "deps", "libs", "external", "externals",
+		// Case-insensitive: historical v1 behaviour.
+		"Vendor", "THIRD_PARTY", "LiBs",
+	} {
+		if !IsVendoredDir(name) {
+			t.Errorf("IsVendoredDir(%q) = false, want true", name)
+		}
+	}
+}
+
+func TestIsVendoredDir_UnknownNames(t *testing.T) {
+	for _, name := range []string{"src", "lib", "node_modules", ".git", ""} {
+		if IsVendoredDir(name) {
+			t.Errorf("IsVendoredDir(%q) = true, want false", name)
+		}
+	}
+}
+
+func TestSkipDirForVendoredSearch_DescendsVendoredFamilies(t *testing.T) {
+	// The whole point: SkipDir says skip vendor/, but the vendored search
+	// must descend into it. Same goes for any other vendored family name.
+	for _, name := range []string{"vendor", "third_party", "libs", "external", "3rdparty"} {
+		if SkipDirForVendoredSearch(name) {
+			t.Errorf("SkipDirForVendoredSearch(%q) = true; search must descend into vendored families", name)
+		}
+	}
+}
+
+func TestSkipDirForVendoredSearch_StillSkipsBuildAndVCS(t *testing.T) {
+	// Skip everything SkipDir would skip *except* the vendored families.
+	// .git inside a vendored library would otherwise leak into the hash set.
+	for _, name := range []string{".git", ".hg", "node_modules", "target", "dist", "build", ".venv", "__pycache__"} {
+		if !SkipDirForVendoredSearch(name) {
+			t.Errorf("SkipDirForVendoredSearch(%q) = false; non-vendored skips must still apply", name)
+		}
+	}
+}
+
 func TestAbsoluteSkipPaths_JoinsUnderRoot(t *testing.T) {
 	root := "/tmp/scan"
 	if runtime.GOOS == "windows" {

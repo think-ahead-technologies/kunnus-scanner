@@ -1,10 +1,11 @@
-// ABOUTME: Tests for VendoredSurvey — detects C/C++ vendored dirs (third_party/, libs/, …)
+// ABOUTME: Tests for Survey — detects C/C++ vendored dirs (third_party/, libs/, …)
 // ABOUTME: Walks into directories the global fswalk.SkipDir blocks, so it has its own coverage.
-package ecosystem
+package vendored
 
 import (
 	"crypto/md5" //nolint:gosec // fingerprint, not security
 	"encoding/hex"
+	"os"
 	"path/filepath"
 	"sort"
 	"strings"
@@ -20,13 +21,27 @@ func md5Hex(s string) string {
 	return hex.EncodeToString(h[:])
 }
 
-func TestVendoredSurvey_BasicCppTree(t *testing.T) {
+// writeAt writes content under root at the given relative path, creating any
+// parent directories. Keeps fixture setup readable across the multi-file
+// scenarios these tests build.
+func writeAt(t *testing.T, root, rel, content string) {
+	t.Helper()
+	path := filepath.Join(root, rel)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatalf("mkdir: %v", err)
+	}
+	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
+		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+func TestSurvey_BasicCppTree(t *testing.T) {
 	root := t.TempDir()
 	writeAt(t, root, "third_party/zlib/deflate.c", "// deflate impl\n")
 	writeAt(t, root, "third_party/zlib/inflate.c", "// inflate impl\n")
 	writeAt(t, root, "third_party/zlib/zlib.h", "// header\n")
 
-	hits, hashMap := VendoredSurvey(root, nil)
+	hits, hashMap := Survey(root, nil)
 
 	if len(hits) != 1 {
 		t.Fatalf("expected 1 vendored hit, got %d: %+v", len(hits), hits)
@@ -63,14 +78,14 @@ func TestVendoredSurvey_BasicCppTree(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_NoCppFilesSkipsDir(t *testing.T) {
+func TestSurvey_NoCppFilesSkipsDir(t *testing.T) {
 	// "vendor" directory exists but contains only non-C/C++ files. This is the
 	// common Go / Python case and must NOT produce a vendored component.
 	root := t.TempDir()
 	writeAt(t, root, "vendor/golang.org/x/sys/unix/syscall.go", "package unix\n")
 	writeAt(t, root, "vendor/modules.txt", "# explicit\n")
 
-	hits, hashMap := VendoredSurvey(root, nil)
+	hits, hashMap := Survey(root, nil)
 
 	if len(hits) != 0 {
 		t.Errorf("expected 0 hits for non-C/C++ vendor dir, got %d: %+v", len(hits), hits)
@@ -80,7 +95,7 @@ func TestVendoredSurvey_NoCppFilesSkipsDir(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_NestedVendoredCollapses(t *testing.T) {
+func TestSurvey_NestedVendoredCollapses(t *testing.T) {
 	// A vendored lib that itself ships a vendored sub-tree must not produce a
 	// second component — duplicate matches across layered scanning is a known
 	// source of false positives (mirrors v1 vendored.go:165).
@@ -88,7 +103,7 @@ func TestVendoredSurvey_NestedVendoredCollapses(t *testing.T) {
 	writeAt(t, root, "third_party/libfoo/foo.c", "// outer\n")
 	writeAt(t, root, "third_party/libfoo/external/libbar/bar.c", "// nested\n")
 
-	hits, _ := VendoredSurvey(root, nil)
+	hits, _ := Survey(root, nil)
 
 	if len(hits) != 1 {
 		t.Fatalf("expected 1 hit (outer only), got %d: %+v", len(hits), hits)
@@ -98,7 +113,7 @@ func TestVendoredSurvey_NestedVendoredCollapses(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
+func TestSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	// Vendored libs sometimes ship a .git/ pseudo-checkout. We skip them to
 	// avoid double-counting against any future git scanning we ever do, and to
 	// keep BOM size sane (.git can contain thousands of packed objects).
@@ -107,7 +122,7 @@ func TestVendoredSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	writeAt(t, root, "third_party/libfoo/.git/objects/00/aa", "junk binary\n")
 	writeAt(t, root, "third_party/libfoo/.git/HEAD", "ref: refs/heads/main\n")
 
-	_, hashMap := VendoredSurvey(root, nil)
+	_, hashMap := Survey(root, nil)
 
 	for purl, hs := range hashMap {
 		for _, h := range hs {
@@ -118,7 +133,7 @@ func TestVendoredSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_NonCppFilesIgnored(t *testing.T) {
+func TestSurvey_NonCppFilesIgnored(t *testing.T) {
 	// .py / .go / .md inside an otherwise valid C++ vendored lib are skipped —
 	// only the C/C++ source counts toward the fingerprint.
 	root := t.TempDir()
@@ -126,7 +141,7 @@ func TestVendoredSurvey_NonCppFilesIgnored(t *testing.T) {
 	writeAt(t, root, "third_party/zlib/README.md", "# skip\n")
 	writeAt(t, root, "third_party/zlib/build.py", "# skip\n")
 
-	_, hashMap := VendoredSurvey(root, nil)
+	_, hashMap := Survey(root, nil)
 
 	wantPURL := "pkg:generic/zlib?vendored_path=" + filepath.ToSlash(filepath.Join("third_party", "zlib"))
 	hs := hashMap[wantPURL]
@@ -138,8 +153,8 @@ func TestVendoredSurvey_NonCppFilesIgnored(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_AllDirNameVariants(t *testing.T) {
-	// Every dir name in vendoredDirNames must trigger the scan. Drift here
+func TestSurvey_AllDirNameVariants(t *testing.T) {
+	// Every vendored-family name in fswalk must trigger the scan. Drift here
 	// silently shrinks coverage, so we lock the full list in one test.
 	root := t.TempDir()
 	names := []string{
@@ -150,7 +165,7 @@ func TestVendoredSurvey_AllDirNameVariants(t *testing.T) {
 		writeAt(t, root, filepath.Join(n, "libfoo", "foo.c"), "// src\n")
 	}
 
-	hits, _ := VendoredSurvey(root, nil)
+	hits, _ := Survey(root, nil)
 
 	gotDirs := make([]string, 0, len(hits))
 	for _, h := range hits {
@@ -164,7 +179,7 @@ func TestVendoredSurvey_AllDirNameVariants(t *testing.T) {
 	}
 }
 
-func TestVendoredSurvey_AllExtVariants(t *testing.T) {
+func TestSurvey_AllExtVariants(t *testing.T) {
 	// Lock the file-extension list. Same drift concern as TestAllDirNameVariants.
 	root := t.TempDir()
 	exts := []string{".c", ".cc", ".cpp", ".h", ".hh", ".hpp"}
@@ -172,7 +187,7 @@ func TestVendoredSurvey_AllExtVariants(t *testing.T) {
 		writeAt(t, root, filepath.Join("third_party", "lib1", "f"+string(rune('a'+i))+e), "// src\n")
 	}
 
-	_, hashMap := VendoredSurvey(root, nil)
+	_, hashMap := Survey(root, nil)
 	wantPURL := "pkg:generic/lib1?vendored_path=" + filepath.ToSlash(filepath.Join("third_party", "lib1"))
 	hs := hashMap[wantPURL]
 	if len(hs) != len(exts) {
