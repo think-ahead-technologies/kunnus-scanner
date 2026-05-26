@@ -11,22 +11,30 @@ encoder; the scanner library does the extraction work.
 
 ## Architectural rules — enforced in code review
 
-1. `internal/detect/` imports **no scalibr packages**. Detection is pure
-   host/filesystem inspection. Violating this rule kills test isolation.
+1. **Host introspection lives in `internal/detect/`. Target introspection lives
+   next to its plugin mapping.** `detect/` answers *where am I running?* and
+   stays scalibr-free. Detecting what's at the scan root belongs in the
+   registry package that owns the corresponding scalibr plugin names —
+   `internal/ecosystem/` for language ecosystems, `internal/osfamily/` for
+   Linux distros — so that detection metadata and plugin selection cannot
+   drift apart.
 2. `internal/scan/` is the **only** package that calls `scalibr.New().Scan()`.
    Every other package operates on `scan.Result` instead.
 3. `internal/command/` is the **only** package that imports `urfave/cli/v3`.
    Modes don't know they're being invoked from a CLI.
 4. Each `internal/mode/<x>/` package builds a `*scalibr.ScanConfig` from a path
-   plus `mode.Overrides`. It must not perform I/O beyond what `detect` provides.
+   plus `mode.Overrides`. Its only I/O is calls into `detect`, `ecosystem`, or
+   `osfamily` — no raw filesystem reads of its own.
 
 ## Cohesion summary
 
 | Package | Knows about | Does NOT know about |
 |---|---|---|
 | `command` | flags, modes, scan, sbom, upload | scalibr internals |
-| `mode` | detect, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
-| `detect` | os + filesystem | scalibr, modes, anything kunnus-specific |
+| `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
+| `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
+| `ecosystem` | language markers, lockfile hash parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
+| `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `scan` | scalibr | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter | modes, CLI, scanning |
 | `upload` | http, file IO | everything else |

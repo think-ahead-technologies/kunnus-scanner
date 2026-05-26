@@ -1,6 +1,6 @@
-// ABOUTME: Linux distro detection from a given filesystem root (live host or extracted firmware).
-// ABOUTME: Inspects /etc/os-release plus package-database fingerprints. Pure I/O, no scalibr.
-package detect
+// ABOUTME: Linux distro detection from a filesystem root (live host or extracted firmware).
+// ABOUTME: Inspects /etc/os-release plus per-family package-database fingerprints. Pure I/O.
+package osfamily
 
 import (
 	"bufio"
@@ -11,38 +11,19 @@ import (
 	"strings"
 )
 
-// FamilyRule describes one Linux distro family for LinuxDistroFamilies.
-// internal/osfamily owns the canonical rule set and folds it together with
-// scalibr plugin selection; callers obtain a slice via
-// osfamily.LinuxDetectionRules() and pass it in. The split keeps detect
-// scalibr-free (architecture rule #1) while the rule data lives next to the
-// plugin-name mapping it informs.
-type FamilyRule struct {
-	// Name is the family identifier returned by LinuxDistroFamilies on a match.
-	Name string
-
-	// OSReleaseIDs lists /etc/os-release ID and ID_LIKE values that map to
-	// this family. Empty means no os-release fingerprint for this rule.
-	OSReleaseIDs []string
-
-	// PackageDBPath is a path relative to the scan root whose existence
-	// proves the family is installed. Empty means no DB fingerprint.
-	PackageDBPath string
-}
-
 // LinuxDistroFamilies inspects the filesystem root at scanRoot and returns the
-// distro families it recognises, evaluated against rules. Returns an empty
-// slice when nothing matched — callers can then fall back to a broad "all
-// Linux extractors" set.
+// distro families it recognises, evaluated against the registered linuxFamilies.
+// Returns an empty slice when nothing matched — callers can then fall back to
+// LinuxPluginsFor(nil) for the broad "all Linux extractors" set.
 //
 // Detection strategy, in order:
 //  1. Parse /etc/os-release ID and ID_LIKE if present; match each value
-//     against every rule's OSReleaseIDs.
-//  2. For each rule with a PackageDBPath, check whether the path exists
+//     against every family's OSReleaseIDs.
+//  2. For each family with a PackageDBPath, check whether the path exists
 //     relative to scanRoot.
 //
 // Order in the output matches discovery order; duplicates are collapsed.
-func LinuxDistroFamilies(scanRoot string, rules []FamilyRule) []string {
+func LinuxDistroFamilies(scanRoot string) []string {
 	var families []string
 	seen := make(map[string]bool)
 	addFamily := func(name string) {
@@ -54,21 +35,21 @@ func LinuxDistroFamilies(scanRoot string, rules []FamilyRule) []string {
 	}
 
 	for _, id := range parseOSReleaseIDs(scanRoot) {
-		for _, r := range rules {
-			for _, ruleID := range r.OSReleaseIDs {
+		for _, f := range linuxFamilies {
+			for _, ruleID := range f.OSReleaseIDs {
 				if id == ruleID {
-					addFamily(r.Name)
+					addFamily(f.Name)
 				}
 			}
 		}
 	}
 
-	for _, r := range rules {
-		if r.PackageDBPath == "" {
+	for _, f := range linuxFamilies {
+		if f.PackageDBPath == "" {
 			continue
 		}
-		if exists(filepath.Join(scanRoot, r.PackageDBPath)) {
-			addFamily(r.Name)
+		if exists(filepath.Join(scanRoot, f.PackageDBPath)) {
+			addFamily(f.Name)
 		}
 	}
 

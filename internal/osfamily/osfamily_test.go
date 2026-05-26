@@ -63,24 +63,6 @@ func TestRegistry_PackageDBPathsAreUnique(t *testing.T) {
 	}
 }
 
-// TestLinuxDetectionRules_OnlyIncludesDetectableFamilies: fallback-only
-// families (flatpak, snap) have no detection metadata and must NOT appear
-// in the rule slice — passing them to detect would be a no-op rule.
-func TestLinuxDetectionRules_OnlyIncludesDetectableFamilies(t *testing.T) {
-	rules := LinuxDetectionRules()
-	for _, r := range rules {
-		if len(r.OSReleaseIDs) == 0 && r.PackageDBPath == "" {
-			t.Errorf("LinuxDetectionRules contains rule %q with no detection metadata", r.Name)
-		}
-	}
-	// Spot-check: both fallback-only families must be excluded.
-	for _, r := range rules {
-		if r.Name == "flatpak" || r.Name == "snap" {
-			t.Errorf("LinuxDetectionRules must not include fallback-only family %q", r.Name)
-		}
-	}
-}
-
 func TestLinuxPluginsFor(t *testing.T) {
 	tests := []struct {
 		name     string

@@ -23,8 +23,6 @@ import (
 	"github.com/google/osv-scalibr/extractor/standalone/windows/ospackages"
 	"github.com/google/osv-scalibr/extractor/standalone/windows/regosversion"
 	"github.com/google/osv-scalibr/extractor/standalone/windows/regpatchlevel"
-
-	"github.com/think-ahead/kunnus-scanner/internal/detect"
 )
 
 // LinuxFamily folds the detection metadata for one distro family together
@@ -33,12 +31,11 @@ import (
 // literal in linuxFamilies, no other registration site to keep in sync.
 //
 // Families with empty OSReleaseIDs and empty PackageDBPath are fallback-only:
-// they never surface from detect.LinuxDistroFamilies, but their plugins are
-// included when no family is detected (the "unknown distro, run everything"
-// behaviour).
+// they never surface from LinuxDistroFamilies, but their plugins are included
+// when no family is detected (the "unknown distro, run everything" behaviour).
 type LinuxFamily struct {
 	// Name is the family identifier ("debian", "rhel", ...). Returned by
-	// detect.LinuxDistroFamilies and consumed by LinuxPluginsFor.
+	// LinuxDistroFamilies and consumed by LinuxPluginsFor.
 	Name string
 
 	// OSReleaseIDs lists /etc/os-release ID and ID_LIKE values that map to
@@ -116,28 +113,9 @@ var linuxFamilies = []LinuxFamily{
 }
 
 // LinuxFamilies returns the registered families. Exposed for introspection
-// and invariant tests; production code should use LinuxDetectionRules and
+// and invariant tests; production code should use LinuxDistroFamilies and
 // LinuxPluginsFor instead.
 func LinuxFamilies() []LinuxFamily { return linuxFamilies }
-
-// LinuxDetectionRules returns the detection-only view of every family that
-// has at least one detection rule. Pass the result to
-// detect.LinuxDistroFamilies — splitting the data this way keeps detect
-// scalibr-free while the rules live next to the plugins they inform.
-func LinuxDetectionRules() []detect.FamilyRule {
-	out := make([]detect.FamilyRule, 0, len(linuxFamilies))
-	for _, f := range linuxFamilies {
-		if len(f.OSReleaseIDs) == 0 && f.PackageDBPath == "" {
-			continue
-		}
-		out = append(out, detect.FamilyRule{
-			Name:          f.Name,
-			OSReleaseIDs:  f.OSReleaseIDs,
-			PackageDBPath: f.PackageDBPath,
-		})
-	}
-	return out
-}
 
 // LinuxPluginsFor returns the deduplicated, sorted scalibr plugin names
 // enabled by the given family names. If families is empty, returns the union
