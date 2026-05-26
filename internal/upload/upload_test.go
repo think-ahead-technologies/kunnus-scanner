@@ -5,6 +5,7 @@ package upload
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -12,6 +13,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 )
 
 func writeSBOM(t *testing.T, content string) string {
@@ -156,5 +158,84 @@ func TestDo_NonexistentFile(t *testing.T) {
 	})
 	if err == nil {
 		t.Fatal("want error for nonexistent file")
+	}
+}
+
+func TestDo_ErrorMessageDoesNotEmbedResponseBody(t *testing.T) {
+	// Server response bodies may contain anything — including, in a misbehaving
+	// reverse proxy, an echo of the Authorization header. Keep them out of the
+	// error chain so log aggregators that scrape stderr don't pick them up.
+	// The body is still returned to the caller via the first return value.
+	const secret = "leaked-bearer-token-DO-NOT-EMBED"
+	srv, _ := newCaptureServer(t, http.StatusUnauthorized, `{"echo":"`+secret+`"}`)
+
+	body, err := Do(context.Background(), Options{
+		URL:    srv.URL,
+		APIKey: "k",
+		File:   writeSBOM(t, "{}"),
+	})
+	if err == nil {
+		t.Fatal("want error for 401 response")
+	}
+	if strings.Contains(err.Error(), secret) {
+		t.Errorf("error message must not embed response body, but contains %q\nerr: %s", secret, err.Error())
+	}
+	if !strings.Contains(string(body), secret) {
+		t.Errorf("body return value should preserve server response for caller inspection, got %q", body)
+	}
+}
+
+func TestDo_LimitsResponseBodySize(t *testing.T) {
+	// A pathological server returning a giant body must not OOM us.
+	// We accept up to MaxResponseBytes; bytes beyond that are dropped.
+	huge := bytes.Repeat([]byte("A"), int(MaxResponseBytes)+1024)
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write(huge)
+	}))
+	defer srv.Close()
+
+	body, err := Do(context.Background(), Options{
+		URL:    srv.URL,
+		APIKey: "k",
+		File:   writeSBOM(t, "{}"),
+	})
+	if err != nil {
+		t.Fatalf("Do: %v", err)
+	}
+	if int64(len(body)) > MaxResponseBytes {
+		t.Errorf("response body len = %d, want <= %d (MaxResponseBytes)", len(body), MaxResponseBytes)
+	}
+}
+
+func TestDo_RespectsContextDeadline(t *testing.T) {
+	// The caller's context must be the sole deadline source — no hidden
+	// http.Client.Timeout fallback that ignores ctx.
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		select {
+		case <-r.Context().Done():
+		case <-time.After(2 * time.Second):
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer srv.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
+	defer cancel()
+
+	start := time.Now()
+	_, err := Do(ctx, Options{
+		URL:    srv.URL,
+		APIKey: "k",
+		File:   writeSBOM(t, "{}"),
+	})
+	if err == nil {
+		t.Fatal("want context-deadline error")
+	}
+	if !errors.Is(err, context.DeadlineExceeded) {
+		t.Errorf("want errors.Is(err, context.DeadlineExceeded), got %v", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Errorf("Do took %v; context deadline should have cut it off promptly", elapsed)
 	}
 }

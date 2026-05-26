@@ -6,6 +6,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log/slog"
 	"os"
 
 	"github.com/urfave/cli/v3"
@@ -55,6 +56,13 @@ func runUpload(ctx context.Context, cmd *cli.Command) error {
 		File:        file,
 	})
 	if err != nil {
+		// The error chain stays terse to avoid leaking the server's response
+		// body (which may, on a misbehaving upstream, include echoed headers)
+		// into stderr by default. Operators wanting the body can re-run with
+		// --verbosity info; logging at info level keeps it off default stderr.
+		if len(body) > 0 {
+			slog.Info("upload server response body", "body", string(body))
+		}
 		return err
 	}
 

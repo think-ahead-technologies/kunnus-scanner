@@ -13,11 +13,17 @@ import (
 	"os"
 	"path/filepath"
 	"strconv"
-	"time"
 )
 
 // DefaultURL is the production upload endpoint. Override via the upload command flag/env.
 const DefaultURL = "https://app.kunnus.tech/api/sboms/upload"
+
+// MaxResponseBytes caps how much of the server response body we read into
+// memory. A well-behaved Kunnus API returns small JSON envelopes; this cap
+// only matters as a guard against a runaway upstream sending megabytes of
+// error HTML. Bytes beyond the cap are dropped silently — callers needing a
+// fuller body should provide their own http.Client.
+const MaxResponseBytes int64 = 1 << 20 // 1 MiB
 
 // Options bundles everything an upload needs. All fields except File are user-supplied.
 type Options struct {
@@ -40,7 +46,11 @@ func Do(ctx context.Context, opts Options) ([]byte, error) {
 		opts.URL = DefaultURL
 	}
 	if opts.Client == nil {
-		opts.Client = &http.Client{Timeout: 60 * time.Second}
+		// No timeout on the default client: the request already carries the
+		// caller's context, and a fixed Client.Timeout would override any
+		// deadline the caller chose. Callers wanting an absolute cap should
+		// supply their own *http.Client or a context.WithTimeout.
+		opts.Client = &http.Client{}
 	}
 
 	f, err := os.Open(opts.File)
@@ -90,13 +100,17 @@ func Do(ctx context.Context, opts Options) ([]byte, error) {
 	}
 	defer func() { _ = resp.Body.Close() }()
 
-	respBody, err := io.ReadAll(resp.Body)
+	respBody, err := io.ReadAll(io.LimitReader(resp.Body, MaxResponseBytes))
 	if err != nil {
 		return nil, fmt.Errorf("read response: %w", err)
 	}
 
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return respBody, fmt.Errorf("upload failed: %s: %s", resp.Status, string(respBody))
+		// Return the body so the caller can surface it (e.g. on stderr) but
+		// keep the body OUT of the error chain — a misbehaving upstream could
+		// echo the Authorization header into its 401 payload and leak the API
+		// key into stderr / log aggregators that capture err.Error().
+		return respBody, fmt.Errorf("upload failed: %s", resp.Status)
 	}
 
 	return respBody, nil

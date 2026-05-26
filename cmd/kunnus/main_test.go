@@ -191,6 +191,69 @@ func TestCLI_Upload_RoundTrip(t *testing.T) {
 	}
 }
 
+func TestCLI_Upload_ServerErrorDoesNotLeakBodyByDefault(t *testing.T) {
+	// On a non-2xx response, the default-verbosity stderr must carry only the
+	// status line — never the server response body. Operators wanting the body
+	// can re-run with --verbosity info, which is exercised by the sibling test
+	// below. This is the safety net that keeps echoed headers / secrets out of
+	// CI logs and monitoring scrapers.
+	const sensitive = "MARKER-bearer-echo-do-not-leak"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusUnauthorized)
+		_, _ = w.Write([]byte(`{"echo":"` + sensitive + `"}`))
+	}))
+	defer srv.Close()
+
+	sbom := filepath.Join(t.TempDir(), "sbom.json")
+	writeFile(t, sbom, "{}")
+
+	_, stderr, err := runKunnus(t,
+		"upload",
+		"--url", srv.URL,
+		"--api-key", "k",
+		sbom,
+	)
+	if err == nil {
+		t.Fatal("want non-zero exit on 401 response")
+	}
+	if strings.Contains(stderr, sensitive) {
+		t.Errorf("stderr must not contain server body at default verbosity\nstderr:\n%s", stderr)
+	}
+	if !strings.Contains(stderr, "401") {
+		t.Errorf("stderr should mention status code, got:\n%s", stderr)
+	}
+}
+
+func TestCLI_Upload_ServerErrorShowsBodyAtInfoVerbosity(t *testing.T) {
+	// At --verbosity info the user opts in to seeing the server's response.
+	// This is the troubleshooting path; the safety guarantee from the sibling
+	// test (no body leak by default) is intentionally what protects users who
+	// don't crank the verbosity.
+	const detail = "invalid component_id"
+	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusBadRequest)
+		_, _ = w.Write([]byte(`{"error":"` + detail + `"}`))
+	}))
+	defer srv.Close()
+
+	sbom := filepath.Join(t.TempDir(), "sbom.json")
+	writeFile(t, sbom, "{}")
+
+	_, stderr, err := runKunnus(t,
+		"--verbosity", "info",
+		"upload",
+		"--url", srv.URL,
+		"--api-key", "k",
+		sbom,
+	)
+	if err == nil {
+		t.Fatal("want non-zero exit on 400 response")
+	}
+	if !strings.Contains(stderr, detail) {
+		t.Errorf("stderr at --verbosity info should include server body detail %q\nstderr:\n%s", detail, stderr)
+	}
+}
+
 func TestCLI_Upload_MissingAPIKey(t *testing.T) {
 	sbom := filepath.Join(t.TempDir(), "sbom.json")
 	writeFile(t, sbom, "{}")
