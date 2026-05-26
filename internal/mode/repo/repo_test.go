@@ -6,10 +6,19 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
+
+func TestIntersect(t *testing.T) {
+	got := intersect([]string{"npm", "go", "dotnet"}, []string{"go", "rust", "dotnet"})
+	want := []string{"go", "dotnet"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("intersect = %v, want %v", got, want)
+	}
+}
 
 func TestPlan_DetectsGoEcosystem(t *testing.T) {
 	root := t.TempDir()

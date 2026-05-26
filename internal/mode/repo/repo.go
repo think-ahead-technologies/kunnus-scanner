@@ -6,6 +6,7 @@ import (
 	"context"
 	"fmt"
 	"path/filepath"
+	"slices"
 
 	scalibr "github.com/google/osv-scalibr"
 	scalibrfs "github.com/google/osv-scalibr/fs"
@@ -72,4 +73,15 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*scalibr.S
 		Version: "",
 		Type:    mode.ComponentTypeApplication,
 	}, nil
+}
+
+// intersect returns the elements of a that also appear in b.
+func intersect(a, b []string) []string {
+	out := make([]string, 0, len(a))
+	for _, x := range a {
+		if slices.Contains(b, x) {
+			out = append(out, x)
+		}
+	}
+	return out
 }

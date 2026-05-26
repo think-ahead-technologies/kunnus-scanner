@@ -37,7 +37,7 @@ func runOSScan(ctx context.Context, cmd *cli.Command) error {
 		EnablePlugins:  cmd.StringSlice("enable"),
 		DisablePlugins: cmd.StringSlice("disable"),
 	}
-	return runScan(ctx, cmd, osmode.New(), path, ov)
+	return runScan(ctx, cmd, osmode.New(), path, ov, nil)
 }
 
 func defaultOSScanRoot() string {
