@@ -102,21 +102,23 @@ func TestRegistry_EcosystemFieldsAreComplete(t *testing.T) {
 
 func TestForFile_KnownAndUnknown(t *testing.T) {
 	tests := map[string]string{
-		"Cargo.lock":        "cargo",
-		"cargo.lock":        "cargo",
-		"CARGO.LOCK":        "cargo",
-		"go.sum":            "go",
-		"package-lock.json": "npm",
-		"yarn.lock":         "npm",
-		"uv.lock":           "python",
-		"poetry.lock":       "python",
-		"conan.lock":        "cpp",
-		"conanfile.py":      "cpp",
-		"renv.lock":         "r",
-		"unknown.file":      "",
-		"":                  "",
-		"MyApp.csproj":      "dotnet", // suffix match
-		"x.deps.json":       "dotnet", // suffix match
+		"Cargo.lock":         "cargo",
+		"cargo.lock":         "cargo",
+		"CARGO.LOCK":         "cargo",
+		"go.sum":             "go",
+		"package-lock.json":  "npm",
+		"yarn.lock":          "npm",
+		"uv.lock":            "python",
+		"poetry.lock":        "python",
+		"conan.lock":         "cpp",
+		"conanfile.py":       "cpp",
+		"renv.lock":          "r",
+		"unknown.file":       "",
+		"":                   "",
+		"MyApp.csproj":       "dotnet", // suffix match
+		"x.deps.json":        "dotnet", // suffix match
+		"foo-1.0-1.rockspec": "lua",    // luarocks spec file
+		"my_gem.gemspec":     "ruby",   // ruby gem spec
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -127,7 +129,7 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 
 func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 	got := PluginsFor([]string{"go", "cargo"})
-	want := []string{"go/binary", "go/gomod", "rust/cargoauditable", "rust/cargolock"}
+	want := []string{"go/binary", "go/gomod", "rust/cargoauditable", "rust/cargolock", "rust/cargotoml"}
 	if !slices.Equal(got, want) {
 		t.Errorf("PluginsFor(go,cargo) = %v, want %v", got, want)
 	}
@@ -185,6 +187,8 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 			want: []string{"go"},
 		},
 		{"case-insensitive lockfile names", []string{"Gemfile", "Gemfile.lock"}, []string{"ruby"}},
+		{"ruby gem source repo via .gemspec", []string{"my_gem.gemspec"}, []string{"ruby"}},
+		{"lua rockspec project", []string{"foo-1.0-1.rockspec"}, []string{"lua"}},
 		{"unrelated files ignored", []string{"README.md", "src/main.go", "LICENSE"}, []string{}},
 	}
 	for _, tc := range tests {

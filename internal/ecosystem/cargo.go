@@ -10,6 +10,7 @@ import (
 	"github.com/BurntSushi/toml"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/rust/cargoauditable"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/rust/cargolock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/rust/cargotoml"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
@@ -17,7 +18,7 @@ import (
 var cargo = Ecosystem{
 	Name:           "cargo",
 	Filenames:      []string{"Cargo.toml", "Cargo.lock"},
-	ScalibrPlugins: []string{cargoauditable.Name, cargolock.Name},
+	ScalibrPlugins: []string{cargoauditable.Name, cargolock.Name, cargotoml.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "cargo",

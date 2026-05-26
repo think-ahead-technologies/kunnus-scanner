@@ -4,10 +4,12 @@ package ecosystem
 
 import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemfilelock"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemspec"
 )
 
 var ruby = Ecosystem{
-	Name:           "ruby",
-	Filenames:      []string{"Gemfile", "Gemfile.lock"},
-	ScalibrPlugins: []string{gemfilelock.Name},
+	Name:             "ruby",
+	Filenames:        []string{"Gemfile", "Gemfile.lock"},
+	FilenameSuffixes: []string{".gemspec"},
+	ScalibrPlugins:   []string{gemfilelock.Name, gemspec.Name},
 }

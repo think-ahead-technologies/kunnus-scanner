@@ -60,6 +60,7 @@ var all = []Ecosystem{
 	golang,
 	gradle,
 	haskell,
+	lua,
 	maven,
 	npm,
 	python,

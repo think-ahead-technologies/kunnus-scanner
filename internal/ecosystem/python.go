@@ -3,6 +3,7 @@
 package ecosystem
 
 import (
+	"github.com/google/osv-scalibr/extractor/filesystem/language/python/condameta"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pdmlock"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/pipfilelock"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/poetrylock"
@@ -12,12 +13,18 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
 )
 
+// condameta matches paths like "envs/<env>/conda-meta/<pkg>.json" — a path
+// pattern, not a basename, so kunnus detection alone cannot trigger it. The
+// extractor runs whenever any other Python marker (pyproject.toml,
+// requirements.txt, ...) flags the ecosystem. A pure-conda environment with no
+// other Python markers would slip through detection.
 var python = Ecosystem{
 	Name:      "python",
 	Filenames: []string{"pyproject.toml", "poetry.lock", "pdm.lock", "Pipfile.lock", "requirements.txt", "setup.py", "uv.lock"},
 	ScalibrPlugins: []string{
 		poetrylock.Name, pdmlock.Name, pipfilelock.Name,
 		requirements.Name, setup.Name, uvlock.Name, wheelegg.Name,
+		condameta.Name,
 	},
 	HashParsers: []Parser{
 		{Name: "poetry", Filenames: []string{"poetry.lock"}, Parse: parsePyPIPackagesFilesLock},
