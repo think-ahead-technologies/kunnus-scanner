@@ -1,0 +1,4 @@
+NAME=Gentoo
+ID=gentoo
+PRETTY_NAME="Gentoo Linux"
+HOME_URL="https://www.gentoo.org/"

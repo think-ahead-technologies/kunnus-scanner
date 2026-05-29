@@ -1,0 +1,6 @@
+# gentoo family — sourced from var/db/pkg/<cat>/<pkg>/PF (the PF file holds the
+# package-version atom); vendor (gentoo) derives from etc/os-release (ID=gentoo).
+purl pkg:portage/gentoo/bash@5.1_p16
+cpe  cpe:2.3:a:bash:bash:5.1_p16:*:*:*:*:*:*:*
+purl pkg:portage/gentoo/coreutils@9.1
+cpe  cpe:2.3:a:coreutils:coreutils:9.1:*:*:*:*:*:*:*

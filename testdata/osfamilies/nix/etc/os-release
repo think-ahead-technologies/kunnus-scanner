@@ -1,0 +1,7 @@
+NAME=NixOS
+ID=nixos
+VERSION="23.11 (Tapir)"
+VERSION_ID="23.11"
+VERSION_CODENAME=tapir
+PRETTY_NAME="NixOS 23.11 (Tapir)"
+HOME_URL="https://nixos.org/"

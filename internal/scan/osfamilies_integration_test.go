@@ -21,15 +21,12 @@ import (
 // build a fixture, or document why it is impractical. This is the OS-scan analog
 // of the ecosystem drift guard.
 //
-// The hard blockers are the binary/host-specific databases; the "not built yet"
-// entries are text-fixturable families we simply have not authored fixtures for.
+// The hard blockers are the binary database (rpm) and image-specific (cos)
+// families; the fallback-only families have no on-disk fingerprint to fixture.
 var osFamiliesWithoutFixture = map[string]string{
 	"rhel":    "rpm uses a binary sqlite/bdb database; not hand-fixturable in-tree",
 	"suse":    "rpm-based; same binary-database blocker as rhel",
 	"cos":     "Container-Optimized OS layout is image-specific; not hand-fixturable",
-	"arch":    "pacman desc-file fixtures not built yet (text-fixturable)",
-	"gentoo":  "portage PF-file fixtures not built yet (text-fixturable)",
-	"nix":     "nix store-path fixtures not built yet (text-fixturable)",
 	"flatpak": "fallback-only family with no on-disk fingerprint to fixture",
 	"snap":    "fallback-only family with no on-disk fingerprint to fixture",
 }

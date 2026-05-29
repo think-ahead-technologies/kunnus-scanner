@@ -1,0 +1,6 @@
+# arch family — sourced from var/lib/pacman/local/<pkg>/desc; vendor (arch)
+# derives from etc/os-release (ID=arch). Arch is rolling, so no distro qualifier.
+purl pkg:pacman/arch/bash@5.1.016-1
+cpe  cpe:2.3:a:bash:bash:5.1.016-1:*:*:*:*:*:*:*
+purl pkg:pacman/arch/coreutils@9.1-3
+cpe  cpe:2.3:a:coreutils:coreutils:9.1-3:*:*:*:*:*:*:*
