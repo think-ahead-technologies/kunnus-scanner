@@ -20,6 +20,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
+	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 )
 
 // Source selects how an image reference is resolved into an image to scan.
@@ -164,10 +165,11 @@ func openImage(ctx context.Context, ref string, src Source) (*scalibrimage.Image
 // leave no other on-disk trace. Per-extractor FileRequired then decides what
 // the image filesystem actually matches.
 func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
-	names := ecosystem.AllInstalledPlugins()
-	names = append(names, osfamily.LinuxPluginsFor(nil)...)
-	names = append(names, cdx.Name, spdx.Name) // SBOMs shipped inside the image
-	names = dedup(names)
+	names := pluginset.Union(
+		ecosystem.AllInstalledPlugins(),
+		osfamily.LinuxPluginsFor(nil),
+		[]string{cdx.Name, spdx.Name}, // SBOMs shipped inside the image
+	)
 	names = mode.ApplyOverrides(names, ov)
 
 	plugins, err := pl.FromNames(names, nil)
@@ -185,16 +187,4 @@ func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
 		Plugins:      plugins,
 		Capabilities: caps,
 	}, nil
-}
-
-func dedup(in []string) []string {
-	seen := make(map[string]bool, len(in))
-	out := make([]string, 0, len(in))
-	for _, s := range in {
-		if !seen[s] {
-			seen[s] = true
-			out = append(out, s)
-		}
-	}
-	return out
 }

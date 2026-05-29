@@ -3,8 +3,6 @@
 package osfamily
 
 import (
-	"sort"
-
 	"github.com/google/osv-scalibr/extractor/filesystem/os/apk"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/chocolatey"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/cos"
@@ -23,6 +21,8 @@ import (
 	"github.com/google/osv-scalibr/extractor/standalone/windows/ospackages"
 	"github.com/google/osv-scalibr/extractor/standalone/windows/regosversion"
 	"github.com/google/osv-scalibr/extractor/standalone/windows/regpatchlevel"
+
+	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 )
 
 // LinuxFamily folds the detection metadata for one distro family together
@@ -131,23 +131,15 @@ func LinuxPluginsFor(families []string) []string {
 			families = append(families, f.Name)
 		}
 	}
-	seen := make(map[string]struct{})
+	var lists [][]string
 	for _, name := range families {
 		for _, f := range linuxFamilies {
-			if f.Name != name {
-				continue
-			}
-			for _, p := range f.ScalibrPlugins {
-				seen[p] = struct{}{}
+			if f.Name == name {
+				lists = append(lists, f.ScalibrPlugins)
 			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for p := range seen {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
+	return pluginset.Union(lists...)
 }
 
 // WindowsPlugins returns the scalibr extractors used on Windows. Registry

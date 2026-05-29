@@ -12,6 +12,7 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 )
 
 // Ecosystem captures everything kunnus knows about one language ecosystem:
@@ -107,23 +108,15 @@ func ForFile(name string) string {
 // by the given ecosystem names. Unknown names are silently ignored — callers
 // (mode/repo) already validate user-supplied --ecosystems values.
 func PluginsFor(ecosystems []string) []string {
-	seen := make(map[string]struct{})
+	var lists [][]string
 	for _, name := range ecosystems {
 		for _, eco := range all {
-			if eco.Name != name {
-				continue
-			}
-			for _, p := range eco.ScalibrPlugins {
-				seen[p] = struct{}{}
+			if eco.Name == name {
+				lists = append(lists, eco.ScalibrPlugins)
 			}
 		}
 	}
-	out := make([]string, 0, len(seen))
-	for p := range seen {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
+	return pluginset.Union(lists...)
 }
 
 // AllInstalledPlugins returns the deduplicated, sorted union of every
@@ -133,18 +126,11 @@ func PluginsFor(ecosystems []string) []string {
 // declares. scalibr's per-extractor FileRequired then decides what the image
 // filesystem actually matches.
 func AllInstalledPlugins() []string {
-	seen := make(map[string]struct{})
+	var lists [][]string
 	for _, eco := range all {
-		for _, p := range eco.InstalledPlugins {
-			seen[p] = struct{}{}
-		}
+		lists = append(lists, eco.InstalledPlugins)
 	}
-	out := make([]string, 0, len(seen))
-	for p := range seen {
-		out = append(out, p)
-	}
-	sort.Strings(out)
-	return out
+	return pluginset.Union(lists...)
 }
 
 // parsersByFilename is the walker's O(1) dispatch table, built once over
