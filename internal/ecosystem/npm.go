@@ -17,9 +17,10 @@ import (
 )
 
 var npm = Ecosystem{
-	Name:           "npm",
-	Filenames:      []string{"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock"},
-	ScalibrPlugins: []string{packagejson.Name, packagelockjson.Name, pnpmlock.Name, yarnlock.Name, bunlock.Name},
+	Name:             "npm",
+	Filenames:        []string{"package.json", "package-lock.json", "npm-shrinkwrap.json", "yarn.lock", "pnpm-lock.yaml", "bun.lock"},
+	ScalibrPlugins:   []string{packagejson.Name, packagelockjson.Name, pnpmlock.Name, yarnlock.Name, bunlock.Name},
+	InstalledPlugins: []string{packagejson.Name},
 	HashParsers: []Parser{
 		{Name: "npm", Filenames: []string{"package-lock.json", "npm-shrinkwrap.json"}, Parse: parseNPMLock},
 		{Name: "pnpm", Filenames: []string{"pnpm-lock.yaml"}, Parse: parsePNPMLock},

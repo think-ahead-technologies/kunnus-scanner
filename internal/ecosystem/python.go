@@ -26,6 +26,7 @@ var python = Ecosystem{
 		requirements.Name, setup.Name, uvlock.Name, wheelegg.Name,
 		condameta.Name,
 	},
+	InstalledPlugins: []string{wheelegg.Name},
 	HashParsers: []Parser{
 		{Name: "poetry", Filenames: []string{"poetry.lock"}, Parse: parsePyPIPackagesFilesLock},
 		{Name: "pdm", Filenames: []string{"pdm.lock"}, Parse: parsePyPIPackagesFilesLock},

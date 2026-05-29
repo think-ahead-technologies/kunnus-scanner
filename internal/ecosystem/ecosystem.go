@@ -31,8 +31,18 @@ type Ecosystem struct {
 	FilenameSuffixes []string
 
 	// ScalibrPlugins are the scalibr extractor names enabled when this
-	// ecosystem is detected.
+	// ecosystem is detected. Used for repo scans, where lockfiles and manifests
+	// describe the dependencies a project declares.
 	ScalibrPlugins []string
+
+	// InstalledPlugins is the subset of ScalibrPlugins that report packages
+	// actually installed on disk (compiled binaries, unpacked archives, package
+	// metadata) rather than merely declared in a lockfile or manifest. Container
+	// scans use only these, so an image's SBOM lists what is present in it, not
+	// what a stray lockfile happens to declare. Empty for ecosystems whose
+	// installed state scalibr cannot extract (it has only source extractors).
+	// An invariant test enforces InstalledPlugins ⊆ ScalibrPlugins.
+	InstalledPlugins []string
 
 	// HashParsers is the optional set of lockfile parsers kunnus runs to
 	// extract native digests. nil for ecosystems we detect and scan via
@@ -116,14 +126,16 @@ func PluginsFor(ecosystems []string) []string {
 	return out
 }
 
-// AllPlugins returns the deduplicated, sorted union of every ecosystem's
-// scalibr plugins. Container scans enable this set wholesale: an image can hold
-// packages from any ecosystem, and scalibr's per-extractor FileRequired decides
-// what actually matches the image filesystem.
-func AllPlugins() []string {
+// AllInstalledPlugins returns the deduplicated, sorted union of every
+// ecosystem's InstalledPlugins — the extractors that report packages actually
+// present on disk. Container scans enable this set (plus the OS extractors) so
+// an image's SBOM reflects what is installed in it rather than what a lockfile
+// declares. scalibr's per-extractor FileRequired then decides what the image
+// filesystem actually matches.
+func AllInstalledPlugins() []string {
 	seen := make(map[string]struct{})
 	for _, eco := range all {
-		for _, p := range eco.ScalibrPlugins {
+		for _, p := range eco.InstalledPlugins {
 			seen[p] = struct{}{}
 		}
 	}

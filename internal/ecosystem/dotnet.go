@@ -25,6 +25,7 @@ var dotnet = Ecosystem{
 	Filenames:        []string{"packages.config", "packages.lock.json", "project.assets.json"},
 	FilenameSuffixes: []string{".csproj", ".deps.json"},
 	ScalibrPlugins:   []string{csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name, packageslockjson.Name, dotnetpe.Name},
+	InstalledPlugins: []string{dotnetpe.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "nuget",

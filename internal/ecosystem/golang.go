@@ -17,9 +17,10 @@ import (
 )
 
 var golang = Ecosystem{
-	Name:           "go",
-	Filenames:      []string{"go.mod", "go.sum"},
-	ScalibrPlugins: []string{gomod.Name, gobinary.Name},
+	Name:             "go",
+	Filenames:        []string{"go.mod", "go.sum"},
+	ScalibrPlugins:   []string{gomod.Name, gobinary.Name},
+	InstalledPlugins: []string{gobinary.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "go",

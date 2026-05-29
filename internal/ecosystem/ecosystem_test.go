@@ -12,28 +12,47 @@ import (
 	"testing"
 )
 
-// TestAllPlugins_IsUnionSortedAndDeduped verifies AllPlugins returns the
-// deduplicated, sorted union of every ecosystem's plugins — the set container
-// scanning enables, since a container holds packages from every ecosystem.
-func TestAllPlugins_IsUnionSortedAndDeduped(t *testing.T) {
-	got := AllPlugins()
+// TestAllInstalledPlugins_IsUnionSortedAndDeduped verifies AllInstalledPlugins
+// returns the deduplicated, sorted union of every ecosystem's installed-state
+// plugins — the set container scanning enables.
+func TestAllInstalledPlugins_IsUnionSortedAndDeduped(t *testing.T) {
+	got := AllInstalledPlugins()
 	if len(got) == 0 {
-		t.Fatal("AllPlugins returned nothing")
+		t.Fatal("AllInstalledPlugins returned nothing")
 	}
 	if !slices.IsSorted(got) {
-		t.Errorf("AllPlugins not sorted: %v", got)
+		t.Errorf("AllInstalledPlugins not sorted: %v", got)
 	}
 	seen := make(map[string]struct{})
 	for _, p := range got {
 		if _, dup := seen[p]; dup {
-			t.Errorf("AllPlugins has duplicate %q", p)
+			t.Errorf("AllInstalledPlugins has duplicate %q", p)
 		}
 		seen[p] = struct{}{}
 	}
-	// It must be a superset of any single ecosystem's plugins.
-	for _, p := range PluginsFor([]string{"go"}) {
-		if _, ok := seen[p]; !ok {
-			t.Errorf("AllPlugins missing go plugin %q", p)
+	// It must include go's installed extractor (the Go binary) but not its
+	// source-only one (go.mod), which describes declared, not installed, deps.
+	if _, ok := seen["go/binary"]; !ok {
+		t.Error("AllInstalledPlugins missing the installed go extractor go/binary")
+	}
+	if _, ok := seen["go/gomod"]; ok {
+		t.Error("AllInstalledPlugins must not include the source-only go/gomod")
+	}
+}
+
+// TestInstalledPluginsAreScalibrPluginsSubset enforces that every InstalledPlugins
+// entry is also declared in ScalibrPlugins — the installed set is a subset of an
+// ecosystem's full plugin set, never a separate list that can drift.
+func TestInstalledPluginsAreScalibrPluginsSubset(t *testing.T) {
+	for _, eco := range all {
+		full := make(map[string]struct{}, len(eco.ScalibrPlugins))
+		for _, p := range eco.ScalibrPlugins {
+			full[p] = struct{}{}
+		}
+		for _, p := range eco.InstalledPlugins {
+			if _, ok := full[p]; !ok {
+				t.Errorf("ecosystem %q: InstalledPlugins %q is not in ScalibrPlugins", eco.Name, p)
+			}
 		}
 	}
 }

@@ -8,7 +8,8 @@ import (
 )
 
 var maven = Ecosystem{
-	Name:           "maven",
-	Filenames:      []string{"pom.xml"},
-	ScalibrPlugins: []string{pomxml.Name, archive.Name},
+	Name:             "maven",
+	Filenames:        []string{"pom.xml"},
+	ScalibrPlugins:   []string{pomxml.Name, archive.Name},
+	InstalledPlugins: []string{archive.Name},
 }

@@ -36,19 +36,15 @@ func TestRunContainer_MultiLayer(t *testing.T) {
 		"lib/apk/db/installed": "C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=\nP:musl\n" +
 			"V:1.2.4-r2\nA:x86_64\no:musl\n",
 	})
+	// An installed npm dependency: a package.json under node_modules, not a
+	// lockfile. Container scans use installed-state extractors only.
 	appLayer := layerFromFiles(t, map[string]string{
-		"app/package-lock.json": `{
-  "name": "fixture-app", "version": "1.0.0", "lockfileVersion": 3,
-  "packages": {
-    "": {"name": "fixture-app", "version": "1.0.0"},
-    "node_modules/left-pad": {"version": "1.3.0"}
-  }
-}`,
+		"app/node_modules/left-pad/package.json": `{"name":"left-pad","version":"1.3.0"}`,
 	})
 
 	img := buildImage(t, osLayer, appLayer)
 
-	names := dedup(append(ecosystem.AllPlugins(), osfamily.LinuxPluginsFor(nil)...))
+	names := dedup(append(ecosystem.AllInstalledPlugins(), osfamily.LinuxPluginsFor(nil)...))
 	plugins, err := pl.FromNames(names, nil)
 	if err != nil {
 		t.Fatalf("FromNames: %v", err)
@@ -81,10 +77,13 @@ func TestRunContainer_MultiLayer(t *testing.T) {
 	}
 }
 
+// findByPURL matches on the purl path+version, ignoring qualifiers (the
+// packagejson extractor appends a source=UNKNOWN qualifier we don't care about).
 func findByPURL(t *testing.T, res *scan.Result, want string) *extractor.Package {
 	t.Helper()
+	base := func(s string) string { return strings.SplitN(s, "?", 2)[0] }
 	for _, p := range res.Inventory.Packages {
-		if u := p.PURL(); u != nil && u.String() == want {
+		if u := p.PURL(); u != nil && base(u.String()) == base(want) {
 			return p
 		}
 	}

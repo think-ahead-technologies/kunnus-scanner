@@ -16,9 +16,10 @@ import (
 )
 
 var cargo = Ecosystem{
-	Name:           "cargo",
-	Filenames:      []string{"Cargo.toml", "Cargo.lock"},
-	ScalibrPlugins: []string{cargoauditable.Name, cargolock.Name, cargotoml.Name},
+	Name:             "cargo",
+	Filenames:        []string{"Cargo.toml", "Cargo.lock"},
+	ScalibrPlugins:   []string{cargoauditable.Name, cargolock.Name, cargotoml.Name},
+	InstalledPlugins: []string{cargoauditable.Name},
 	HashParsers: []Parser{
 		{
 			Name:      "cargo",

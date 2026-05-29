@@ -12,4 +12,5 @@ var ruby = Ecosystem{
 	Filenames:        []string{"Gemfile", "Gemfile.lock"},
 	FilenameSuffixes: []string{".gemspec"},
 	ScalibrPlugins:   []string{gemfilelock.Name, gemspec.Name},
+	InstalledPlugins: []string{gemspec.Name},
 }

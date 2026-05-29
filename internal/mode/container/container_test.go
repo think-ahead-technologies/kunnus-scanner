@@ -13,7 +13,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
-func TestBuildConfig_UnionLinuxFiltered(t *testing.T) {
+func TestBuildConfig_InstalledOnlyLinuxFiltered(t *testing.T) {
 	cfg, err := buildConfig(mode.Overrides{})
 	if err != nil {
 		t.Fatalf("buildConfig: %v", err)
@@ -29,10 +29,17 @@ func TestBuildConfig_UnionLinuxFiltered(t *testing.T) {
 	for _, p := range cfg.Plugins {
 		names[p.Name()] = true
 	}
-	// The union must span OS and language ecosystems...
-	for _, want := range []string{"os/dpkg", "os/apk"} {
+	// Must span Linux OS families and the installed-state language extractors...
+	for _, want := range []string{"os/dpkg", "os/apk", "javascript/packagejson"} {
 		if !names[want] {
-			t.Errorf("expected Linux OS plugin %q in container config", want)
+			t.Errorf("expected installed-state plugin %q in container config", want)
+		}
+	}
+	// ...must NOT include lockfile/source extractors (those report declared, not
+	// installed, dependencies — the container over-reporting we avoid)...
+	for _, unwanted := range []string{"javascript/packagelockjson", "go/gomod", "javascript/yarnlock"} {
+		if names[unwanted] {
+			t.Errorf("lockfile/source extractor %q must not be in a container scan", unwanted)
 		}
 	}
 	// ...and must drop the Windows-only PE extractor under Linux capabilities.

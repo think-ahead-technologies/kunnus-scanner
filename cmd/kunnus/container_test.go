@@ -27,9 +27,10 @@ func TestCLI_SBOM_Container(t *testing.T) {
 		"etc/os-release":       "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.18.4\n",
 		"lib/apk/db/installed": "C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=\nP:musl\nV:1.2.4-r2\nA:x86_64\no:musl\n",
 	})
+	// An installed npm dependency lives as a package.json under node_modules;
+	// container scans use installed-state extractors, not lockfiles.
 	appLayer := layerFromFiles(t, map[string]string{
-		"app/package-lock.json": `{"name":"app","version":"1.0.0","lockfileVersion":3,` +
-			`"packages":{"":{"name":"app","version":"1.0.0"},"node_modules/left-pad":{"version":"1.3.0"}}}`,
+		"app/node_modules/left-pad/package.json": `{"name":"left-pad","version":"1.3.0"}`,
 	})
 	tarPath := writeImageTarball(t, osLayer, appLayer)
 

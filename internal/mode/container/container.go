@@ -150,12 +150,14 @@ func openImage(ctx context.Context, ref string, src Source) (*scalibrimage.Image
 	}
 }
 
-// buildConfig selects the union of every ecosystem's plugins and every Linux OS
-// family's plugins, applies user overrides, and filters to what can run under
-// Linux container capabilities. Per-extractor FileRequired decides what the
-// image actually matches, so enabling the union is correct, not wasteful.
+// buildConfig selects each ecosystem's installed-state extractor plus every
+// Linux OS family's plugins, applies user overrides, and filters to what can
+// run under Linux container capabilities. Installed-only (not the lockfile
+// extractors repo scans use) keeps the SBOM to what is actually present in the
+// image rather than what a stray lockfile declares. Per-extractor FileRequired
+// then decides what the image filesystem actually matches.
 func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
-	names := dedup(append(ecosystem.AllPlugins(), osfamily.LinuxPluginsFor(nil)...))
+	names := dedup(append(ecosystem.AllInstalledPlugins(), osfamily.LinuxPluginsFor(nil)...))
 	names = mode.ApplyOverrides(names, ov)
 
 	plugins, err := pl.FromNames(names, nil)
