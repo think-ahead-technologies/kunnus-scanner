@@ -5,6 +5,7 @@ package osfamily
 import (
 	"bufio"
 	"io/fs"
+	"regexp"
 	"strings"
 )
 
@@ -55,14 +56,59 @@ func LinuxDistroFamilies(fsys fs.FS) []string {
 	return families
 }
 
+// versionFiles maps an os-release ID to a file whose numeric content is a more
+// precise version than os-release's VERSION_ID. Only distros whose VERSION_ID
+// is coarser than a dedicated file need an entry: today just Debian, whose
+// VERSION_ID is the major ("12") while etc/debian_version carries the point
+// release ("12.5"). For every other supported distro VERSION_ID is already the
+// canonical version (rhel/rocky/suse carry the point release there, alpine's
+// etc/alpine-release just duplicates it, and rolling releases have none).
+//
+// Keyed by ID rather than family on purpose: a derivative shares its family's
+// detection fingerprints but not its base distro's version file — Ubuntu (the
+// debian family) ships /etc/debian_version describing Debian ("bookworm/sid"),
+// which must not be read as Ubuntu's version.
+var versionFiles = map[string]string{
+	"debian": "etc/debian_version",
+}
+
 // LinuxOSRelease reads etc/os-release from fsys and returns the distro ID and
-// VERSION_ID (e.g. "debian", "12"). ok is false when os-release is absent or
+// version (e.g. "debian", "12.5"). ok is false when os-release is absent or
 // declares no ID — scratch and distroless images — and the caller should then
 // omit the operating-system component rather than emit a nameless one.
-func LinuxOSRelease(fsys fs.FS) (id, versionID string, ok bool) {
+//
+// The version is os-release VERSION_ID, overridden by a more precise per-distro
+// version file when one applies (see versionFiles). The override is ignored
+// unless it holds a concrete numeric version, so Debian testing/unstable (whose
+// debian_version is a "codename/sid" string) correctly falls back to VERSION_ID.
+func LinuxOSRelease(fsys fs.FS) (id, version string, ok bool) {
 	kv := parseOSRelease(fsys)
 	id = kv["ID"]
-	return id, kv["VERSION_ID"], id != ""
+	version = kv["VERSION_ID"]
+	if vf, has := versionFiles[id]; has {
+		if v, ok := numericVersionFile(fsys, vf); ok {
+			version = v
+		}
+	}
+	return id, version, id != ""
+}
+
+// numericVersionRe matches a concrete dotted-numeric version ("12" or "12.5"),
+// excluding non-numeric forms such as a "codename/sid" rolling identifier.
+var numericVersionRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)*$`)
+
+// numericVersionFile returns the trimmed content of name in fsys when it is a
+// concrete numeric version, or ok=false when the file is absent or non-numeric.
+func numericVersionFile(fsys fs.FS, name string) (string, bool) {
+	b, err := fs.ReadFile(fsys, name)
+	if err != nil {
+		return "", false
+	}
+	v := strings.TrimSpace(string(b))
+	if !numericVersionRe.MatchString(v) {
+		return "", false
+	}
+	return v, true
 }
 
 // parseOSReleaseIDs returns every ID and ID_LIKE value in etc/os-release.

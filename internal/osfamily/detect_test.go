@@ -120,18 +120,36 @@ func TestLinuxDistroFamilies(t *testing.T) {
 
 func TestLinuxOSRelease(t *testing.T) {
 	tests := []struct {
-		name        string
-		osRelease   string // empty means the file is absent
-		wantID      string
-		wantVersion string
-		wantOK      bool
+		name          string
+		osRelease     string // empty means the file is absent
+		debianVersion string // contents of etc/debian_version; empty means absent
+		wantID        string
+		wantVersion   string
+		wantOK        bool
 	}{
 		{
-			name:        "debian with version",
-			osRelease:   "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\nVERSION_ID=\"12\"\n",
-			wantID:      "debian",
-			wantVersion: "12",
-			wantOK:      true,
+			name:          "debian prefers point release from debian_version",
+			osRelease:     "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\nVERSION_ID=\"12\"\n",
+			debianVersion: "12.5\n",
+			wantID:        "debian",
+			wantVersion:   "12.5",
+			wantOK:        true,
+		},
+		{
+			name:          "debian testing falls back to VERSION_ID over codename",
+			osRelease:     "ID=debian\nVERSION_ID=\"13\"\n",
+			debianVersion: "trixie/sid\n",
+			wantID:        "debian",
+			wantVersion:   "13",
+			wantOK:        true,
+		},
+		{
+			name:          "ubuntu ignores debian_version, uses VERSION_ID",
+			osRelease:     "ID=ubuntu\nID_LIKE=debian\nVERSION_ID=\"22.04\"\n",
+			debianVersion: "trixie/sid\n",
+			wantID:        "ubuntu",
+			wantVersion:   "22.04",
+			wantOK:        true,
 		},
 		{
 			name:      "rolling distro has id but no version",
@@ -155,6 +173,15 @@ func TestLinuxOSRelease(t *testing.T) {
 				}
 				if err := os.WriteFile(path, []byte(tc.osRelease), 0o644); err != nil {
 					t.Fatalf("write os-release: %v", err)
+				}
+			}
+			if tc.debianVersion != "" {
+				path := filepath.Join(root, "etc", "debian_version")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				if err := os.WriteFile(path, []byte(tc.debianVersion), 0o644); err != nil {
+					t.Fatalf("write debian_version: %v", err)
 				}
 			}
 			id, version, ok := osfamily.LinuxOSRelease(os.DirFS(root))
