@@ -41,7 +41,7 @@ encoder; the scanner library does the extraction work.
 |---|---|---|
 | `command` | flags, modes, scan, sbom, upload | scalibr internals |
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
-| `mode/container` | image sources (registry/tarball/docker), ecosystem+osfamily plugin unions, scalibr image opening | encoding, uploading, CLI flags |
+| `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
 | `ecosystem` | language markers, lockfile hash parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
@@ -55,6 +55,21 @@ encoder; the scanner library does the extraction work.
 - Config file support — flags only. Add YAML later if customers ask.
 - DI container — package-level functions are fine.
 - Vulnerability matching — out of scope; that's the platform's job.
+
+## Known limitations
+
+- **Java groupId from bare JARs.** A JAR without `META-INF/maven/.../pom.properties`
+  (common for OSGi/shaded bundles) carries no authoritative Maven groupId.
+  scalibr's `javaarchive` then falls back to the `Bundle-SymbolicName` or
+  filename, which is often a single segment (e.g. `bcpg` for `bcpg-jdk18on`
+  instead of `org.bouncycastle`). Since OSV's Maven ecosystem keys on
+  `groupId:artifactId`, the wrong groupId silently drops vuln matches. This is
+  upstream extractor data we don't own — tracked at
+  https://github.com/google/osv-scalibr/issues/840 (expand the artifactId→groupId
+  map toward Syft parity). We deliberately do NOT ship our own groupId database
+  or a Maven Central lookup: the former is a maintenance liability, the latter
+  contradicts the no-network design. JARs that do embed `pom.properties` get the
+  correct groupId.
 
 ## Testing
 
