@@ -1,4 +1,4 @@
-// ABOUTME: Encodes a scalibr inventory into CycloneDX 1.7 JSON.
+// ABOUTME: Encodes a scalibr inventory into CycloneDX 1.6 JSON.
 // ABOUTME: Owns the enrichment-stage pipeline; the stages themselves live in their own files.
 package sbom
 
@@ -15,7 +15,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
 
-// Encode converts the scan result into a CycloneDX 1.7 SBOM and writes JSON
+// Encode converts the scan result into a CycloneDX 1.6 SBOM and writes JSON
 // to out. hashMap is an optional map of PURL → native digests (one or more
 // per package, typically populated from lockfiles); pass nil if unavailable.
 // extras carries components scalibr did not produce — today, vendored C/C++
@@ -57,9 +57,13 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	injectDepGraphCDX(cdxBom)
 	normalizePURLsCDX(cdxBom)
 
+	// Emit CycloneDX 1.6, not the library's 1.7 default: 1.7 is too new for the
+	// current SBOM consumer toolchain, which rejects it, and we use no 1.7-only
+	// fields. EncodeVersion downgrades specVersion, $schema, and namespaces
+	// together without mutating cdxBom.
 	encoder := cyclonedx.NewBOMEncoder(out, cyclonedx.BOMFileFormatJSON)
 	encoder.SetPretty(true)
-	if err := encoder.Encode(cdxBom); err != nil {
+	if err := encoder.EncodeVersion(cdxBom, cyclonedx.SpecVersion1_6); err != nil {
 		return fmt.Errorf("encode cyclonedx: %w", err)
 	}
 	return nil
