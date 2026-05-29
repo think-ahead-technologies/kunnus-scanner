@@ -35,9 +35,19 @@ func TestNormalizePURL(t *testing.T) {
 			want: "pkg:npm/lodash@4.17.21",
 		},
 		{
-			name: "deb with epoch unchanged",
+			name: "deb epoch decoded to literal colon",
 			in:   "pkg:deb/debian/bsdutils@1%3A2.41-5?arch=amd64",
-			want: "pkg:deb/debian/bsdutils@1%3A2.41-5?arch=amd64",
+			want: "pkg:deb/debian/bsdutils@1:2.41-5?arch=amd64",
+		},
+		{
+			name: "lowercase %3a epoch also decoded",
+			in:   "pkg:deb/debian/libgmp10@2%3a6.3.0+dfsg-3",
+			want: "pkg:deb/debian/libgmp10@2:6.3.0+dfsg-3",
+		},
+		{
+			name: "rpm epoch qualifier left untouched",
+			in:   "pkg:rpm/rocky/findutils@4.8.0-6.el9?arch=x86_64&epoch=1",
+			want: "pkg:rpm/rocky/findutils@4.8.0-6.el9?arch=x86_64&epoch=1",
 		},
 		{
 			name: "escaped slash in qualifier is left alone",

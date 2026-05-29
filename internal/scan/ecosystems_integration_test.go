@@ -77,16 +77,23 @@ func inventoryPURLs(res *scan.Result) map[string]bool {
 }
 
 // canonicalPURL mirrors the encoder's purl normalization (internal/sbom): it
-// decodes the escaped namespace separator (%2F) within the path so namespaced
-// packages (e.g. composer psr/log) compare equal to the SBOM output.
+// decodes the escaped namespace separator (%2F → "/") in the path and the
+// escaped Debian epoch (%3A → ":") in the version, so namespaced and epoch'd
+// packages compare equal to the SBOM output.
 func canonicalPURL(purl string) string {
-	end := len(purl)
-	if i := strings.IndexAny(purl, "@?#"); i >= 0 {
-		end = i
+	tail := ""
+	if i := strings.IndexAny(purl, "?#"); i >= 0 {
+		tail, purl = purl[i:], purl[:i]
 	}
-	path := strings.ReplaceAll(purl[:end], "%2F", "/")
+	path, version := purl, ""
+	if i := strings.IndexByte(purl, '@'); i >= 0 {
+		path, version = purl[:i], purl[i:]
+	}
+	path = strings.ReplaceAll(path, "%2F", "/")
 	path = strings.ReplaceAll(path, "%2f", "/")
-	return path + purl[end:]
+	version = strings.ReplaceAll(version, "%3A", ":")
+	version = strings.ReplaceAll(version, "%3a", ":")
+	return path + version + tail
 }
 
 func sortedKeys(m map[string]bool) []string {
