@@ -7,6 +7,7 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"runtime"
 	"testing"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
@@ -95,6 +96,30 @@ func TestPlan_EveryShippedPluginResolves(t *testing.T) {
 	}
 	if len(plan.Config.Plugins) == 0 {
 		t.Fatal("expected plugins from mixed tree")
+	}
+}
+
+func TestPlan_FiltersOSIncompatiblePlugins(t *testing.T) {
+	// The dotnet ecosystem includes dotnet/pe, a Windows-only PE binary
+	// extractor. Without capability filtering, scalibr hard-fails the entire
+	// scan on a non-Windows host. Plan must drop plugins that cannot run under
+	// the scan capabilities so the remaining dotnet extractors still produce an
+	// SBOM. This test is meaningful only off-Windows, where dotnet/pe is
+	// incompatible.
+	if runtime.GOOS == "windows" {
+		t.Skip("dotnet/pe is compatible on Windows; nothing to filter")
+	}
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "packages.lock.json"), `{"version":1,"dependencies":{}}`)
+
+	plan, err := New().Plan(context.Background(), root, mode.Overrides{})
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	for _, p := range plan.Config.Plugins {
+		if p.Name() == "dotnet/pe" {
+			t.Errorf("dotnet/pe must be filtered out on %s; Plan kept it", runtime.GOOS)
+		}
 	}
 }
 

@@ -75,13 +75,20 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		return nil, fmt.Errorf("load plugins %v: %w", pluginNames, err)
 	}
 
+	// Drop plugins that cannot run under these capabilities. Some ecosystems
+	// pull in OS-specific extractors (e.g. dotnet/pe is Windows-only); scalibr
+	// hard-fails the whole scan if such a plugin is enabled on a host it can't
+	// run on. Filtering here keeps the remaining extractors for that ecosystem.
+	caps := &plugin.Capabilities{OS: plugin.OSAny}
+	plugins = plugin.FilterByCapabilities(plugins, caps)
+
 	cfg := &scalibr.ScanConfig{
 		ScanRoots: []*scalibrfs.ScanRoot{{
 			FS:   scalibrfs.DirFS(abs),
 			Path: abs,
 		}},
 		Plugins:      plugins,
-		Capabilities: &plugin.Capabilities{OS: plugin.OSAny},
+		Capabilities: caps,
 		UseGitignore: true,
 		DirsToSkip:   fswalk.AbsoluteSkipPaths(abs),
 	}
