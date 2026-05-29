@@ -36,6 +36,8 @@ func enrichCDXComponents(bom *cyclonedx.BOM, inv inventory.Inventory) {
 			return
 		}
 		applyBSIProps(c, bsiProperties(pkg))
+		// Layer attribution for container scans; nil (no-op) otherwise.
+		applyBSIProps(c, layerProperties(pkg))
 	})
 }
 

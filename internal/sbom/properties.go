@@ -3,9 +3,43 @@
 package sbom
 
 import (
+	"strconv"
+
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
 )
+
+// Layer-attribution property keys. Populated for container scans, where
+// scalibr traces which image layer introduced each package. Absent for repo
+// and OS scans, which have no layer dimension.
+const (
+	layerPropIndex       = "kunnus:layer:index"
+	layerPropDiffID      = "kunnus:layer:diffid"
+	layerPropCommand     = "kunnus:layer:command"
+	layerPropInBaseImage = "kunnus:layer:in_base_image"
+)
+
+// layerProperties returns the layer-attribution properties for a package, or
+// nil when the package carries no layer metadata (every non-container scan).
+// The diffID and command keys are omitted when empty so we never emit blank
+// property values.
+func layerProperties(p *extractor.Package) map[string]string {
+	lm := p.LayerMetadata
+	if lm == nil {
+		return nil
+	}
+	out := map[string]string{
+		layerPropIndex:       strconv.Itoa(lm.Index),
+		layerPropInBaseImage: strconv.FormatBool(lm.BaseImageIndex > 0),
+	}
+	if d := lm.DiffID.String(); d != "" {
+		out[layerPropDiffID] = d
+	}
+	if lm.Command != "" {
+		out[layerPropCommand] = lm.Command
+	}
+	return out
+}
 
 // BSI property keys. Values are the JSON strings "true" or "false" — they're
 // treated as text by both CDX and the sbomqs evaluator, so we encode them as

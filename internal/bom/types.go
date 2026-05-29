@@ -10,6 +10,7 @@ const (
 	ComponentTypeOS          = "operating-system"
 	ComponentTypeFirmware    = "firmware"
 	ComponentTypeLibrary     = "library"
+	ComponentTypeContainer   = "container"
 )
 
 // ComponentInfo describes the root component of the resulting SBOM.

@@ -1,4 +1,4 @@
-// ABOUTME: Defines the `kunnus sbom` parent command that owns the repo and os subcommands.
+// ABOUTME: Defines the `kunnus sbom` parent command that owns the repo, os, and container subcommands.
 // ABOUTME: Parent owns shared flags (--output, --format); subcommands own scan-target flags.
 package command
 
@@ -12,6 +12,7 @@ func sbomCmd() *cli.Command {
 		Commands: []*cli.Command{
 			sbomRepo(),
 			sbomOS(),
+			sbomContainer(),
 		},
 	}
 }
