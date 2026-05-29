@@ -210,15 +210,24 @@ func TestDo_LimitsResponseBodySize(t *testing.T) {
 
 func TestDo_RespectsContextDeadline(t *testing.T) {
 	// The caller's context must be the sole deadline source — no hidden
-	// http.Client.Timeout fallback that ignores ctx.
+	// http.Client.Timeout fallback that ignores ctx. The handler blocks until
+	// the test releases it (or hits a long backstop), so a Do that honors ctx
+	// returns at the 50ms deadline while one that ignored ctx would block to the
+	// backstop. release is closed before srv.Close() so the handler unblocks
+	// promptly — the server's own request-context cancellation on client
+	// disconnect is not prompt enough to rely on here.
+	const serverBackstop = 10 * time.Second
+	release := make(chan struct{})
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		select {
 		case <-r.Context().Done():
-		case <-time.After(2 * time.Second):
+		case <-release:
+		case <-time.After(serverBackstop):
 		}
 		w.WriteHeader(http.StatusOK)
 	}))
 	defer srv.Close()
+	defer close(release)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
 	defer cancel()
@@ -235,7 +244,10 @@ func TestDo_RespectsContextDeadline(t *testing.T) {
 	if !errors.Is(err, context.DeadlineExceeded) {
 		t.Errorf("want errors.Is(err, context.DeadlineExceeded), got %v", err)
 	}
-	if elapsed := time.Since(start); elapsed > time.Second {
-		t.Errorf("Do took %v; context deadline should have cut it off promptly", elapsed)
+	// The call must return far short of the server backstop, proving ctx cut it
+	// off. The wide gap (50ms deadline vs a 5s ceiling) absorbs scheduler jitter
+	// when the full suite runs many CPU-heavy packages in parallel.
+	if elapsed := time.Since(start); elapsed >= serverBackstop/2 {
+		t.Errorf("Do took %v; the 50ms ctx deadline should have cut it off well before the %v server backstop", elapsed, serverBackstop)
 	}
 }
