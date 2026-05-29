@@ -115,6 +115,25 @@ func PluginsFor(ecosystems []string) []string {
 	return out
 }
 
+// AllPlugins returns the deduplicated, sorted union of every ecosystem's
+// scalibr plugins. Container scans enable this set wholesale: an image can hold
+// packages from any ecosystem, and scalibr's per-extractor FileRequired decides
+// what actually matches the image filesystem.
+func AllPlugins() []string {
+	seen := make(map[string]struct{})
+	for _, eco := range all {
+		for _, p := range eco.ScalibrPlugins {
+			seen[p] = struct{}{}
+		}
+	}
+	out := make([]string, 0, len(seen))
+	for p := range seen {
+		out = append(out, p)
+	}
+	sort.Strings(out)
+	return out
+}
+
 // parsersByFilename is the walker's O(1) dispatch table, built once over
 // every HashParser in every ecosystem.
 var parsersByFilename = buildParsersByFilename(all)

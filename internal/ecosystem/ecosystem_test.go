@@ -12,6 +12,32 @@ import (
 	"testing"
 )
 
+// TestAllPlugins_IsUnionSortedAndDeduped verifies AllPlugins returns the
+// deduplicated, sorted union of every ecosystem's plugins — the set container
+// scanning enables, since a container holds packages from every ecosystem.
+func TestAllPlugins_IsUnionSortedAndDeduped(t *testing.T) {
+	got := AllPlugins()
+	if len(got) == 0 {
+		t.Fatal("AllPlugins returned nothing")
+	}
+	if !slices.IsSorted(got) {
+		t.Errorf("AllPlugins not sorted: %v", got)
+	}
+	seen := make(map[string]struct{})
+	for _, p := range got {
+		if _, dup := seen[p]; dup {
+			t.Errorf("AllPlugins has duplicate %q", p)
+		}
+		seen[p] = struct{}{}
+	}
+	// It must be a superset of any single ecosystem's plugins.
+	for _, p := range PluginsFor([]string{"go"}) {
+		if _, ok := seen[p]; !ok {
+			t.Errorf("AllPlugins missing go plugin %q", p)
+		}
+	}
+}
+
 // TestRegistry_EcosystemNamesAreUnique guards against adding an ecosystem
 // twice (e.g. by copy-paste error on the all[] slice). Two ecosystems sharing
 // a name would shadow each other in PluginsFor lookups.

@@ -9,6 +9,7 @@ import (
 	"log/slog"
 
 	scalibr "github.com/google/osv-scalibr"
+	"github.com/google/osv-scalibr/artifact/image"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/google/osv-scalibr/plugin"
 )
@@ -37,6 +38,50 @@ func Run(ctx context.Context, cfg *scalibr.ScanConfig) (*Result, error) {
 
 	if res.Status != nil && res.Status.Status == plugin.ScanStatusFailed {
 		return nil, fmt.Errorf("scan failed: %s", res.Status.FailureReason)
+	}
+
+	for _, ps := range res.PluginStatus {
+		if ps == nil || ps.Status == nil || ps.Status.FailureReason == "" {
+			continue
+		}
+		slog.Warn("scalibr plugin failed",
+			"name", ps.Name,
+			"version", ps.Version,
+			"reason", ps.Status.FailureReason,
+		)
+	}
+
+	return &Result{
+		Inventory:      res.Inventory,
+		PluginStatuses: res.PluginStatus,
+	}, nil
+}
+
+// RunContainer scans a container image. Unlike Run, it invokes
+// scalibr.ScanContainer, which scans the image's chain-layer filesystem and
+// traces per-package layer origins — populating each package's LayerMetadata.
+// Plugin failures are logged and surfaced the same way as Run; an error is
+// returned only when the scan as a whole failed.
+//
+// Together with Run, this is the only place that invokes a scalibr scan.
+func RunContainer(ctx context.Context, img image.Image, cfg *scalibr.ScanConfig) (*Result, error) {
+	if cfg == nil {
+		return nil, errors.New("nil ScanConfig")
+	}
+	if img == nil {
+		return nil, errors.New("nil image")
+	}
+
+	res, err := scalibr.New().ScanContainer(ctx, img, cfg)
+	if err != nil {
+		return nil, fmt.Errorf("scan container: %w", err)
+	}
+	if res == nil {
+		return nil, errors.New("scalibr returned nil result")
+	}
+
+	if res.Status != nil && res.Status.Status == plugin.ScanStatusFailed {
+		return nil, fmt.Errorf("container scan failed: %s", res.Status.FailureReason)
 	}
 
 	for _, ps := range res.PluginStatus {
