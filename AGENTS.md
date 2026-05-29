@@ -18,13 +18,22 @@ encoder; the scanner library does the extraction work.
    `internal/ecosystem/` for language ecosystems, `internal/osfamily/` for
    Linux distros — so that detection metadata and plugin selection cannot
    drift apart.
-2. `internal/scan/` is the **only** package that calls `scalibr.New().Scan()`.
+2. `internal/scan/` is the **only** package that calls a scalibr scan —
+   `scalibr.New().Scan()` (filesystem) and `.ScanContainer()` (container image).
    Every other package operates on `scan.Result` instead.
 3. `internal/command/` is the **only** package that imports `urfave/cli/v3`.
    Modes don't know they're being invoked from a CLI.
 4. Each `internal/mode/<x>/` package builds a `*scalibr.ScanConfig` from a path
    plus `mode.Overrides`. Its only I/O is calls into `detect`, `ecosystem`, or
    `osfamily` — no raw filesystem reads of its own.
+5. **Container scanning is a sibling, not a path-based mode.**
+   `internal/mode/container/` opens an image (registry name, OCI/docker-save
+   tarball, or local docker daemon) and builds the union of every ecosystem and
+   Linux OS-family plugin, filtered to Linux capabilities. It deliberately does
+   *not* implement `mode.Mode` — its input is an image reference, not a
+   filesystem path — and the command runs `scan.RunContainer` rather than
+   `scan.Run`. Plugin selection skips detection: the union is enabled and
+   scalibr's per-extractor `FileRequired` decides what the image matches.
 
 ## Cohesion summary
 
@@ -32,11 +41,12 @@ encoder; the scanner library does the extraction work.
 |---|---|---|
 | `command` | flags, modes, scan, sbom, upload | scalibr internals |
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
+| `mode/container` | image sources (registry/tarball/docker), ecosystem+osfamily plugin unions, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
 | `ecosystem` | language markers, lockfile hash parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
-| `scan` | scalibr | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter | modes, CLI, scanning |
+| `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
+| `sbom` | scalibr inventory + converter, container layer attribution | modes, CLI, scanning |
 | `upload` | http, file IO | everything else |
 
 ## Things we deliberately did NOT build
@@ -45,8 +55,6 @@ encoder; the scanner library does the extraction work.
 - Config file support — flags only. Add YAML later if customers ask.
 - DI container — package-level functions are fine.
 - Vulnerability matching — out of scope; that's the platform's job.
-- Container-image scanning — not on the roadmap yet; scalibr's `ScanContainer`
-  is the seam if we ever need it.
 
 ## TDD plan (next session)
 
