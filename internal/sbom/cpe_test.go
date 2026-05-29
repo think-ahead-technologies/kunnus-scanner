@@ -49,6 +49,13 @@ func TestCPEFromPURL(t *testing.T) {
 			want: "cpe:2.3:a:babel:core:7.0.0:*:*:*:*:*:*:*",
 		},
 		{
+			// Scalibr renders a scoped package as one segment with the separator
+			// escaped (%2F); the namespace must still be split out for the CPE.
+			name: "npm scoped, scalibr %2F form",
+			purl: "pkg:npm/%40isaacs%2Fcliui@8.0.2",
+			want: "cpe:2.3:a:isaacs:cliui:8.0.2:*:*:*:*:*:*:*",
+		},
+		{
 			name: "npm unscoped",
 			purl: "pkg:npm/lodash@4.17.21",
 			want: "cpe:2.3:a:lodash:lodash:4.17.21:*:*:*:*:*:*:*",

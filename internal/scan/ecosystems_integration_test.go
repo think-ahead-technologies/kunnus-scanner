@@ -63,16 +63,30 @@ func TestEcosystems_EndToEnd(t *testing.T) {
 	}
 }
 
-// inventoryPURLs returns the set of purl strings emitted by the scan, in the
-// exact canonical form (p.PURL().String()) that the SBOM encoder indexes by.
+// inventoryPURLs returns the set of purl strings emitted by the scan, decoded
+// to the canonical form the SBOM encoder emits so the want.txt fixtures match
+// both this tier and the binary e2e tier.
 func inventoryPURLs(res *scan.Result) map[string]bool {
 	set := make(map[string]bool)
 	for _, p := range res.Inventory.Packages {
 		if u := p.PURL(); u != nil {
-			set[u.String()] = true
+			set[canonicalPURL(u.String())] = true
 		}
 	}
 	return set
+}
+
+// canonicalPURL mirrors the encoder's purl normalization (internal/sbom): it
+// decodes the escaped namespace separator (%2F) within the path so namespaced
+// packages (e.g. composer psr/log) compare equal to the SBOM output.
+func canonicalPURL(purl string) string {
+	end := len(purl)
+	if i := strings.IndexAny(purl, "@?#"); i >= 0 {
+		end = i
+	}
+	path := strings.ReplaceAll(purl[:end], "%2F", "/")
+	path = strings.ReplaceAll(path, "%2f", "/")
+	return path + purl[end:]
 }
 
 func sortedKeys(m map[string]bool) []string {

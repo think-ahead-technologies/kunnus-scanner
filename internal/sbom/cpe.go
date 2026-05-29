@@ -62,15 +62,6 @@ func cpeFromPURL(rawPURL string) string {
 	case "composer":
 		vendor = namespace
 		product = name
-		// Composer names are "vendor/package". Scalibr emits that as a single
-		// name segment with the slash percent-encoded, so the decoded name
-		// carries the vendor and the namespace is empty — split it back out,
-		// otherwise the "/" would make the product an invalid CPE field.
-		if vendor == "" {
-			if i := strings.IndexByte(name, '/'); i >= 0 {
-				vendor, product = name[:i], name[i+1:]
-			}
-		}
 	case "deb", "rpm", "apk", "alpm":
 		part = "o"
 		vendor = namespace
@@ -269,6 +260,16 @@ func parsePURL(raw string) (purlType, namespace, name, version string, ok bool) 
 	name = decode(pathSegs[len(pathSegs)-1])
 	if len(pathSegs) > 1 {
 		namespace = decode(strings.Join(pathSegs[:len(pathSegs)-1], "/"))
+	}
+
+	// A namespaced name that arrived as a single percent-encoded segment
+	// (scalibr renders "@scope/name" for npm and "vendor/package" for composer
+	// with the separator escaped as %2F) decodes to a name containing "/".
+	// Split it back so callers get the conventional namespace + name.
+	if namespace == "" {
+		if i := strings.IndexByte(name, '/'); i >= 0 {
+			namespace, name = name[:i], name[i+1:]
+		}
 	}
 	return purlType, namespace, name, version, name != ""
 }

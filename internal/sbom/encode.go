@@ -39,8 +39,12 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	//      PURL, and duplicates would shadow each other in that index.
 	//   2. enrichCDXMetadata BEFORE injectDepGraphCDX: the dep graph reads the
 	//      root component's BOMRef, which metadata enrichment may populate.
-	//   3. injectDepGraphCDX LAST: it iterates every component's BOMRef, so any
-	//      mutation that adds or renames components must precede it.
+	//   3. injectDepGraphCDX LAST among the joining stages: it iterates every
+	//      component's BOMRef, so any mutation that adds or renames components
+	//      must precede it.
+	//   4. normalizePURLsCDX after all PURL-keyed joins: it rewrites the emitted
+	//      PURL strings, so it must run once every stage that matches on the
+	//      original strings is done.
 	dedupCDXComponents(cdxBom)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
@@ -51,6 +55,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	appendExtraComponents(cdxBom, extras)
 	injectHashesCDX(cdxBom, hashMap)
 	injectDepGraphCDX(cdxBom)
+	normalizePURLsCDX(cdxBom)
 
 	encoder := cyclonedx.NewBOMEncoder(out, cyclonedx.BOMFileFormatJSON)
 	encoder.SetPretty(true)
