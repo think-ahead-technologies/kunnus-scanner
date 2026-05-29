@@ -1,2 +1,3 @@
-# Sourced from the pins in Package.resolved.
-swift-argument-parser
+# swift — sourced from the pins in Package.resolved (emitted with a cocoapods purl).
+purl pkg:cocoapods/swift-argument-parser@1.2.3
+cpe  cpe:2.3:a:swift-argument-parser:swift-argument-parser:1.2.3:*:*:*:*:*:*:*

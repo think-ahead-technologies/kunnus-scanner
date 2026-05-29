@@ -1,2 +1,3 @@
-# Sourced from the constraints in cabal.project.freeze.
-aeson
+# haskell — sourced from cabal.project.freeze constraints.
+purl pkg:haskell/aeson@2.1.2.1
+cpe  cpe:2.3:a:aeson:aeson:2.1.2.1:*:*:*:*:*:*:*

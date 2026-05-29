@@ -1,2 +1,3 @@
-# Sourced from the locked coordinates in gradle.lockfile.
-guava
+# gradle — sourced from gradle.lockfile (Gradle deps carry maven-type purls).
+purl pkg:maven/com.google.guava/guava@31.1-jre
+cpe  cpe:2.3:a:guava:guava:31.1-jre:*:*:*:*:*:*:*

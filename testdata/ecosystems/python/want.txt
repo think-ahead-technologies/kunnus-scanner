@@ -1,2 +1,3 @@
-# Sourced from requirements.txt.
-requests
+# python — sourced from requirements.txt.
+purl pkg:pypi/requests@2.31.0
+cpe  cpe:2.3:a:requests:requests:2.31.0:*:*:*:*:*:*:*

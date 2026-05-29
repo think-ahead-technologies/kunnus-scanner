@@ -1,2 +1,3 @@
-# Sourced from the GEM specs in Gemfile.lock.
-rake
+# ruby — sourced from the GEM specs in Gemfile.lock.
+purl pkg:gem/rake@13.0.6
+cpe  cpe:2.3:a:rake:rake:13.0.6:*:*:*:*:*:*:*

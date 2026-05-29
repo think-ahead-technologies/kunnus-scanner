@@ -1,4 +1,5 @@
-# The luarocks extractor derives the package name from the install-tree layout
-# (rocks-<lua>/<name>/<version>/...), not the rockspec body, so the fixture must
-# live under rocks-5.4/mylib/1.0-1/ for the extractor to fire.
-mylib
+# lua — the luarocks extractor derives name/version from the install-tree layout
+# (rocks-<lua>/<name>/<version>/...), not the rockspec body, so the fixture lives
+# under rocks-5.4/mylib/1.0-1/ for the extractor to fire.
+purl pkg:lua/mylib@1.0-1
+cpe  cpe:2.3:a:mylib:mylib:1.0-1:*:*:*:*:*:*:*

@@ -173,15 +173,31 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 	if err != nil {
 		t.Fatalf("read sbom: %v", err)
 	}
-	var doc map[string]any
+	var doc struct {
+		BOMFormat  string `json:"bomFormat"`
+		Components []struct {
+			PURL string `json:"purl"`
+			CPE  string `json:"cpe"`
+		} `json:"components"`
+	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("sbom is not valid JSON: %v", err)
 	}
-	if v, _ := doc["bomFormat"].(string); v != "CycloneDX" {
-		t.Errorf("bomFormat = %v, want CycloneDX", doc["bomFormat"])
+	if doc.BOMFormat != "CycloneDX" {
+		t.Errorf("bomFormat = %q, want CycloneDX", doc.BOMFormat)
 	}
 
-	haystack := strings.ToLower(string(data))
+	purls := make(map[string]bool)
+	cpes := make(map[string]bool)
+	for _, c := range doc.Components {
+		if c.PURL != "" {
+			purls[c.PURL] = true
+		}
+		if c.CPE != "" {
+			cpes[c.CPE] = true
+		}
+	}
+
 	entries, err := os.ReadDir(corpus)
 	if err != nil {
 		t.Fatalf("read corpus: %v", err)
@@ -190,10 +206,15 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 		if !e.IsDir() {
 			continue
 		}
-		wants := readWants(t, filepath.Join(corpus, e.Name()))
-		for _, w := range wants {
-			if !strings.Contains(haystack, strings.ToLower(w)) {
-				t.Errorf("ecosystem %q: expected component %q missing from combined SBOM", e.Name(), w)
+		w := readWants(t, filepath.Join(corpus, e.Name()))
+		for _, p := range w.purls {
+			if !purls[p] {
+				t.Errorf("ecosystem %q: expected purl %q missing from combined SBOM", e.Name(), p)
+			}
+		}
+		for _, c := range w.cpes {
+			if !cpes[c] {
+				t.Errorf("ecosystem %q: expected cpe %q missing from combined SBOM", e.Name(), c)
 			}
 		}
 	}
@@ -219,23 +240,41 @@ func corpusDir(t *testing.T) string {
 	}
 }
 
-// readWants returns the expected component substrings from dir/want.txt,
-// skipping blank lines and #-comments.
-func readWants(t *testing.T, dir string) []string {
+// wants holds the expected purls and cpes declared in a fixture's want.txt.
+type wants struct {
+	purls []string
+	cpes  []string
+}
+
+// readWants parses dir/want.txt. Each non-blank, non-comment line is
+// "<kind> <value>" where kind is "purl" or "cpe".
+func readWants(t *testing.T, dir string) wants {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
 	if err != nil {
 		t.Fatalf("read want.txt in %s: %v", dir, err)
 	}
-	var wants []string
+	var w wants
 	for _, line := range strings.Split(string(data), "\n") {
 		line = strings.TrimSpace(line)
 		if line == "" || strings.HasPrefix(line, "#") {
 			continue
 		}
-		wants = append(wants, line)
+		kind, value, found := strings.Cut(line, " ")
+		value = strings.TrimSpace(value)
+		if !found || value == "" {
+			t.Fatalf("malformed want.txt line in %s: %q", dir, line)
+		}
+		switch kind {
+		case "purl":
+			w.purls = append(w.purls, value)
+		case "cpe":
+			w.cpes = append(w.cpes, value)
+		default:
+			t.Fatalf("unknown want.txt kind %q in %s", kind, dir)
+		}
 	}
-	return wants
+	return w
 }
 
 // copyTree recursively copies the directory at src into dst, preserving the

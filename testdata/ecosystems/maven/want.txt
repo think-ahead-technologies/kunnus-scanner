@@ -1,2 +1,3 @@
-# Sourced from the dependencies in pom.xml.
-guava
+# maven — sourced from the dependencies in pom.xml.
+purl pkg:maven/com.google.guava/guava@31.1-jre
+cpe  cpe:2.3:a:guava:guava:31.1-jre:*:*:*:*:*:*:*
