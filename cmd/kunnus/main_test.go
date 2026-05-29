@@ -153,6 +153,121 @@ func TestCLI_SBOM_Repo_EmptyTreeFails(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
+	// Kitchen-sink e2e: every ecosystem fixture in the shared corpus is dropped
+	// into one scan root, so this exercises multi-ecosystem auto-detection, the
+	// merged digest map, dedup, and the real CLI wiring in a single binary run.
+	// Per-ecosystem extraction is covered faster at the scan seam; this proves
+	// they all coexist in one SBOM.
+	corpus := corpusDir(t)
+	root := t.TempDir()
+	copyTree(t, corpus, root)
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t, "sbom", "repo", "--output", outPath, root)
+	if err != nil {
+		t.Fatalf("sbom repo on all-ecosystems tree failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if v, _ := doc["bomFormat"].(string); v != "CycloneDX" {
+		t.Errorf("bomFormat = %v, want CycloneDX", doc["bomFormat"])
+	}
+
+	haystack := strings.ToLower(string(data))
+	entries, err := os.ReadDir(corpus)
+	if err != nil {
+		t.Fatalf("read corpus: %v", err)
+	}
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		wants := readWants(t, filepath.Join(corpus, e.Name()))
+		for _, w := range wants {
+			if !strings.Contains(haystack, strings.ToLower(w)) {
+				t.Errorf("ecosystem %q: expected component %q missing from combined SBOM", e.Name(), w)
+			}
+		}
+	}
+}
+
+// corpusDir resolves <module-root>/testdata/ecosystems by walking up to the
+// directory containing go.mod. The corpus is shared with the scan-seam tier.
+func corpusDir(t *testing.T) string {
+	t.Helper()
+	dir, err := os.Getwd()
+	if err != nil {
+		t.Fatalf("getwd: %v", err)
+	}
+	for {
+		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
+			return filepath.Join(dir, "testdata", "ecosystems")
+		}
+		parent := filepath.Dir(dir)
+		if parent == dir {
+			t.Fatal("could not locate module root (go.mod)")
+		}
+		dir = parent
+	}
+}
+
+// readWants returns the expected component substrings from dir/want.txt,
+// skipping blank lines and #-comments.
+func readWants(t *testing.T, dir string) []string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
+	if err != nil {
+		t.Fatalf("read want.txt in %s: %v", dir, err)
+	}
+	var wants []string
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		wants = append(wants, line)
+	}
+	return wants
+}
+
+// copyTree recursively copies the directory at src into dst, preserving the
+// relative layout (the luarocks fixture depends on its rocks-X.Y/ tree).
+func copyTree(t *testing.T, src, dst string) {
+	t.Helper()
+	err := filepath.WalkDir(src, func(path string, d os.DirEntry, err error) error {
+		if err != nil {
+			return err
+		}
+		rel, err := filepath.Rel(src, path)
+		if err != nil {
+			return err
+		}
+		target := filepath.Join(dst, rel)
+		if d.IsDir() {
+			return os.MkdirAll(target, 0o755)
+		}
+		data, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		if err := os.MkdirAll(filepath.Dir(target), 0o755); err != nil {
+			return err
+		}
+		return os.WriteFile(target, data, 0o644)
+	})
+	if err != nil {
+		t.Fatalf("copy corpus tree: %v", err)
+	}
+}
+
 func TestCLI_Upload_RoundTrip(t *testing.T) {
 	srv := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if got := r.Header.Get("Authorization"); got != "Bearer e2e-key" {

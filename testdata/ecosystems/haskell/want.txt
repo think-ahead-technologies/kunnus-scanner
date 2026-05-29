@@ -1,0 +1,2 @@
+# Sourced from the constraints in cabal.project.freeze.
+aeson

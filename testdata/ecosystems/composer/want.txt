@@ -1,0 +1,2 @@
+# Sourced from the packages array in composer.lock.
+psr/log

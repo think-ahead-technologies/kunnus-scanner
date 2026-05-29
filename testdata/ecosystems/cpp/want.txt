@@ -1,0 +1,2 @@
+# Sourced from the requires array in conan.lock.
+zlib

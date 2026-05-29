@@ -1,0 +1,3 @@
+# Expected component name substrings, one per line. Blank lines and #-comments ignored.
+# Sourced from node_modules/left-pad in package-lock.json above.
+left-pad

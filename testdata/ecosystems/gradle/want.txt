@@ -1,0 +1,2 @@
+# Sourced from the locked coordinates in gradle.lockfile.
+guava

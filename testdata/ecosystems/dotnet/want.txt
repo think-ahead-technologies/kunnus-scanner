@@ -1,0 +1,2 @@
+# Sourced from the dependencies map in packages.lock.json.
+Newtonsoft.Json

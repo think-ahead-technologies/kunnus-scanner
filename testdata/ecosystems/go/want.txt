@@ -1,0 +1,3 @@
+# Expected component name substrings, one per line. Blank lines and #-comments ignored.
+# Sourced from the require directive in go.mod above.
+github.com/stretchr/testify
