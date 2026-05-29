@@ -207,11 +207,9 @@ func lastDotSegment(p string) string {
 	return segs[len(segs)-1]
 }
 
-// formatCPE23 assembles a CPE 2.3 formatted string. We substitute the few
-// characters that have special meaning in CPE 2.3 (`:` and `\`) rather than
-// escaping them properly — downstream tools rarely honour escapes, and these
-// characters almost never appear in package names. Versions occasionally
-// contain `:` (debian epochs), which we substitute with `*`.
+// formatCPE23 assembles a CPE 2.3 formatted string. The field separator `:`
+// and escape char `\` are substituted with the wildcard `*` (see cpeField);
+// every other character the grammar forbids unquoted is backslash-escaped.
 func formatCPE23(part, vendor, product, version string) string {
 	return "cpe:2.3:" + part + ":" + cpeField(vendor) + ":" + cpeField(product) + ":" + cpeField(version) + ":*:*:*:*:*:*:*"
 }
@@ -221,9 +219,43 @@ func cpeField(s string) string {
 		return "*"
 	}
 	s = strings.ToLower(s)
+	// ':' is the CPE field separator and '\' the escape char; we substitute them
+	// with the wildcard '*' rather than escape, so the field stays parseable for
+	// consumers that don't honour backslash escapes (debian epochs hit this).
 	s = strings.ReplaceAll(s, ":", "*")
 	s = strings.ReplaceAll(s, "\\", "*")
-	return s
+	// Backslash-escape any remaining character the CPE 2.3 formatted-string
+	// grammar forbids unquoted — most importantly '+', which is pervasive in
+	// deb/rpm versions ("1.34+dfsg", "...+deb13u1"). Without this the field
+	// fails validation and the whole CPE is dropped.
+	return escapeCPESpecials(s)
+}
+
+// escapeCPESpecials backslash-escapes every character that is not allowed
+// unquoted in a CPE 2.3 formatted-string component. The unreserved set mirrors
+// isValidCPE23's per-field grammar; '*' and '?' pass through as wildcards.
+func escapeCPESpecials(s string) string {
+	var b strings.Builder
+	b.Grow(len(s))
+	for _, r := range s {
+		if !cpeUnreserved(r) {
+			b.WriteByte('\\')
+		}
+		b.WriteRune(r)
+	}
+	return b.String()
+}
+
+func cpeUnreserved(r rune) bool {
+	switch {
+	case r >= 'a' && r <= 'z', r >= 'A' && r <= 'Z', r >= '0' && r <= '9':
+		return true
+	}
+	switch r {
+	case '.', '_', '-', '~', '%', '*', '?':
+		return true
+	}
+	return false
 }
 
 // parsePURL is a minimal PURL parser sufficient for our CPE-generation needs.

@@ -117,6 +117,13 @@ func TestCPEFromPURL(t *testing.T) {
 			want: "cpe:2.3:o:debian:openssl:3.0.11-1~deb12u2:*:*:*:*:*:*:*",
 		},
 		{
+			// '+' is pervasive in deb/rpm versions; it must be backslash-escaped
+			// rather than dropped (which left the whole CPE empty before).
+			name: "deb version with plus is escaped",
+			purl: "pkg:deb/debian/tar@1.34%2Bdfsg-1build4",
+			want: `cpe:2.3:o:debian:tar:1.34\+dfsg-1build4:*:*:*:*:*:*:*`,
+		},
+		{
 			name: "rpm",
 			purl: "pkg:rpm/fedora/curl@8.4.0-1.fc39",
 			want: "cpe:2.3:o:fedora:curl:8.4.0-1.fc39:*:*:*:*:*:*:*",
