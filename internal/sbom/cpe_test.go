@@ -88,6 +88,13 @@ func TestCPEFromPURL(t *testing.T) {
 			purl: "pkg:composer/symfony/console@6.4.0",
 			want: "cpe:2.3:a:symfony:console:6.4.0:*:*:*:*:*:*:*",
 		},
+		{
+			// Scalibr emits the vendor/package as a single name segment with the
+			// slash percent-encoded; the vendor must still be split back out.
+			name: "composer encoded slash",
+			purl: "pkg:composer/psr%2Flog@3.0.0",
+			want: "cpe:2.3:a:psr:log:3.0.0:*:*:*:*:*:*:*",
+		},
 
 		// Gem: vendor and product equal the gem name.
 		{

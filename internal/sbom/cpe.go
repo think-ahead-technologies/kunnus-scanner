@@ -62,6 +62,15 @@ func cpeFromPURL(rawPURL string) string {
 	case "composer":
 		vendor = namespace
 		product = name
+		// Composer names are "vendor/package". Scalibr emits that as a single
+		// name segment with the slash percent-encoded, so the decoded name
+		// carries the vendor and the namespace is empty — split it back out,
+		// otherwise the "/" would make the product an invalid CPE field.
+		if vendor == "" {
+			if i := strings.IndexByte(name, '/'); i >= 0 {
+				vendor, product = name[:i], name[i+1:]
+			}
+		}
 	case "deb", "rpm", "apk", "alpm":
 		part = "o"
 		vendor = namespace

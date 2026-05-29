@@ -1,4 +1,4 @@
 # composer — sourced from composer.lock. The namespaced name renders with an
-# encoded slash (psr%2Flog) and currently yields no synthesized CPE, so only the
-# purl is asserted here.
+# encoded slash (psr%2Flog); the CPE synthesizer splits the vendor back out.
 purl pkg:composer/psr%2Flog@3.0.0
+cpe  cpe:2.3:a:psr:log:3.0.0:*:*:*:*:*:*:*
