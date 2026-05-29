@@ -4,7 +4,8 @@ purl pkg:deb/ubuntu/bash@5.1-6ubuntu1?arch=amd64&distro=jammy
 cpe  cpe:2.3:o:ubuntu:bash:5.1-6ubuntu1:*:*:*:*:*:*:*
 purl pkg:deb/ubuntu/coreutils@8.32-4.1ubuntu1?arch=amd64&distro=jammy
 cpe  cpe:2.3:o:ubuntu:coreutils:8.32-4.1ubuntu1:*:*:*:*:*:*:*
-# tar carries a Debian epoch (1:1.34-6); the encoder emits the conventional
-# literal-colon version, not scalibr's %3A-escaped form.
+# tar carries a Debian epoch (1:1.34-6); the purl uses the conventional
+# literal-colon version, and the cpe backslash-escapes the epoch colon (a CPE
+# field separator) rather than substituting a wildcard.
 purl pkg:deb/ubuntu/tar@1:1.34-6?arch=amd64&distro=jammy
-cpe  cpe:2.3:o:ubuntu:tar:1*1.34-6:*:*:*:*:*:*:*
+cpe  cpe:2.3:o:ubuntu:tar:1\:1.34-6:*:*:*:*:*:*:*

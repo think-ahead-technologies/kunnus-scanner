@@ -156,13 +156,13 @@ func TestCPEFromPURL(t *testing.T) {
 			want: "cpe:2.3:a:foo:foo:1.0:*:*:*:*:*:*:*",
 		},
 
-		// Special characters: CPE spec requires escaping `:` and `\` in fields. We
-		// substitute these with `*` since they're vanishingly rare in package names
-		// and proper escaping is rarely matched by downstream tools anyway.
+		// Special characters: the CPE 2.3 grammar requires escaping `:` (the field
+		// separator) and `\`. We backslash-escape them — an embedded `*` is
+		// rejected as a malformed wildcard by CPE consumers.
 		{
-			name: "colon in version is replaced",
+			name: "colon (debian epoch) in version is escaped",
 			purl: "pkg:deb/debian/apt@2:1.0",
-			want: "cpe:2.3:o:debian:apt:2*1.0:*:*:*:*:*:*:*",
+			want: `cpe:2.3:o:debian:apt:2\:1.0:*:*:*:*:*:*:*`,
 		},
 	}
 

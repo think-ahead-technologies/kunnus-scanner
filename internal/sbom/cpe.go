@@ -218,17 +218,14 @@ func cpeField(s string) string {
 	if s == "" {
 		return "*"
 	}
-	s = strings.ToLower(s)
-	// ':' is the CPE field separator and '\' the escape char; we substitute them
-	// with the wildcard '*' rather than escape, so the field stays parseable for
-	// consumers that don't honour backslash escapes (debian epochs hit this).
-	s = strings.ReplaceAll(s, ":", "*")
-	s = strings.ReplaceAll(s, "\\", "*")
-	// Backslash-escape any remaining character the CPE 2.3 formatted-string
-	// grammar forbids unquoted — most importantly '+', which is pervasive in
-	// deb/rpm versions ("1.34+dfsg", "...+deb13u1"). Without this the field
-	// fails validation and the whole CPE is dropped.
-	return escapeCPESpecials(s)
+	// Lowercase per CPE convention, then backslash-escape every character the
+	// CPE 2.3 formatted-string grammar forbids unquoted. That covers the field
+	// separator ':' (a Debian epoch "1:2.41-5" -> "1\:2.41-5"), the escape char
+	// '\', and '+' (pervasive in deb/rpm versions, "1.34+dfsg" -> "1.34\+dfsg").
+	// Escaping rather than substituting with '*' keeps the literal value and is
+	// the form CPE consumers actually accept — an embedded '*' is rejected as a
+	// malformed wildcard.
+	return escapeCPESpecials(strings.ToLower(s))
 }
 
 // escapeCPESpecials backslash-escapes every character that is not allowed
