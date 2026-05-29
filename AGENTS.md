@@ -56,18 +56,36 @@ encoder; the scanner library does the extraction work.
 - DI container — package-level functions are fine.
 - Vulnerability matching — out of scope; that's the platform's job.
 
-## TDD plan (next session)
+## Testing
 
-The skeleton has stubs only. Implementation work is gated on tests in this order:
+TDD throughout. **No mocks** — real fixtures and real I/O at every boundary.
+Coverage is layered, with the slow/broad tests built on the same fixtures as
+the fast/narrow ones:
 
-1. `detect/ecosystem_test.go` — fixture-based, fastest feedback
-2. `detect/distro_test.go` — fixture `/etc/os-release` trees
-3. `mode/repo/plugins_test.go` — pure mapping tests
-4. `mode/os/plugins_test.go` — pure mapping tests
-5. `mode/repo` and `mode/os` `Plan` tests — assert on `ScanConfig` shape
-6. `scan` integration test — real scalibr call on a fixture tree
-7. `sbom` golden-file tests — encode a fixed inventory, snap the output
-8. `upload` httptest.Server tests
-9. End-to-end CLI tests in `cmd/kunnus/main_test.go`
+- **Unit + registry invariants.** `ecosystem` and `osfamily` each carry drift
+  guards: parser filenames must be detectable, names unique, etc. Hash parsers,
+  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/encode), and
+  `upload` (via `httptest`) are tested in isolation.
+- **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`
+  and `testdata/osfamilies/<name>/` each hold a real manifest/lockfile (or
+  package DB + `etc/os-release`) plus a `want.txt` listing the exact `purl` and
+  `cpe` the scanner must emit. Both the scan-seam tier and the binary e2e tier
+  read this one corpus.
+- **Scan-seam integration** (`internal/scan/*_integration_test.go`). For each
+  registered ecosystem / Linux OS family, plan via `mode/repo` or `mode/os`,
+  run real scalibr, and assert the exact purls appear in the inventory. The
+  loops over `ecosystem.All()` / `osfamily.LinuxFamilies()` are anti-drift
+  guards: a new registry entry without a fixture (or a documented reason in
+  `osFamiliesWithoutFixture`) turns the suite red. Container scanning is proven
+  here against a synthetic multi-layer image built in-memory with
+  `go-containerregistry`, asserting per-layer attribution.
+- **Binary e2e** (`cmd/kunnus/*_test.go`). Build the real binary once, then
+  drive subcommands with real flags: a kitchen-sink `sbom repo` over every
+  ecosystem at once, `sbom os --target-os linux` per family, and `sbom
+  container` over a synthetic image tarball — each asserting purls **and** cpes
+  in the CycloneDX output (plus layer properties for containers).
 
-No mocks. Real fixtures, real I/O at boundaries.
+Not in-tree fixturable, by design: rpm-based OS families (binary sqlite/bdb
+DB), `cos` (image-specific), and the registry-pull / local-docker container
+sources (need a network registry or a docker daemon). These are documented
+skips, not coverage gaps.
