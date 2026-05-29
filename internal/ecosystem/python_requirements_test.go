@@ -5,7 +5,7 @@ package ecosystem
 import "testing"
 
 func TestParseRequirementsTxt_SingleLineSingleHash(t *testing.T) {
-	path := writeFixture(t, "requirements.txt",
+	path := fixtureReader(t, "requirements.txt",
 		`click==8.1.7 --hash=sha256:`+requestsWheelHash+"\n")
 	got, err := parseRequirementsTxt(path)
 	if err != nil {
@@ -20,7 +20,7 @@ func TestParseRequirementsTxt_SingleLineSingleHash(t *testing.T) {
 func TestParseRequirementsTxt_LineContinuationsAndMultipleHashes(t *testing.T) {
 	// pip-compile produces backslash-continued lines with one --hash per
 	// wheel/sdist. The walker must stitch them into one logical line.
-	path := writeFixture(t, "requirements.txt", `black==24.10.0 \
+	path := fixtureReader(t, "requirements.txt", `black==24.10.0 \
     --hash=sha256:`+requestsWheelHash+` \
     --hash=sha256:`+requestsSdistHash+`
 `)
@@ -32,7 +32,7 @@ func TestParseRequirementsTxt_LineContinuationsAndMultipleHashes(t *testing.T) {
 }
 
 func TestParseRequirementsTxt_MultiplePackages(t *testing.T) {
-	path := writeFixture(t, "requirements.txt", `click==8.1.7 --hash=sha256:`+requestsWheelHash+`
+	path := fixtureReader(t, "requirements.txt", `click==8.1.7 --hash=sha256:`+requestsWheelHash+`
 black==24.10.0 --hash=sha256:`+requestsSdistHash+`
 `)
 	got, _ := parseRequirementsTxt(path)
@@ -45,7 +45,7 @@ black==24.10.0 --hash=sha256:`+requestsSdistHash+`
 }
 
 func TestParseRequirementsTxt_SkipsCommentsAndBlanks(t *testing.T) {
-	path := writeFixture(t, "requirements.txt", `# this is a comment
+	path := fixtureReader(t, "requirements.txt", `# this is a comment
 
 click==8.1.7 --hash=sha256:`+requestsWheelHash+`  # trailing comment
 
@@ -60,7 +60,7 @@ click==8.1.7 --hash=sha256:`+requestsWheelHash+`  # trailing comment
 func TestParseRequirementsTxt_SkipsNonPinnedLines(t *testing.T) {
 	// Without "==" the version is unresolved — no PURL can be formed. Editable
 	// (-e), referenced (-r), and range specs all silently drop out.
-	path := writeFixture(t, "requirements.txt", `-e git+https://github.com/x/y.git
+	path := fixtureReader(t, "requirements.txt", `-e git+https://github.com/x/y.git
 -r other.txt
 foo>=1.0 --hash=sha256:`+requestsWheelHash+`
 foo @ https://example.invalid/foo.whl
@@ -79,7 +79,7 @@ func TestParseRequirementsTxt_PinWithoutHashesProducesNoEntry(t *testing.T) {
 	// "name==version" alone is a valid pip pin but carries no integrity
 	// data. Skipping keeps the hashmap consistent — only verifiable hashes
 	// land in the SBOM.
-	path := writeFixture(t, "requirements.txt", `nltk==3.2.2
+	path := fixtureReader(t, "requirements.txt", `nltk==3.2.2
 `)
 	got, _ := parseRequirementsTxt(path)
 	if _, ok := got["pkg:pypi/nltk@3.2.2"]; ok {
@@ -90,7 +90,7 @@ func TestParseRequirementsTxt_PinWithoutHashesProducesNoEntry(t *testing.T) {
 func TestParseRequirementsTxt_StripsExtrasAndEnvMarkers(t *testing.T) {
 	// requests[security]==2.31.0; python_version >= "3.7" --hash=sha256:...
 	// The extras and marker don't change package identity — PURL is plain.
-	path := writeFixture(t, "requirements.txt",
+	path := fixtureReader(t, "requirements.txt",
 		`requests[security]==2.31.0;python_version>="3.7" --hash=sha256:`+requestsWheelHash+"\n")
 	got, _ := parseRequirementsTxt(path)
 	if len(got["pkg:pypi/requests@2.31.0"]) != 1 {
@@ -101,7 +101,7 @@ func TestParseRequirementsTxt_StripsExtrasAndEnvMarkers(t *testing.T) {
 func TestParseRequirementsTxt_SkipsNonSha256Hashes(t *testing.T) {
 	// pip accepts --hash=sha384, sha512, etc. We emit only sha256 because
 	// that's universal across PyPI and matches what poetry/pdm/pipfile/uv ship.
-	path := writeFixture(t, "requirements.txt", `foo==1.0.0 --hash=sha384:abc --hash=sha256:`+requestsWheelHash+`
+	path := fixtureReader(t, "requirements.txt", `foo==1.0.0 --hash=sha384:abc --hash=sha256:`+requestsWheelHash+`
 `)
 	got, _ := parseRequirementsTxt(path)
 	hs := got["pkg:pypi/foo@1.0.0"]
@@ -111,16 +111,10 @@ func TestParseRequirementsTxt_SkipsNonSha256Hashes(t *testing.T) {
 }
 
 func TestParseRequirementsTxt_PEP503NameNormalization(t *testing.T) {
-	path := writeFixture(t, "requirements.txt",
+	path := fixtureReader(t, "requirements.txt",
 		`Async_Timeout==5.0.1 --hash=sha256:`+requestsWheelHash+"\n")
 	got, _ := parseRequirementsTxt(path)
 	if _, ok := got["pkg:pypi/async-timeout@5.0.1"]; !ok {
 		t.Errorf("normalised PURL missing: %v", got)
-	}
-}
-
-func TestParseRequirementsTxt_MissingFileErrors(t *testing.T) {
-	if _, err := parseRequirementsTxt("/no/such/requirements.txt"); err == nil {
-		t.Error("want error for missing file")
 	}
 }

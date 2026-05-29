@@ -16,7 +16,7 @@ const (
 )
 
 func TestParsePoetryLock_ModernInlineFiles(t *testing.T) {
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "requests"
 version = "2.31.0"
 description = "Python HTTP for Humans."
@@ -52,7 +52,7 @@ func TestParsePoetryLock_LegacyMetadataFiles(t *testing.T) {
 	// Pre-v1.1 poetry stored file hashes under [metadata.files] keyed by
 	// package name. We still want to read them so old lockfiles in
 	// long-lived repos aren't silently empty.
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "emoji"
 version = "2.0.0"
 description = "Emoji for Python"
@@ -76,7 +76,7 @@ emoji = [
 func TestParsePoetryLock_PEP503NameNormalization(t *testing.T) {
 	// Names with mixed case and underscores/dots normalise via PEP 503.
 	// scalibr emits the normalised PURL; our hashMap keys must match.
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "Async_Timeout"
 version = "5.0.1"
 files = [
@@ -104,7 +104,7 @@ files = [
 func TestParsePoetryLock_SkipsNonSha256(t *testing.T) {
 	// Older lockfiles may carry md5 hashes alongside sha256. Skip them —
 	// pip itself ignores non-sha256 --hash values in strict mode.
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "legacy"
 version = "1.0.0"
 files = [
@@ -121,7 +121,7 @@ files = [
 
 func TestParsePoetryLock_SkipsPackagesWithoutVersion(t *testing.T) {
 	// A package without a resolved version can't form a PURL — skip.
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "unresolved"
 files = [
     {file = "x.tar.gz", hash = "sha256:`+requestsWheelHash+`"},
@@ -134,7 +134,7 @@ files = [
 }
 
 func TestParsePoetryLock_EmptyFilesListProducesNoEntry(t *testing.T) {
-	path := writeFixture(t, "poetry.lock", `[[package]]
+	path := fixtureReader(t, "poetry.lock", `[[package]]
 name = "no-files"
 version = "1.0.0"
 files = []
@@ -146,7 +146,7 @@ files = []
 }
 
 func TestParsePoetryLock_MalformedTOMLErrors(t *testing.T) {
-	path := writeFixture(t, "poetry.lock", `[[package broken`)
+	path := fixtureReader(t, "poetry.lock", `[[package broken`)
 	if _, err := parsePyPIPackagesFilesLock(path); err == nil {
 		t.Error("want error for malformed TOML")
 	}

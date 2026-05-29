@@ -8,7 +8,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/csproj"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/depsjson"
@@ -46,14 +46,14 @@ type nugetEntry struct {
 	ContentHash string `json:"contentHash"`
 }
 
-func parseNuGetLock(path string) (hashes.Map, error) {
-	data, err := os.ReadFile(path)
+func parseNuGetLock(r io.Reader) (hashes.Map, error) {
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("read lockfile: %w", err)
 	}
 	var lock nugetLockfile
 	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse lockfile: %w", err)
 	}
 
 	out := make(hashes.Map)

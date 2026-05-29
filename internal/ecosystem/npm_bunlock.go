@@ -5,7 +5,7 @@ package ecosystem
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 
 	"github.com/tidwall/jsonc"
 
@@ -23,14 +23,14 @@ type bunLockfile struct {
 	Packages map[string][]any `json:"packages"`
 }
 
-func parseBunLock(path string) (hashes.Map, error) {
-	data, err := os.ReadFile(path)
+func parseBunLock(r io.Reader) (hashes.Map, error) {
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("read lockfile: %w", err)
 	}
 	var lock bunLockfile
 	if err := json.Unmarshal(jsonc.ToJSON(data), &lock); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse lockfile: %w", err)
 	}
 
 	out := make(hashes.Map)

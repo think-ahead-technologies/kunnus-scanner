@@ -46,7 +46,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 
 	switch targetOS {
 	case "linux":
-		families := osfamily.LinuxDistroFamilies(abs)
+		families := osfamily.LinuxDistroFamilies(scalibrfs.DirFS(abs))
 		pluginNames = osfamily.LinuxPluginsFor(families)
 		component = bom.ComponentInfo{
 			Name:    filepath.Base(abs),

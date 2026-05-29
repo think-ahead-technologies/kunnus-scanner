@@ -8,7 +8,7 @@ func TestParseUvLock_SdistAndWheels(t *testing.T) {
 	// Standard package: one sdist + multiple platform wheels. Each entry's
 	// hash should land in the resulting slice — losing wheels would mismatch
 	// every binary install on its target platform.
-	path := writeFixture(t, "uv.lock", `version = 1
+	path := fixtureReader(t, "uv.lock", `version = 1
 requires-python = ">=3.10"
 
 [[package]]
@@ -33,7 +33,7 @@ wheels = [
 func TestParseUvLock_VirtualPackageSkipped(t *testing.T) {
 	// The project itself is recorded as source = { virtual = "." } with no
 	// sdist/wheels. Nothing to hash; the entry must not appear.
-	path := writeFixture(t, "uv.lock", `version = 1
+	path := fixtureReader(t, "uv.lock", `version = 1
 
 [[package]]
 name = "my-app"
@@ -49,7 +49,7 @@ source = { virtual = "." }
 func TestParseUvLock_WheelsOnlyOrSdistOnly(t *testing.T) {
 	// Some packages publish wheels only (e.g. C-extension reuses prebuilt)
 	// or sdist only (pure source). Each must collect what it has.
-	path := writeFixture(t, "uv.lock", `version = 1
+	path := fixtureReader(t, "uv.lock", `version = 1
 
 [[package]]
 name = "wheels-only"
@@ -73,7 +73,7 @@ sdist = { url = "https://example.invalid/y.tar.gz", hash = "sha256:`+requestsSdi
 }
 
 func TestParseUvLock_PEP503NameNormalization(t *testing.T) {
-	path := writeFixture(t, "uv.lock", `version = 1
+	path := fixtureReader(t, "uv.lock", `version = 1
 
 [[package]]
 name = "MarkupSafe"
@@ -87,7 +87,7 @@ sdist = { url = "x", hash = "sha256:`+requestsSdistHash+`" }
 }
 
 func TestParseUvLock_MalformedTOMLErrors(t *testing.T) {
-	path := writeFixture(t, "uv.lock", `[[package broken`)
+	path := fixtureReader(t, "uv.lock", `[[package broken`)
 	if _, err := parseUvLock(path); err == nil {
 		t.Error("want error for malformed TOML")
 	}

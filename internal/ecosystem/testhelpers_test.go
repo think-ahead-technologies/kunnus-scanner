@@ -1,26 +1,23 @@
 // ABOUTME: Test-only helpers shared across every parser's test file in this package.
-// ABOUTME: writeFixture builds a one-off TempDir; firstHash unpacks a single-hash slice for assertion ergonomics.
+// ABOUTME: fixtureReader feeds lockfile content to a parser; firstHash unpacks a single-hash slice for assertion ergonomics.
 package ecosystem
 
 import (
+	"io"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
-// writeFixture writes content to a per-call TempDir under name and returns
-// the resulting absolute path. Each call gets its own TempDir so parser
-// tests don't accidentally cross-pollinate.
-func writeFixture(t *testing.T, name, content string) string {
+// fixtureReader returns content as an in-memory reader for a parser under test.
+// The name documents which lockfile format the content represents; parsers read
+// from an io.Reader, so nothing is written to disk.
+func fixtureReader(t *testing.T, _ /* name */, content string) io.Reader {
 	t.Helper()
-	dir := t.TempDir()
-	path := filepath.Join(dir, name)
-	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
-		t.Fatalf("write %s: %v", name, err)
-	}
-	return path
+	return strings.NewReader(content)
 }
 
 // writeAt writes content under root at the given relative path, creating any

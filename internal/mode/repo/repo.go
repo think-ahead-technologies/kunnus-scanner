@@ -38,7 +38,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		return nil, fmt.Errorf("resolve path: %w", err)
 	}
 
-	ecosystems, hashMap := ecosystem.Survey(abs)
+	ecosystems, hashMap := ecosystem.Survey(scalibrfs.DirFS(abs))
 
 	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
 	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor

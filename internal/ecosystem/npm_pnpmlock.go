@@ -4,7 +4,7 @@ package ecosystem
 
 import (
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"gopkg.in/yaml.v3"
@@ -22,14 +22,14 @@ type pnpmPackageEntry struct {
 	} `yaml:"resolution"`
 }
 
-func parsePNPMLock(path string) (hashes.Map, error) {
-	data, err := os.ReadFile(path)
+func parsePNPMLock(r io.Reader) (hashes.Map, error) {
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("read lockfile: %w", err)
 	}
 	var lock pnpmLockfile
 	if err := yaml.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse lockfile: %w", err)
 	}
 
 	out := make(hashes.Map)

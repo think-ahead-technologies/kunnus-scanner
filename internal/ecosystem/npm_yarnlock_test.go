@@ -24,7 +24,7 @@ func TestParseYarnLock_V1(t *testing.T) {
   resolved "https://registry.yarnpkg.com/@babel/core/-/core-7.0.0.tgz#xyz"
   integrity ` + babelIntegrity + `
 `
-	path := writeFixture(t, "yarn.lock", content)
+	path := fixtureReader(t, "yarn.lock", content)
 
 	got, err := parseYarnLock(path)
 	if err != nil {
@@ -56,7 +56,7 @@ __metadata:
   languageName: node
   linkType: hard
 `
-	path := writeFixture(t, "yarn.lock", content)
+	path := fixtureReader(t, "yarn.lock", content)
 
 	got, err := parseYarnLock(path)
 	if err != nil {
@@ -81,7 +81,7 @@ func TestParseYarnLock_SkipsNonSha512_V1(t *testing.T) {
   version "1.0.0"
   integrity sha1-abcdefghijklmnopqrstuvwxyz12
 `
-	path := writeFixture(t, "yarn.lock", content)
+	path := fixtureReader(t, "yarn.lock", content)
 	got, _ := parseYarnLock(path)
 	if _, ok := got["pkg:npm/old@1.0.0"]; ok {
 		t.Errorf("sha1 entry must be skipped, got %v", got)
@@ -99,15 +99,9 @@ func TestParseYarnLock_SkipsWrongLengthBerryChecksum(t *testing.T) {
   resolution: "foo@npm:1.0.0"
   checksum: deadbeef
 `
-	path := writeFixture(t, "yarn.lock", content)
+	path := fixtureReader(t, "yarn.lock", content)
 	got, _ := parseYarnLock(path)
 	if _, ok := got["pkg:npm/foo@1.0.0"]; ok {
 		t.Errorf("short checksum must be skipped, got %v", got)
-	}
-}
-
-func TestParseYarnLock_MissingFile(t *testing.T) {
-	if _, err := parseYarnLock("/no/such/yarn.lock"); err == nil {
-		t.Error("want error for missing file")
 	}
 }

@@ -13,7 +13,7 @@ import (
 const cargoChecksum = "ddc6f9cc94d67c0e21aaf7eda3a010fd3af78ebf6e096aa6e2e13c79749cce4f"
 
 func TestParseCargoLock_RegistryPackages(t *testing.T) {
-	path := writeFixture(t, "Cargo.lock", `
+	path := fixtureReader(t, "Cargo.lock", `
 version = 3
 
 [[package]]
@@ -54,7 +54,7 @@ func TestParseCargoLock_SkipsPackagesWithoutChecksum(t *testing.T) {
 	// Local-path and git packages have no checksum field. The workspace root
 	// package likewise. All must be silently skipped (no false-positive
 	// entries with empty hashes).
-	path := writeFixture(t, "Cargo.lock", `
+	path := fixtureReader(t, "Cargo.lock", `
 [[package]]
 name = "my-app"
 version = "0.1.0"
@@ -85,7 +85,7 @@ checksum = "`+cargoChecksum+`"
 func TestParseCargoLock_RejectsMalformedChecksum(t *testing.T) {
 	// checksum must be 64 hex chars. Anything shorter / non-hex is dropped
 	// rather than emitted as a junk value.
-	path := writeFixture(t, "Cargo.lock", `
+	path := fixtureReader(t, "Cargo.lock", `
 [[package]]
 name = "bad-len"
 version = "1.0.0"
@@ -106,7 +106,7 @@ checksum = "zzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzzz"
 }
 
 func TestParseCargoLock_MalformedTOMLErrors(t *testing.T) {
-	path := writeFixture(t, "Cargo.lock", `[[package broken`)
+	path := fixtureReader(t, "Cargo.lock", `[[package broken`)
 	if _, err := parseCargoLock(path); err == nil {
 		t.Error("want error for malformed TOML")
 	}

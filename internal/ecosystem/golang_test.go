@@ -19,7 +19,7 @@ github.com/stretchr/testify v1.8.0/go.mod ` + realisticH1 + `
 github.com/google/uuid v1.6.0 ` + realisticH1 + `
 github.com/google/uuid v1.6.0/go.mod ` + realisticH1 + `
 `
-	path := writeFixture(t, "go.sum", content)
+	path := fixtureReader(t, "go.sum", content)
 
 	got, err := parseGoSum(path)
 	if err != nil {
@@ -49,7 +49,7 @@ func TestParseGoSum_SkipsGoModLines(t *testing.T) {
 	// describe the package artefact.
 	content := `github.com/stretchr/testify v1.8.0/go.mod ` + realisticH1 + `
 `
-	got, _ := parseGoSum(writeFixture(t, "go.sum", content))
+	got, _ := parseGoSum(fixtureReader(t, "go.sum", content))
 	if _, ok := got["pkg:golang/github.com/stretchr/testify@1.8.0"]; ok {
 		t.Error("a go.sum file with only /go.mod hashes should produce no zip-hash entries")
 	}
@@ -59,7 +59,7 @@ func TestParseGoSum_V2ModulePath(t *testing.T) {
 	// Major-version-suffixed modules carry the suffix in their path.
 	content := `github.com/foo/bar/v2 v2.1.0 ` + realisticH1 + `
 `
-	got, _ := parseGoSum(writeFixture(t, "go.sum", content))
+	got, _ := parseGoSum(fixtureReader(t, "go.sum", content))
 	// Module path keeps /v2 (it's part of the module identity); version
 	// loses the "v" prefix so the PURL key matches what scalibr emits.
 	if _, ok := got["pkg:golang/github.com/foo/bar/v2@2.1.0"]; !ok {
@@ -73,14 +73,8 @@ just-one-word
 github.com/foo/bar v1.0.0 not-an-h1-hash
 github.com/ok/pkg v0.1.0 ` + realisticH1 + `
 `
-	got, _ := parseGoSum(writeFixture(t, "go.sum", content))
+	got, _ := parseGoSum(fixtureReader(t, "go.sum", content))
 	if _, ok := got["pkg:golang/github.com/ok/pkg@0.1.0"]; !ok {
 		t.Error("valid line lost when surrounded by garbage")
-	}
-}
-
-func TestParseGoSum_MissingFileErrors(t *testing.T) {
-	if _, err := parseGoSum("/no/such/go.sum"); err == nil {
-		t.Error("want error for missing file")
 	}
 }

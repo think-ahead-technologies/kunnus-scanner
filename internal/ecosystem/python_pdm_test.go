@@ -8,7 +8,7 @@ func TestParsePDMLock_PackagesFiles(t *testing.T) {
 	// Real pdm.lock structure: top-level [metadata] holds content-hash,
 	// each [[package]] carries an inline files array. Wire-compatible with
 	// modern poetry.lock — same shared parser handles both.
-	path := writeFixture(t, "pdm.lock", `[metadata]
+	path := fixtureReader(t, "pdm.lock", `[metadata]
 groups = ["default"]
 lock_version = "4.4.1"
 content_hash = "sha256:0acb7cdc3e805d9bec1f3347b79b69d92ba257d2cd82b5ef4355010930d46deb"

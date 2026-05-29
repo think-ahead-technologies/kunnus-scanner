@@ -4,26 +4,25 @@ package osfamily
 
 import (
 	"bufio"
-	"errors"
 	"io/fs"
-	"os"
-	"path/filepath"
 	"strings"
 )
 
-// LinuxDistroFamilies inspects the filesystem root at scanRoot and returns the
-// distro families it recognises, evaluated against the registered linuxFamilies.
+// LinuxDistroFamilies inspects the filesystem root fsys and returns the distro
+// families it recognises, evaluated against the registered linuxFamilies.
 // Returns an empty slice when nothing matched — callers can then fall back to
-// LinuxPluginsFor(nil) for the broad "all Linux extractors" set.
+// LinuxPluginsFor(nil) for the broad "all Linux extractors" set. Operating on
+// an fs.FS lets the same detection serve a real root (os.DirFS) and any virtual
+// filesystem.
 //
 // Detection strategy, in order:
-//  1. Parse /etc/os-release ID and ID_LIKE if present; match each value
+//  1. Parse etc/os-release ID and ID_LIKE if present; match each value
 //     against every family's OSReleaseIDs.
 //  2. For each family with a PackageDBPath, check whether the path exists
-//     relative to scanRoot.
+//     within fsys.
 //
 // Order in the output matches discovery order; duplicates are collapsed.
-func LinuxDistroFamilies(scanRoot string) []string {
+func LinuxDistroFamilies(fsys fs.FS) []string {
 	var families []string
 	seen := make(map[string]bool)
 	addFamily := func(name string) {
@@ -34,7 +33,7 @@ func LinuxDistroFamilies(scanRoot string) []string {
 		families = append(families, name)
 	}
 
-	for _, id := range parseOSReleaseIDs(scanRoot) {
+	for _, id := range parseOSReleaseIDs(fsys) {
 		for _, f := range linuxFamilies {
 			for _, ruleID := range f.OSReleaseIDs {
 				if id == ruleID {
@@ -48,7 +47,7 @@ func LinuxDistroFamilies(scanRoot string) []string {
 		if f.PackageDBPath == "" {
 			continue
 		}
-		if exists(filepath.Join(scanRoot, f.PackageDBPath)) {
+		if exists(fsys, f.PackageDBPath) {
 			addFamily(f.Name)
 		}
 	}
@@ -56,16 +55,12 @@ func LinuxDistroFamilies(scanRoot string) []string {
 	return families
 }
 
-// parseOSReleaseIDs reads scanRoot/etc/os-release and returns every ID and
+// parseOSReleaseIDs reads etc/os-release from fsys and returns every ID and
 // ID_LIKE value found. Missing file or read errors yield nil — callers treat
 // "no IDs" identically to "file absent", which matches the fallback contract.
-func parseOSReleaseIDs(scanRoot string) []string {
-	path := filepath.Join(scanRoot, "etc", "os-release")
-	f, err := os.Open(path)
+func parseOSReleaseIDs(fsys fs.FS) []string {
+	f, err := fsys.Open("etc/os-release")
 	if err != nil {
-		if errors.Is(err, fs.ErrNotExist) {
-			return nil
-		}
 		return nil
 	}
 	defer func() { _ = f.Close() }()
@@ -93,7 +88,7 @@ func parseOSReleaseValue(v string) string {
 	return v
 }
 
-func exists(path string) bool {
-	_, err := os.Stat(path)
+func exists(fsys fs.FS, name string) bool {
+	_, err := fs.Stat(fsys, name)
 	return err == nil
 }

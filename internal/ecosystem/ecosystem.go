@@ -3,9 +3,10 @@
 package ecosystem
 
 import (
+	"fmt"
+	"io"
 	"io/fs"
 	"log/slog"
-	"path/filepath"
 	"sort"
 	"strings"
 
@@ -45,7 +46,7 @@ type Ecosystem struct {
 type Parser struct {
 	Name      string
 	Filenames []string
-	Parse     func(path string) (hashes.Map, error)
+	Parse     func(r io.Reader) (hashes.Map, error)
 }
 
 // all is the master list. Adding or removing an ecosystem is one entry here
@@ -151,23 +152,19 @@ func buildParsersByFilename(ecos []Ecosystem) map[string]*Parser {
 	return m
 }
 
-// Survey walks scanRoot once and returns both the ecosystems detected from
-// marker filenames and the merged native-digest map mined from lockfiles. One
-// pass replaces the previous detect+hash double walk.
+// Survey walks fsys once and returns both the ecosystems detected from marker
+// filenames and the merged native-digest map mined from lockfiles. One pass
+// replaces the previous detect+hash double walk. Operating on an fs.FS lets the
+// same detection serve a real directory (os.DirFS) and any virtual filesystem.
 //
 // Per-parser failures are logged at warn level via slog.Default() but never
 // fail the walk — a single broken lockfile must not block SBOM output.
 // Permission errors on subtrees are skipped, not surfaced.
-func Survey(scanRoot string) (ecosystems []string, digests hashes.Map) {
+func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map) {
 	digests = make(hashes.Map)
 	found := make(map[string]struct{})
 
-	abs, err := filepath.Abs(scanRoot)
-	if err != nil {
-		return nil, digests
-	}
-
-	_ = filepath.WalkDir(abs, func(path string, d fs.DirEntry, err error) error {
+	_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if d != nil && d.IsDir() {
 				return fs.SkipDir
@@ -175,7 +172,7 @@ func Survey(scanRoot string) (ecosystems []string, digests hashes.Map) {
 			return nil
 		}
 		if d.IsDir() {
-			if fswalk.SkipDir(d.Name()) && path != abs {
+			if fswalk.SkipDir(d.Name()) && path != "." {
 				return fs.SkipDir
 			}
 			return nil
@@ -185,7 +182,7 @@ func Survey(scanRoot string) (ecosystems []string, digests hashes.Map) {
 			found[eco] = struct{}{}
 		}
 		if p, ok := parsersByFilename[name]; ok {
-			m, perr := p.Parse(path)
+			m, perr := parseFile(fsys, path, p)
 			if perr != nil {
 				slog.Warn("lockfile parser failed",
 					"ecosystem", p.Name,
@@ -204,4 +201,16 @@ func Survey(scanRoot string) (ecosystems []string, digests hashes.Map) {
 	}
 	sort.Strings(ecosystems)
 	return ecosystems, digests
+}
+
+// parseFile opens path within fsys and runs the lockfile parser over its
+// contents, so parsers stay pure (io.Reader in, hashes out) and Survey owns the
+// filesystem access.
+func parseFile(fsys fs.FS, path string, p *Parser) (hashes.Map, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	return p.Parse(f)
 }

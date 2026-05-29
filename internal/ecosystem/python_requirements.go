@@ -4,22 +4,15 @@ package ecosystem
 
 import (
 	"bufio"
-	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
-func parseRequirementsTxt(path string) (hashes.Map, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	defer func() { _ = f.Close() }()
-
+func parseRequirementsTxt(r io.Reader) (hashes.Map, error) {
 	out := make(hashes.Map)
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(r)
 	scanner.Buffer(make([]byte, 64*1024), 1<<20)
 
 	var buf strings.Builder

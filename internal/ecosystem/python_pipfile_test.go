@@ -7,7 +7,7 @@ import "testing"
 func TestParsePipfileLock_DefaultAndDevelop(t *testing.T) {
 	// Pipenv splits runtime vs dev deps into two top-level sections. Both
 	// must contribute hashes; ignoring "develop" would lose half the SBOM.
-	path := writeFixture(t, "Pipfile.lock", `{
+	path := fixtureReader(t, "Pipfile.lock", `{
   "default": {
     "itsdangerous": {
       "hashes": [
@@ -42,7 +42,7 @@ func TestParsePipfileLock_DefaultAndDevelop(t *testing.T) {
 func TestParsePipfileLock_StripsEqualsPrefix(t *testing.T) {
 	// version is recorded as "==X.Y.Z" by Pipenv. The PURL key omits the
 	// operator — a missed strip would silently shift every PURL by two chars.
-	path := writeFixture(t, "Pipfile.lock", `{
+	path := fixtureReader(t, "Pipfile.lock", `{
   "default": {
     "foo": {
       "hashes": ["sha256:`+requestsWheelHash+`"],
@@ -59,7 +59,7 @@ func TestParsePipfileLock_StripsEqualsPrefix(t *testing.T) {
 func TestParsePipfileLock_SkipsEntriesWithoutVersion(t *testing.T) {
 	// Editable installs and VCS deps lack a pinned version in Pipfile.lock.
 	// Without a version we can't form a PURL — skip.
-	path := writeFixture(t, "Pipfile.lock", `{
+	path := fixtureReader(t, "Pipfile.lock", `{
   "default": {
     "from-git": {
       "git": "https://github.com/x/y.git",
@@ -74,7 +74,7 @@ func TestParsePipfileLock_SkipsEntriesWithoutVersion(t *testing.T) {
 }
 
 func TestParsePipfileLock_PEP503NameNormalization(t *testing.T) {
-	path := writeFixture(t, "Pipfile.lock", `{
+	path := fixtureReader(t, "Pipfile.lock", `{
   "default": {
     "Async_Timeout": {
       "hashes": ["sha256:`+requestsWheelHash+`"],
@@ -89,7 +89,7 @@ func TestParsePipfileLock_PEP503NameNormalization(t *testing.T) {
 }
 
 func TestParsePipfileLock_MalformedJSONErrors(t *testing.T) {
-	path := writeFixture(t, "Pipfile.lock", `{not json`)
+	path := fixtureReader(t, "Pipfile.lock", `{not json`)
 	if _, err := parsePipfileLock(path); err == nil {
 		t.Error("want error for malformed JSON")
 	}

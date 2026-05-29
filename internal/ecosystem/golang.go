@@ -7,8 +7,7 @@ import (
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/hex"
-	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/golang/gobinary"
@@ -30,15 +29,9 @@ var golang = Ecosystem{
 	},
 }
 
-func parseGoSum(path string) (hashes.Map, error) {
-	f, err := os.Open(path)
-	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
-	}
-	defer func() { _ = f.Close() }()
-
+func parseGoSum(r io.Reader) (hashes.Map, error) {
 	out := make(hashes.Map)
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(r)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

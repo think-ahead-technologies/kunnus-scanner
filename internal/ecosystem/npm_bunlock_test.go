@@ -6,7 +6,7 @@ import "testing"
 
 func TestParseBunLock_UnscopedAndScoped(t *testing.T) {
 	// JSON5/JSONC: trailing commas after every entry — must be tolerated.
-	path := writeFixture(t, "bun.lock", `{
+	path := fixtureReader(t, "bun.lock", `{
   "lockfileVersion": 0,
   "workspaces": {
     "": {
@@ -34,7 +34,7 @@ func TestParseBunLock_SkipsEntriesWithoutIntegrity(t *testing.T) {
 	// Git/file: dependencies and workspaces have no integrity at index 3 —
 	// the tuple may be shorter or carry an empty string. Both must be silently
 	// skipped.
-	path := writeFixture(t, "bun.lock", `{
+	path := fixtureReader(t, "bun.lock", `{
   "packages": {
     "git-dep": ["git-dep@1.0.0", "https://github.com/x/y#abc", {}],
     "local": ["local@workspace:packages/local"],
@@ -54,7 +54,7 @@ func TestParseBunLock_SkipsEntriesWithoutIntegrity(t *testing.T) {
 }
 
 func TestParseBunLock_SkipsNonSha512(t *testing.T) {
-	path := writeFixture(t, "bun.lock", `{
+	path := fixtureReader(t, "bun.lock", `{
   "packages": {
     "weak": ["weak@1.0.0", "", {}, "sha1-abcdefghijklmnopqrstuvwxyz12"]
   }
@@ -66,7 +66,7 @@ func TestParseBunLock_SkipsNonSha512(t *testing.T) {
 }
 
 func TestParseBunLock_MalformedErrors(t *testing.T) {
-	path := writeFixture(t, "bun.lock", `not even close to json`)
+	path := fixtureReader(t, "bun.lock", `not even close to json`)
 	if _, err := parseBunLock(path); err == nil {
 		t.Error("want error for malformed lockfile")
 	}

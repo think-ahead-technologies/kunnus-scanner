@@ -13,7 +13,7 @@ import (
 const newtonsoftHash = "HrC5BXdl00IP9zeV+0Z848QWPAoCr9P3bDEZguI+gkLcBKAOxix/tLEAAHC+UvDNPv4a2d18lOReHMOagPa+zQ=="
 
 func TestParseNuGetLock_DirectAndTransitive(t *testing.T) {
-	path := writeFixture(t, "packages.lock.json", `{
+	path := fixtureReader(t, "packages.lock.json", `{
   "version": 1,
   "dependencies": {
     "net6.0": {
@@ -52,7 +52,7 @@ func TestParseNuGetLock_DirectAndTransitive(t *testing.T) {
 
 func TestParseNuGetLock_MultipleTargetFrameworks(t *testing.T) {
 	// Cross-targeted libraries have one section per TFM. We collect from all.
-	path := writeFixture(t, "packages.lock.json", `{
+	path := fixtureReader(t, "packages.lock.json", `{
   "version": 1,
   "dependencies": {
     "net6.0": {
@@ -73,7 +73,7 @@ func TestParseNuGetLock_MultipleTargetFrameworks(t *testing.T) {
 }
 
 func TestParseNuGetLock_SkipsEmptyHashes(t *testing.T) {
-	path := writeFixture(t, "packages.lock.json", `{
+	path := fixtureReader(t, "packages.lock.json", `{
   "version": 1,
   "dependencies": {
     "net6.0": {
@@ -88,7 +88,7 @@ func TestParseNuGetLock_SkipsEmptyHashes(t *testing.T) {
 }
 
 func TestParseNuGetLock_MalformedErrors(t *testing.T) {
-	path := writeFixture(t, "packages.lock.json", `{not json`)
+	path := fixtureReader(t, "packages.lock.json", `{not json`)
 	if _, err := parseNuGetLock(path); err == nil {
 		t.Error("want error for malformed JSON")
 	}

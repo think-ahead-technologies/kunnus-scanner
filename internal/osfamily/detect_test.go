@@ -104,7 +104,7 @@ func TestLinuxDistroFamilies(t *testing.T) {
 				}
 			}
 
-			got := osfamily.LinuxDistroFamilies(root)
+			got := osfamily.LinuxDistroFamilies(os.DirFS(root))
 			// Normalise nil vs empty slice for comparison.
 			if got == nil {
 				got = []string{}

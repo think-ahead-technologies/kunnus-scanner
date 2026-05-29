@@ -17,7 +17,7 @@ const (
 )
 
 func TestParseNPMLock_V2_Unscoped(t *testing.T) {
-	path := writeFixture(t, "package-lock.json", `{
+	path := fixtureReader(t, "package-lock.json", `{
   "lockfileVersion": 3,
   "packages": {
     "": { "name": "root", "version": "1.0.0" },
@@ -51,7 +51,7 @@ func TestParseNPMLock_V2_Unscoped(t *testing.T) {
 func TestParseNPMLock_V2_Scoped(t *testing.T) {
 	// Scoped packages produce pkg:npm/%40babel/core@version PURLs to match
 	// scalibr's percent-encoding of the leading "@" in scope names.
-	path := writeFixture(t, "package-lock.json", `{
+	path := fixtureReader(t, "package-lock.json", `{
   "lockfileVersion": 3,
   "packages": {
     "node_modules/@babel/core": {
@@ -73,7 +73,7 @@ func TestParseNPMLock_V2_Scoped(t *testing.T) {
 
 func TestParseNPMLock_V1Compat(t *testing.T) {
 	// v1 has dependencies (not packages); same integrity format.
-	path := writeFixture(t, "package-lock.json", `{
+	path := fixtureReader(t, "package-lock.json", `{
   "lockfileVersion": 1,
   "dependencies": {
     "lodash": {
@@ -95,7 +95,7 @@ func TestParseNPMLock_V1Compat(t *testing.T) {
 func TestParseNPMLock_SkipsNonSha512(t *testing.T) {
 	// BSI demands SHA-512. SHA-1 entries (older npm) must be skipped, not
 	// downgraded.
-	path := writeFixture(t, "package-lock.json", `{
+	path := fixtureReader(t, "package-lock.json", `{
   "lockfileVersion": 3,
   "packages": {
     "node_modules/old-thing": {
@@ -118,7 +118,7 @@ func TestParseNPMLock_SkipsRootAndLinkedPaths(t *testing.T) {
 	// "" is the project root, "node_modules/foo/node_modules/bar" is a
 	// nested dep — we want both. But entries with no integrity (e.g.
 	// link: file dependencies) must be silently skipped.
-	path := writeFixture(t, "package-lock.json", `{
+	path := fixtureReader(t, "package-lock.json", `{
   "lockfileVersion": 3,
   "packages": {
     "": { "name": "root", "version": "0.0.0" },
@@ -142,7 +142,7 @@ func TestParseNPMLock_SkipsRootAndLinkedPaths(t *testing.T) {
 }
 
 func TestParseNPMLock_MalformedFileReturnsError(t *testing.T) {
-	path := writeFixture(t, "package-lock.json", `not json at all`)
+	path := fixtureReader(t, "package-lock.json", `not json at all`)
 	if _, err := parseNPMLock(path); err == nil {
 		t.Error("want error for malformed JSON, got nil")
 	}

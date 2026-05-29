@@ -6,7 +6,7 @@ import "testing"
 
 func TestParsePNPMLock_V6Style(t *testing.T) {
 	// v6 keys: "/lodash@4.17.21"
-	path := writeFixture(t, "pnpm-lock.yaml", `lockfileVersion: '6.0'
+	path := fixtureReader(t, "pnpm-lock.yaml", `lockfileVersion: '6.0'
 packages:
   /lodash@4.17.21:
     resolution:
@@ -31,7 +31,7 @@ packages:
 func TestParsePNPMLock_V9Style(t *testing.T) {
 	// v9 introduced "snapshots" but the packages map still carries the
 	// integrity at <name>@<version>. Test that variant.
-	path := writeFixture(t, "pnpm-lock.yaml", `lockfileVersion: '9.0'
+	path := fixtureReader(t, "pnpm-lock.yaml", `lockfileVersion: '9.0'
 packages:
   lodash@4.17.21:
     resolution: {integrity: `+lodashIntegrity+`}
@@ -46,7 +46,7 @@ packages:
 }
 
 func TestParsePNPMLock_SkipsNonSha512(t *testing.T) {
-	path := writeFixture(t, "pnpm-lock.yaml", `lockfileVersion: '6.0'
+	path := fixtureReader(t, "pnpm-lock.yaml", `lockfileVersion: '6.0'
 packages:
   /weak@1.0.0:
     resolution:
@@ -59,7 +59,7 @@ packages:
 }
 
 func TestParsePNPMLock_MalformedYAMLErrors(t *testing.T) {
-	path := writeFixture(t, "pnpm-lock.yaml", "{: not yaml\n")
+	path := fixtureReader(t, "pnpm-lock.yaml", "{: not yaml\n")
 	if _, err := parsePNPMLock(path); err == nil {
 		t.Error("want error for malformed yaml")
 	}

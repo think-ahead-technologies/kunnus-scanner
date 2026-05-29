@@ -5,7 +5,7 @@ package ecosystem
 import (
 	"encoding/json"
 	"fmt"
-	"os"
+	"io"
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
@@ -35,14 +35,14 @@ type npmDepEntry struct {
 	Dependencies map[string]npmDepEntry `json:"dependencies"`
 }
 
-func parseNPMLock(path string) (hashes.Map, error) {
-	data, err := os.ReadFile(path)
+func parseNPMLock(r io.Reader) (hashes.Map, error) {
+	data, err := io.ReadAll(r)
 	if err != nil {
-		return nil, fmt.Errorf("read %s: %w", path, err)
+		return nil, fmt.Errorf("read lockfile: %w", err)
 	}
 	var lock npmLockfile
 	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("parse %s: %w", path, err)
+		return nil, fmt.Errorf("parse lockfile: %w", err)
 	}
 
 	out := make(hashes.Map)
