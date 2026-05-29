@@ -1,0 +1,25 @@
+Package: bash
+Status: install ok installed
+Priority: required
+Section: shells
+Installed-Size: 6470
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: foreign
+Version: 5.1-6ubuntu1
+Depends: base-files (>= 2.1.12), debianutils (>= 5.6-0.1)
+Description: GNU Bourne Again SHell
+ Bash is an sh-compatible command language interpreter.
+
+Package: coreutils
+Status: install ok installed
+Priority: required
+Section: utils
+Installed-Size: 7388
+Maintainer: Ubuntu Developers <ubuntu-devel-discuss@lists.ubuntu.com>
+Architecture: amd64
+Multi-Arch: foreign
+Version: 8.32-4.1ubuntu1
+Depends: libacl1 (>= 2.2.23), libattr1 (>= 1:2.4.44), libc6 (>= 2.34)
+Description: GNU core utilities
+ This package contains the basic file, shell and text manipulation utilities.

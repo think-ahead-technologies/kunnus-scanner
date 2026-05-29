@@ -127,11 +127,17 @@ func (e *parseError) Error() string {
 	return "malformed want.txt line (want \"purl <value>\" or \"cpe <value>\"): " + e.line
 }
 
-// corpusDir resolves <module-root>/testdata/ecosystems by walking up from the
-// test's working directory to the directory containing go.mod. The corpus lives
-// at the module root so both this tier and the binary e2e tier share one set of
+// corpusDir resolves <module-root>/testdata/ecosystems. The corpus lives at the
+// module root so both this tier and the binary e2e tier share one set of
 // fixtures.
 func corpusDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(moduleRoot(t), "testdata", "ecosystems")
+}
+
+// moduleRoot walks up from the test's working directory to the directory
+// containing go.mod.
+func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
 	if err != nil {
@@ -139,7 +145,7 @@ func corpusDir(t *testing.T) string {
 	}
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return filepath.Join(dir, "testdata", "ecosystems")
+			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

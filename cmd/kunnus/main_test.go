@@ -220,9 +220,84 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 	}
 }
 
-// corpusDir resolves <module-root>/testdata/ecosystems by walking up to the
-// directory containing go.mod. The corpus is shared with the scan-seam tier.
+func TestCLI_SBOM_OS_Linux(t *testing.T) {
+	// Binary e2e for OS-package scans: run the built CLI against each fixtured
+	// Linux family root with --target-os linux, and assert the exact purl + cpe
+	// each package DB produces. Cross-host: --target-os forces linux plugin
+	// selection regardless of the test host. Families that cannot be fixtured
+	// in-tree (rpm-based, etc.) are covered/skipped at the scan-seam tier.
+	osCorpus := filepath.Join(moduleRoot(t), "testdata", "osfamilies")
+	entries, err := os.ReadDir(osCorpus)
+	if err != nil {
+		t.Fatalf("read osfamilies corpus: %v", err)
+	}
+
+	for _, e := range entries {
+		if !e.IsDir() {
+			continue
+		}
+		t.Run(e.Name(), func(t *testing.T) {
+			famDir := filepath.Join(osCorpus, e.Name())
+			outPath := filepath.Join(t.TempDir(), "sbom.json")
+			stdout, stderr, err := runKunnus(t,
+				"sbom", "os", "--target-os", "linux", "--output", outPath, famDir)
+			if err != nil {
+				t.Fatalf("sbom os failed for %q: %v\nstdout:\n%s\nstderr:\n%s", e.Name(), err, stdout, stderr)
+			}
+
+			data, err := os.ReadFile(outPath)
+			if err != nil {
+				t.Fatalf("read sbom: %v", err)
+			}
+			var doc struct {
+				BOMFormat  string `json:"bomFormat"`
+				Components []struct {
+					PURL string `json:"purl"`
+					CPE  string `json:"cpe"`
+				} `json:"components"`
+			}
+			if err := json.Unmarshal(data, &doc); err != nil {
+				t.Fatalf("sbom is not valid JSON: %v", err)
+			}
+			if doc.BOMFormat != "CycloneDX" {
+				t.Errorf("bomFormat = %q, want CycloneDX", doc.BOMFormat)
+			}
+
+			purls := make(map[string]bool)
+			cpes := make(map[string]bool)
+			for _, c := range doc.Components {
+				if c.PURL != "" {
+					purls[c.PURL] = true
+				}
+				if c.CPE != "" {
+					cpes[c.CPE] = true
+				}
+			}
+
+			w := readWants(t, famDir)
+			for _, p := range w.purls {
+				if !purls[p] {
+					t.Errorf("family %q: expected purl %q missing from SBOM", e.Name(), p)
+				}
+			}
+			for _, c := range w.cpes {
+				if !cpes[c] {
+					t.Errorf("family %q: expected cpe %q missing from SBOM", e.Name(), c)
+				}
+			}
+		})
+	}
+}
+
+// corpusDir resolves <module-root>/testdata/ecosystems. The corpus is shared
+// with the scan-seam tier.
 func corpusDir(t *testing.T) string {
+	t.Helper()
+	return filepath.Join(moduleRoot(t), "testdata", "ecosystems")
+}
+
+// moduleRoot walks up to the directory containing go.mod.
+func moduleRoot(t *testing.T) string {
 	t.Helper()
 	dir, err := os.Getwd()
 	if err != nil {
@@ -230,7 +305,7 @@ func corpusDir(t *testing.T) string {
 	}
 	for {
 		if _, err := os.Stat(filepath.Join(dir, "go.mod")); err == nil {
-			return filepath.Join(dir, "testdata", "ecosystems")
+			return dir
 		}
 		parent := filepath.Dir(dir)
 		if parent == dir {

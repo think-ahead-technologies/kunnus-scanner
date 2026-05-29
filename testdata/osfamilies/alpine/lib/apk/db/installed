@@ -1,0 +1,34 @@
+C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=
+P:musl
+V:1.2.4-r2
+A:x86_64
+S:407
+I:614400
+T:the musl c library (libc) implementation
+U:https://musl.libc.org/
+L:MIT
+o:musl
+m:Natanael Copa <ncopa@alpinelinux.org>
+t:1685542000
+c:6c2e8d6e2e2c0f3d4b5a6978a9b0c1d2e3f40512
+p:so:libc.musl-x86_64.so.1=1
+F:lib
+R:ld-musl-x86_64.so.1
+
+C:Q1pX3a2tFvR8wZ9k0bN1cD2eF3gH4=
+P:busybox
+V:1.36.1-r5
+A:x86_64
+S:507831
+I:962560
+T:Size optimized toolbox of many common UNIX utilities
+U:https://busybox.net/
+L:GPL-2.0-only
+o:busybox
+m:Natanael Copa <ncopa@alpinelinux.org>
+t:1690000000
+c:9a8b7c6d5e4f30211223344556677889900aabbc
+D:so:libc.musl-x86_64.so.1
+p:/bin/sh
+F:bin
+R:busybox

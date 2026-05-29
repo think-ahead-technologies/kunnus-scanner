@@ -1,0 +1,6 @@
+# debian family — sourced from var/lib/dpkg/status; distro qualifier (jammy) and
+# vendor (ubuntu) derive from etc/os-release. Exact purl + synthesized cpe.
+purl pkg:deb/ubuntu/bash@5.1-6ubuntu1?arch=amd64&distro=jammy
+cpe  cpe:2.3:o:ubuntu:bash:5.1-6ubuntu1:*:*:*:*:*:*:*
+purl pkg:deb/ubuntu/coreutils@8.32-4.1ubuntu1?arch=amd64&distro=jammy
+cpe  cpe:2.3:o:ubuntu:coreutils:8.32-4.1ubuntu1:*:*:*:*:*:*:*
