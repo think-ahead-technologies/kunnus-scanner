@@ -117,3 +117,56 @@ func TestLinuxDistroFamilies(t *testing.T) {
 		})
 	}
 }
+
+func TestLinuxOSRelease(t *testing.T) {
+	tests := []struct {
+		name        string
+		osRelease   string // empty means the file is absent
+		wantID      string
+		wantVersion string
+		wantOK      bool
+	}{
+		{
+			name:        "debian with version",
+			osRelease:   "PRETTY_NAME=\"Debian GNU/Linux 12 (bookworm)\"\nID=debian\nVERSION_ID=\"12\"\n",
+			wantID:      "debian",
+			wantVersion: "12",
+			wantOK:      true,
+		},
+		{
+			name:      "rolling distro has id but no version",
+			osRelease: "NAME=\"Arch Linux\"\nID=arch\nBUILD_ID=rolling\n",
+			wantID:    "arch",
+			wantOK:    true,
+		},
+		{
+			name:      "absent os-release yields not-ok",
+			osRelease: "",
+			wantOK:    false,
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			if tc.osRelease != "" {
+				path := filepath.Join(root, "etc", "os-release")
+				if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+					t.Fatalf("mkdir: %v", err)
+				}
+				if err := os.WriteFile(path, []byte(tc.osRelease), 0o644); err != nil {
+					t.Fatalf("write os-release: %v", err)
+				}
+			}
+			id, version, ok := osfamily.LinuxOSRelease(os.DirFS(root))
+			if ok != tc.wantOK {
+				t.Fatalf("ok = %v, want %v", ok, tc.wantOK)
+			}
+			if id != tc.wantID {
+				t.Errorf("id = %q, want %q", id, tc.wantID)
+			}
+			if version != tc.wantVersion {
+				t.Errorf("version = %q, want %q", version, tc.wantVersion)
+			}
+		})
+	}
+}

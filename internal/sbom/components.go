@@ -61,6 +61,7 @@ func appendExtraComponents(b *cyclonedx.BOM, extras []bom.ExtraComponent) {
 			BOMRef:     e.BomRef,
 			Type:       cyclonedx.ComponentType(e.Type),
 			Name:       e.Name,
+			Version:    e.Version,
 			PackageURL: e.PURL,
 		})
 	}

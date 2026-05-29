@@ -26,9 +26,9 @@ func injectCPEsCDX(bom *cyclonedx.BOM) {
 
 // cpeFromPURL returns a CPE 2.3 string derived from a PURL, or "" if the PURL
 // is malformed or empty. The mapping is heuristic and per-ecosystem — it aims
-// to match what syft and the NVD conventionally produce, not to be canonically
-// correct. Tools that want CPE accuracy beyond this should consult the NVD CPE
-// dictionary directly.
+// to match conventional NVD CPE forms, not to be canonically correct. Tools
+// that want CPE accuracy beyond this should consult the NVD CPE dictionary
+// directly.
 //
 // PURL syntax we accept: pkg:<type>/<namespace>/.../<name>@<version>[?qualifiers]
 func cpeFromPURL(rawPURL string) string {

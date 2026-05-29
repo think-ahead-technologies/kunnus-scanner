@@ -32,7 +32,13 @@ type ExtraComponent struct {
 	// Name is the short human-readable name (the vendored directory's basename).
 	Name string
 
-	// Type is the CycloneDX component type — "library" for vendored sources.
+	// Version is the component version. Optional — empty for vendored libraries
+	// (no version is known), set for the operating-system component of a
+	// container scan.
+	Version string
+
+	// Type is the CycloneDX component type — "library" for vendored sources,
+	// "operating-system" for a container image's OS.
 	Type string
 
 	// BomRef is a stable identifier within the BOM ("vendored:<rel-path>").

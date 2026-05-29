@@ -86,6 +86,32 @@ func TestCLI_SBOM_Container(t *testing.T) {
 			t.Errorf("component %q kunnus:layer:index = %q, want %q", substr, idx, wantIdx)
 		}
 	}
+
+	// The image's operating system is emitted as its own component, named by the
+	// distro ID with VERSION_ID as the version (from the layer's os-release).
+	var osDoc struct {
+		Components []struct {
+			Type    string `json:"type"`
+			Name    string `json:"name"`
+			Version string `json:"version"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &osDoc); err != nil {
+		t.Fatalf("re-parse sbom: %v", err)
+	}
+	foundOS := false
+	for _, c := range osDoc.Components {
+		if c.Type != "operating-system" {
+			continue
+		}
+		foundOS = true
+		if c.Name != "alpine" || c.Version != "3.18.4" {
+			t.Errorf("operating-system component = %q@%q, want alpine@3.18.4", c.Name, c.Version)
+		}
+	}
+	if !foundOS {
+		t.Error("expected an operating-system component for the scanned image")
+	}
 }
 
 // layerIndexFor returns the kunnus:layer:index property value of the first

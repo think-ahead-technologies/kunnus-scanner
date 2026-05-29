@@ -51,6 +51,11 @@ type Plan struct {
 	Image     image.Image
 	Config    *scalibr.ScanConfig
 	Component bom.ComponentInfo
+	// ExtraComponents carries components beyond scalibr's inventory — for a
+	// container, the operating-system component synthesized from the image's
+	// /etc/os-release. Empty for images with no recognisable OS (scratch,
+	// distroless without os-release).
+	ExtraComponents []bom.ExtraComponent
 }
 
 // Open resolves ref into an image and builds the scan config. The caller scans
@@ -79,7 +84,29 @@ func Open(ctx context.Context, ref string, src Source, ov mode.Overrides) (*Plan
 			Name: ref,
 			Type: bom.ComponentTypeContainer,
 		},
+		ExtraComponents: osComponent(img),
 	}, nil
+}
+
+// osComponent reads the image's /etc/os-release and returns the
+// operating-system component, named by the distro ID with VERSION_ID as its
+// version. Returns nil when the image declares no OS, so scratch and distroless
+// images get no nameless component.
+func osComponent(img image.Image) []bom.ExtraComponent {
+	id, version, ok := osfamily.LinuxOSRelease(img.FS())
+	if !ok {
+		return nil
+	}
+	ref := "os:" + id
+	if version != "" {
+		ref += "@" + version
+	}
+	return []bom.ExtraComponent{{
+		Name:    id,
+		Version: version,
+		Type:    bom.ComponentTypeOS,
+		BomRef:  ref,
+	}}
 }
 
 // resolveSource turns SourceAuto into a concrete source: a tarball if ref names
