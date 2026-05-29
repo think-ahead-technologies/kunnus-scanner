@@ -1,0 +1,97 @@
+name: SBOM Compare
+
+# Benchmarks kunnus' container SBOMs against trivy and syft across a spread of
+# representative images (apk / deb / rpm / pypi / go / java / embedded SBOM).
+# Informational only — it never fails the build; results land in the job
+# summary and the SBOMs are uploaded as artifacts. Run on demand or weekly.
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 6 * * 1" # Mondays 06:00 UTC
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+env:
+  CRANE_VERSION: v0.20.6
+  TRIVY_VERSION: v0.70.0
+  SYFT_VERSION: v1.44.0
+
+jobs:
+  compare:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        image:
+          - alpine:3.19 # apk
+          - python:3.12-slim # deb + pypi
+          - rockylinux:9 # rpm (epoch handling)
+          - cgr.dev/chainguard/cosign:latest # distroless, go binary
+          - cgr.dev/chainguard/gradle:latest # java / jars
+          - cgr.dev/chainguard/pytorch:latest # python / ML (heavy)
+          - ghcr.io/siderolabs/talos:v1.13.3 # from-scratch go + embedded SBOM
+    steps:
+      - name: Checkout
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Free disk space
+        run: |
+          sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
+            /opt/hostedtoolcache/CodeQL "$AGENT_TOOLSDIRECTORY" || true
+          df -h /
+
+      - name: Build kunnus
+        run: go build -o /usr/local/bin/kunnus ./cmd/kunnus
+
+      - name: Install crane, trivy, syft (pinned)
+        run: |
+          set -euo pipefail
+          dl() { curl -fsSL "$1" | sudo tar -xz -C /usr/local/bin "$2"; }
+          dl "https://github.com/google/go-containerregistry/releases/download/${CRANE_VERSION}/go-containerregistry_Linux_x86_64.tar.gz" crane
+          dl "https://github.com/aquasecurity/trivy/releases/download/${TRIVY_VERSION}/trivy_${TRIVY_VERSION#v}_Linux-64bit.tar.gz" trivy
+          dl "https://github.com/anchore/syft/releases/download/${SYFT_VERSION}/syft_${SYFT_VERSION#v}_linux_amd64.tar.gz" syft
+          crane version && trivy --version && syft version
+
+      - name: Pull image to a tarball
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: crane pull "$IMAGE" image.tar
+
+      - name: Generate SBOMs (kunnus, trivy, syft)
+        run: |
+          set -euo pipefail
+          kunnus sbom container --source tarball --output kunnus.cdx.json image.tar
+          trivy image --input image.tar --format cyclonedx --output trivy.cdx.json --quiet
+          syft scan docker-archive:image.tar -o cyclonedx-json=syft.cdx.json
+
+      - name: Compare
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: ./scripts/compare-sboms.sh "$IMAGE" kunnus.cdx.json trivy.cdx.json syft.cdx.json >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Slug
+        id: slug
+        env:
+          IMAGE: ${{ matrix.image }}
+        run: echo "value=$(echo "$IMAGE" | tr '/:' '--')" >> "$GITHUB_OUTPUT"
+
+      - name: Upload SBOMs
+        uses: actions/upload-artifact@bbbca2ddaa5d8feaa63e36b76fdaad77386f024f # v7.0.0
+        with:
+          name: sboms-${{ steps.slug.outputs.value }}
+          path: "*.cdx.json"
+          if-no-files-found: error
