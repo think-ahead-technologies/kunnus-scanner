@@ -115,6 +115,50 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Container_EmbeddedSBOM(t *testing.T) {
+	// Some images ship their own SBOM (e.g. Talos at /usr/share/spdx/*.spdx.json).
+	// The embedded-SBOM extractor must ingest it, so vendor-declared components
+	// that leave no other on-disk trace still appear. embedded-only-lib exists
+	// only in the embedded CycloneDX document, nowhere else in the image.
+	layer := layerFromFiles(t, map[string]string{
+		"etc/os-release": "ID=wolfi\nVERSION_ID=\"20230201\"\n",
+		"usr/share/sbom/app.cdx.json": `{"bomFormat":"CycloneDX","specVersion":"1.6","components":[` +
+			`{"type":"library","name":"embedded-only-lib","version":"9.9.9",` +
+			`"purl":"pkg:golang/example.com/embedded-only-lib@9.9.9"}]}`,
+	})
+	tarPath := writeImageTarball(t, layer)
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "container", "--source", "tarball", "--output", outPath, tarPath)
+	if err != nil {
+		t.Fatalf("sbom container failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc struct {
+		Components []struct {
+			Name string `json:"name"`
+			PURL string `json:"purl"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	found := false
+	for _, c := range doc.Components {
+		if c.Name == "embedded-only-lib" {
+			found = true
+		}
+	}
+	if !found {
+		t.Error("component from the image's embedded SBOM (embedded-only-lib) is missing — SBOM extractor not ingesting it")
+	}
+}
+
 // layerIndexFor returns the kunnus:layer:index property value of the first
 // component whose purl contains substr.
 func layerIndexFor(components []struct {

@@ -11,6 +11,8 @@ import (
 	scalibr "github.com/google/osv-scalibr"
 	"github.com/google/osv-scalibr/artifact/image"
 	scalibrimage "github.com/google/osv-scalibr/artifact/image/layerscanning/image"
+	"github.com/google/osv-scalibr/extractor/filesystem/sbom/cdx"
+	"github.com/google/osv-scalibr/extractor/filesystem/sbom/spdx"
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
@@ -150,14 +152,22 @@ func openImage(ctx context.Context, ref string, src Source) (*scalibrimage.Image
 	}
 }
 
-// buildConfig selects each ecosystem's installed-state extractor plus every
-// Linux OS family's plugins, applies user overrides, and filters to what can
-// run under Linux container capabilities. Installed-only (not the lockfile
-// extractors repo scans use) keeps the SBOM to what is actually present in the
-// image rather than what a stray lockfile declares. Per-extractor FileRequired
-// then decides what the image filesystem actually matches.
+// buildConfig selects each ecosystem's installed-state extractor, every Linux
+// OS family's plugins, and the embedded-SBOM extractors, applies user
+// overrides, and filters to what can run under Linux container capabilities.
+//
+// Installed-only (not the lockfile extractors repo scans use) keeps the SBOM to
+// what is actually present in the image rather than what a stray lockfile
+// declares. The SBOM extractors additionally ingest any SBOM the image ships
+// for itself (e.g. /usr/share/spdx/*.spdx.json) — a vendor's own SBOM is the
+// authoritative record of the image's contents and often lists components that
+// leave no other on-disk trace. Per-extractor FileRequired then decides what
+// the image filesystem actually matches.
 func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
-	names := dedup(append(ecosystem.AllInstalledPlugins(), osfamily.LinuxPluginsFor(nil)...))
+	names := ecosystem.AllInstalledPlugins()
+	names = append(names, osfamily.LinuxPluginsFor(nil)...)
+	names = append(names, cdx.Name, spdx.Name) // SBOMs shipped inside the image
+	names = dedup(names)
 	names = mode.ApplyOverrides(names, ov)
 
 	plugins, err := pl.FromNames(names, nil)

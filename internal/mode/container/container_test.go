@@ -29,8 +29,9 @@ func TestBuildConfig_InstalledOnlyLinuxFiltered(t *testing.T) {
 	for _, p := range cfg.Plugins {
 		names[p.Name()] = true
 	}
-	// Must span Linux OS families and the installed-state language extractors...
-	for _, want := range []string{"os/dpkg", "os/apk", "javascript/packagejson"} {
+	// Must span Linux OS families, the installed-state language extractors, and
+	// the embedded-SBOM extractors...
+	for _, want := range []string{"os/dpkg", "os/apk", "javascript/packagejson", "sbom/cdx", "sbom/spdx"} {
 		if !names[want] {
 			t.Errorf("expected installed-state plugin %q in container config", want)
 		}
