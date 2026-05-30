@@ -101,6 +101,36 @@ func TestSupplierFromPURL(t *testing.T) {
 			wantName: "Alpine Linux",
 			wantURL:  "https://alpinelinux.org",
 		},
+		{
+			name:     "haskell (hackage)",
+			purl:     "pkg:haskell/aeson@2.1.2.1",
+			wantName: "aeson",
+			wantURL:  "https://hackage.haskell.org/package/aeson",
+		},
+		{
+			name:     "cran (r)",
+			purl:     "pkg:cran/jsonlite@1.8.7",
+			wantName: "jsonlite",
+			wantURL:  "https://cran.r-project.org/package=jsonlite",
+		},
+		{
+			name:     "conan (c/c++)",
+			purl:     "pkg:conan/zlib@1.3.1",
+			wantName: "zlib",
+			wantURL:  "https://conan.io/center/recipes/zlib",
+		},
+		{
+			name:     "cocoapods (swift/objc)",
+			purl:     "pkg:cocoapods/swift-argument-parser@1.2.3",
+			wantName: "swift-argument-parser",
+			wantURL:  "https://cocoapods.org/pods/swift-argument-parser",
+		},
+		{
+			name:     "lua (luarocks)",
+			purl:     "pkg:lua/mylib@1.0-1",
+			wantName: "mylib",
+			wantURL:  "https://luarocks.org/modules/mylib",
+		},
 
 		// When we cannot confidently derive a supplier, name and URL are
 		// empty — the caller must not attach a Supplier in that case.

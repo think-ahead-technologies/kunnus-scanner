@@ -7,8 +7,8 @@ inputs:
     required: false
     # Repo scans carry no licences (scalibr's language extractors don't extract
     # them), so this surface is capped lower by design — BSI permits omitting an
-    # unavailable field. Raise only if other required fields improve.
-    default: "4.5"
+    # unavailable field. Baseline ~5.25 after full component-creator coverage.
+    default: "5.0"
   os-threshold:
     description: "Minimum BSI v2 required-elements score for an OS SBOM"
     required: false

@@ -24,9 +24,18 @@ var purlSuppliers = map[string]func(namespace, name string) (string, string){
 	"cargo":    func(_, name string) (string, string) { return name, "https://crates.io/crates/" + name },
 	"composer": func(ns, name string) (string, string) { return ns, "https://packagist.org/packages/" + ns + "/" + name },
 	"gem":      func(_, name string) (string, string) { return name, "https://rubygems.org/gems/" + name },
-	"deb":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
-	"rpm":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
-	"apk":      func(ns, _ string) (string, string) { return distroSupplier(ns) },
+	// Registries keyed only on the package name — none of these purl types carry
+	// a meaningful namespace, so the canonical package page is name-derived.
+	// (scalibr emits the non-standard types "haskell" and "lua" rather than the
+	// purl-spec "hackage" / "luarocks".)
+	"haskell":   func(_, name string) (string, string) { return name, "https://hackage.haskell.org/package/" + name },
+	"cran":      func(_, name string) (string, string) { return name, "https://cran.r-project.org/package=" + name },
+	"conan":     func(_, name string) (string, string) { return name, "https://conan.io/center/recipes/" + name },
+	"cocoapods": func(_, name string) (string, string) { return name, "https://cocoapods.org/pods/" + name },
+	"lua":       func(_, name string) (string, string) { return name, "https://luarocks.org/modules/" + name },
+	"deb":       func(ns, _ string) (string, string) { return distroSupplier(ns) },
+	"rpm":       func(ns, _ string) (string, string) { return distroSupplier(ns) },
+	"apk":       func(ns, _ string) (string, string) { return distroSupplier(ns) },
 }
 
 // supplierFromPURL returns a (name, url) pair identifying the conventional

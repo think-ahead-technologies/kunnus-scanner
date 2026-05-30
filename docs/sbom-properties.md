@@ -81,7 +81,7 @@ CI gates on the BSI v2 conformance score of generated SBOMs via
 compliance`). It scores two surfaces with `sbomqs compliance --bsi-v2`, each
 with its own required-elements floor:
 
-- **repo** — `sbom repo testdata/ecosystems`, baseline required ≈ 4.9 / 10.
+- **repo** — `sbom repo testdata/ecosystems`, baseline required ≈ 5.25 / 10.
 - **os** — `sbom os --target-os linux testdata/osfamilies/alpine`, baseline
   required ≈ 7.4 / 10.
 
@@ -97,12 +97,13 @@ packages — its language extractors do not — so:
 
 Remaining required-field gaps, in priority order:
 
-- **Component creator** — missing on ~1/3 of repo components. The PURL→creator
-  derivation in `supplier.go` only covers some ecosystems; swift, haskell, lua,
-  r, and generic/vendored C/C++ produce no creator. (sbomqs accepts our
-  CycloneDX `supplier` for this field, so the populated ones pass.)
 - **Deployable hash** — present only where a lockfile supplies one; spec permits
   omission when unavailable.
+
+Component creator is now derived for every ecosystem in the corpus (see
+`supplier.go`); sbomqs accepts our CycloneDX `supplier` for this field. Vendored
+C/C++ (`pkg:generic`) deliberately carries no creator — a local vendored copy
+has no upstream supplier to assert.
 
 Optional fields we deliberately do not emit (signature, source-code URI,
 deployable-form URI) lower the optional score but not conformance.
