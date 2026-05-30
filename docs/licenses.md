@@ -27,8 +27,10 @@ component. All but the last are **offline**; the scan stays fully offline unless
 1. **OS package extractors** — apk and rpm carry the licence in their package
    database; scalibr surfaces it directly.
 2. **Debian/Ubuntu copyright files** — dpkg's status DB has no licence, so an
-   enricher reads each package's machine-readable `usr/share/doc/<name>/copyright`
-   (DEP-5) and maps the Debian short names to SPDX.
+   enricher reads each package's `usr/share/doc/<name>/copyright`: the structured
+   DEP-5 `License:` fields first (mapped from Debian short names to SPDX), and
+   when a copyright is free-text it falls back to the full-text classifier
+   (source 6). The classifier never overrides a DEP-5 declaration.
 3. **Lockfiles** — formats that embed a per-package licence (today: `composer.lock`).
 4. **Installed-package manifests** — each package's own manifest, re-read offline
    by an enricher: npm `package.json`, Python `METADATA`/`PKG-INFO`, Java JAR
@@ -37,6 +39,12 @@ component. All but the last are **offline**; the scan stays fully offline unless
 5. **deps.dev (online, opt-in)** — `--online-licenses` looks up licences for the
    ecosystems deps.dev supports. Off by default; see the endpoint note in
    `internal/mode/license.go`.
+6. **Full-text classifier (offline fallback)** — `license.Classify`
+   (google/licensecheck) recognises a licence from its *text* rather than a
+   declared identifier. It is probabilistic, so it is only ever a fallback when
+   structured parsing yields nothing; deterministic results never change. Today
+   it backs the Debian copyright enricher; it is reusable for any licence-bearing
+   text file.
 
 ## Coverage by ecosystem
 
@@ -47,7 +55,7 @@ component. All but the last are **offline**; the scan stays fully offline unless
 |---|---|---|---|
 | Alpine (apk) | apk extractor | — | full |
 | RHEL/SUSE/Fedora (rpm) | rpm extractor | — | full |
-| Debian/Ubuntu (deb) | copyright (DEP-5) | — | ~76%; free-text/symlinked copyright not parsed |
+| Debian/Ubuntu (deb) | copyright: DEP-5 + text classifier | — | ~99%; only copyrights that merely point to /usr/share/common-licenses miss |
 | npm | installed `package.json` | ✓ | offline covers installed/container scans |
 | Python (pypi) | wheel `METADATA` | ✓ | offline covers installed/container scans |
 | Java (maven) | JAR `pom.xml` / `Bundle-License` | ✓ | offline = installed JARs; parent-pom-inherited licences not in the JAR |
@@ -69,23 +77,25 @@ Offline scans of public images (no `--online-licenses`):
 | Image | Coverage |
 |---|---|
 | `node:20-alpine` | npm 193/193, apk 18/18 |
-| `ruby:3.3` | gem 86/86, deb 346/455 |
+| `ruby:3.3` | gem 86/86, deb 449/455 |
 | `python:3.12-alpine` | pip 1/1, apk 37/38 |
 | `tomcat:10.1-jre21` | maven 26/29 (Apache-2.0) |
 
 Benchmarked against syft/trivy (see `.github/workflows/sbom-compare.yml`),
-offline coverage is at parity for language ecosystems and apk; Debian trails
-because syft/trivy run a full-text licence **classifier** over free-text
-copyright files, whereas kunnus parses only the structured DEP-5 form.
+offline coverage is at parity: language ecosystems and apk tie, and Debian is
+within a handful of packages (ruby:3.3 overall 537/543 vs syft 540/542) now that
+the copyright enricher falls back to the same kind of full-text classifier
+syft/trivy use.
 
 ## Known limitations
 
-- **Debian free-text / symlinked copyright** — packages whose copyright is prose
-  (no DEP-5 `License:`) or a symlink to a free-text file are not licensed
-  offline. Matching syft here would require a probabilistic licence-text
-  classifier, a deliberate non-goal: kunnus does exact parsing only.
+- **Debian pointer-only copyright** — a few packages whose copyright neither
+  declares a DEP-5 `License:` nor inlines the licence text (it merely points to
+  `/usr/share/common-licenses/…`) cannot be resolved: there is no text to parse
+  or classify.
 - **Java parent-pom inheritance** — a JAR whose licence is declared only in a
-  parent pom not shipped inside the archive cannot be recovered offline.
+  parent pom not shipped inside the archive cannot be recovered offline. (The
+  `license.Classify` fallback could be extended to a JAR's bundled LICENSE text.)
 - **Dynamic manifests** — a `.gemspec`/`.rockspec` that computes its licence in
   code rather than declaring it literally yields nothing (best-effort regex).
 

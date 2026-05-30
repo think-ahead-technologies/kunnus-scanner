@@ -47,7 +47,7 @@ encoder; the scanner library does the extraction work.
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution | modes, CLI, scanning |
-| `license` | raw license string → SPDX id/expression or LicenseRef (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
+| `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
 ## Things we deliberately did NOT build

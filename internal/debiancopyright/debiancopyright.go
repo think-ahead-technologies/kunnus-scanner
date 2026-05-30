@@ -1,9 +1,10 @@
 // ABOUTME: Offline scalibr enricher that recovers Debian/Ubuntu package licences from /usr/share/doc/<pkg>/copyright.
-// ABOUTME: dpkg's status DB carries no licence (unlike apk/rpm); the licence lives in the DEP-5 copyright file.
+// ABOUTME: dpkg's status DB carries no licence (unlike apk/rpm); reads structured DEP-5, falling back to a text classifier.
 package debiancopyright
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"io"
 	"strings"
@@ -11,6 +12,8 @@ import (
 	"github.com/google/osv-scalibr/enricher"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/google/osv-scalibr/plugin"
+
+	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
 
 // Name is the unique enricher name.
@@ -18,6 +21,11 @@ const Name = "kunnus/license/debian-copyright"
 
 // debPURLType is the purl type dpkg assigns to Debian/Ubuntu packages.
 const debPURLType = "deb"
+
+// maxCopyrightBytes caps how much of a copyright file we read. Files that inline
+// full licence texts (GPL, …) run tens of KB; this bounds the classifier's work
+// without truncating realistic files.
+const maxCopyrightBytes = 1 << 20 // 1 MiB
 
 var _ enricher.Enricher = (*Enricher)(nil)
 
@@ -61,22 +69,38 @@ func (*Enricher) Enrich(_ context.Context, input *enricher.ScanInput, inv *inven
 		if err != nil {
 			continue
 		}
-		lics := licensesFromCopyright(f)
+		data, err := io.ReadAll(io.LimitReader(f, maxCopyrightBytes))
 		_ = f.Close()
-		if len(lics) > 0 {
+		if err != nil {
+			continue
+		}
+		if lics := licensesFromCopyright(data); len(lics) > 0 {
 			p.Licenses = lics
 		}
 	}
 	return nil
 }
 
-// licensesFromCopyright extracts the SPDX licences declared in a DEP-5 copyright
-// file. It reads the short name from each top-level "License:" field (both the
-// per-Files paragraphs and the standalone licence paragraphs), maps Debian
-// short names to SPDX, deduplicates, and preserves first-seen order. A free-text
-// copyright with no License field yields nothing.
-func licensesFromCopyright(r io.Reader) []string {
-	sc := bufio.NewScanner(r)
+// licensesFromCopyright extracts licences from a Debian copyright file. It tries
+// the structured, deterministic DEP-5 form first; only when that declares no
+// licence does it fall back to the probabilistic full-text classifier, so the
+// classifier never overrides an explicit declaration. Free-text copyright that
+// inlines a recognisable licence is thus still resolved; a copyright that merely
+// points elsewhere (e.g. /usr/share/common-licenses) yields nothing.
+func licensesFromCopyright(data []byte) []string {
+	if lics := parseDEP5(data); len(lics) > 0 {
+		return lics
+	}
+	return license.Classify(data)
+}
+
+// parseDEP5 extracts the SPDX licences declared in a DEP-5 copyright file. It
+// reads the short name from each top-level "License:" field (both the per-Files
+// paragraphs and the standalone licence paragraphs), maps Debian short names to
+// SPDX, deduplicates, and preserves first-seen order. Returns nil for a free-text
+// copyright with no machine-readable License field.
+func parseDEP5(data []byte) []string {
+	sc := bufio.NewScanner(bytes.NewReader(data))
 	sc.Buffer(make([]byte, 0, 64*1024), 1<<20)
 	seen := make(map[string]bool)
 	var out []string

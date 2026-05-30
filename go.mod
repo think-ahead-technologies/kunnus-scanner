@@ -7,6 +7,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/github/go-spdx/v2 v2.7.0
 	github.com/google/go-containerregistry v0.20.6
+	github.com/google/licensecheck v0.3.1
 	github.com/google/osv-scalibr v0.4.5
 	github.com/google/uuid v1.6.0
 	github.com/opencontainers/go-digest v1.0.0

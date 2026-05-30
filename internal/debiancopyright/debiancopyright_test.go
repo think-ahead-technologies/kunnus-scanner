@@ -5,7 +5,6 @@ package debiancopyright
 import (
 	"context"
 	"reflect"
-	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -15,7 +14,7 @@ import (
 	"github.com/google/osv-scalibr/inventory"
 )
 
-func TestLicensesFromCopyright(t *testing.T) {
+func TestParseDEP5(t *testing.T) {
 	cases := map[string]struct {
 		copyright string
 		want      []string
@@ -46,13 +45,52 @@ func TestLicensesFromCopyright(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			got := licensesFromCopyright(strings.NewReader(tc.copyright))
+			got := parseDEP5([]byte(tc.copyright))
 			if !reflect.DeepEqual(got, tc.want) {
 				t.Errorf("got %v, want %v", got, tc.want)
 			}
 		})
 	}
 }
+
+func TestLicensesFromCopyright_ClassifierFallback(t *testing.T) {
+	// A DEP-5 declaration is used as-is (deterministic), and the classifier is
+	// never consulted for it.
+	if got := licensesFromCopyright([]byte("Files: *\nLicense: GPL-2+\n")); !reflect.DeepEqual(got, []string{"GPL-2.0-or-later"}) {
+		t.Errorf("DEP-5 path = %v, want [GPL-2.0-or-later]", got)
+	}
+	// A free-text copyright with no License field but inlined licence text falls
+	// back to the classifier.
+	freeText := "This package was debianized by someone.\n\n" + mitLicenseText
+	got := licensesFromCopyright([]byte(freeText))
+	found := false
+	for _, id := range got {
+		if id == "MIT" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("classifier fallback = %v, want it to include MIT", got)
+	}
+}
+
+const mitLicenseText = `Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.`
 
 func enrich(t *testing.T, fsys fstest.MapFS, pkg *extractor.Package) {
 	t.Helper()
