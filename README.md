@@ -4,7 +4,7 @@
 
 Starting December 11, 2027, the [EU Cyber Resilience Act (CRA)](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act) requires manufacturers of products with digital elements to provide a Software Bill of Materials (SBOM) — a complete, machine-readable inventory of all software components in the product. This applies to every product newly placed on the market after that date: CNC machines with embedded IPCs, IoT gateways, AGVs, packaging lines with web dashboards — if it contains software, you need an SBOM.
 
-kunnus-scanner generates that SBOM. No installer, no cloud connection, no account required. It runs on Windows, Linux, and macOS, detects installed software down to individual libraries and version numbers, and outputs standard-compliant CycloneDX 1.7 files. It is built on Google's [osv-scalibr](https://github.com/google/osv-scalibr) and supports a broad set of language ecosystems and OS-level package detection.
+kunnus-scanner generates that SBOM. No installer, no cloud connection, no account required. It runs on Windows, Linux, and macOS, detects installed software down to individual libraries and version numbers, and outputs standard-compliant CycloneDX 1.6 files. It is built on Google's [osv-scalibr](https://github.com/google/osv-scalibr) and supports a broad set of language ecosystems and OS-level package detection.
 
 ## Quick start
 
@@ -85,11 +85,15 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 
 ## What it does
 
-- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems (npm, Go, Cargo, NuGet, Maven, Python, …), emit CycloneDX 1.7.
+- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems (npm, Go, Cargo, NuGet, Maven, Python, …), emit CycloneDX 1.6.
 - **`kunnus sbom os [path]`** — scan an OS or firmware filesystem (auto-detects Linux distro family or Windows registry).
+- **`kunnus sbom container <image|tarball>`** — scan a container image (registry pull, OCI/docker-save tarball, or local docker daemon) with per-layer attribution.
 - **`kunnus upload <file>`** — push an SBOM to `app.kunnus.tech`.
 
 Override flags (`--target-os`, `--ecosystem`, `--enable`, `--disable`) let you bypass auto-detection.
+
+The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
+[docs/sbom-properties.md](docs/sbom-properties.md) for the full reference.
 
 ## Architecture
 
