@@ -10,18 +10,19 @@ import (
 	licenseenricher "github.com/google/osv-scalibr/enricher/license"
 	"github.com/google/osv-scalibr/plugin"
 
+	"github.com/think-ahead/kunnus-scanner/internal/debiancopyright"
 	"github.com/think-ahead/kunnus-scanner/internal/manifestlicense"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
 
-// AddManifestLicenses appends the offline manifest-license enricher to plugins.
-// It is always on: it makes no network calls and only reads manifests already
-// present in the scan root, recovering the licences scalibr's installed
-// extractors (e.g. packagejson) read but discard. Modes that run installed
-// language extractors (repo, container) add it; OS scans have no
-// manifest-bearing extractors, so they do not.
-func AddManifestLicenses(plugins []plugin.Plugin) []plugin.Plugin {
-	return append(plugins, manifestlicense.New())
+// AddOfflineLicenseEnrichers appends kunnus' offline licence enrichers to
+// plugins. They are always on: they make no network calls and only read files
+// already present in the scan root, recovering licences scalibr's extractors
+// read but discard — per-package manifests (npm/python/java/lua/ruby) and
+// Debian/Ubuntu copyright files. Each is a no-op when its packages are absent,
+// so every scan mode can add the full set uniformly.
+func AddOfflineLicenseEnrichers(plugins []plugin.Plugin) []plugin.Plugin {
+	return append(plugins, manifestlicense.New(), debiancopyright.New())
 }
 
 // DefaultLicenseAPI is the deps.dev gRPC endpoint used for online licence

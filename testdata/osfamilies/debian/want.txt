@@ -2,6 +2,8 @@
 # vendor (ubuntu) derive from etc/os-release. Exact purl + synthesized cpe.
 purl pkg:deb/ubuntu/bash@5.1-6ubuntu1?arch=amd64&distro=jammy
 cpe  cpe:2.3:o:ubuntu:bash:5.1-6ubuntu1:*:*:*:*:*:*:*
+# Licence mined offline from usr/share/doc/bash/copyright (DEP-5 "License: GPL-3+").
+license GPL-3.0-or-later
 purl pkg:deb/ubuntu/coreutils@8.32-4.1ubuntu1?arch=amd64&distro=jammy
 cpe  cpe:2.3:o:ubuntu:coreutils:8.32-4.1ubuntu1:*:*:*:*:*:*:*
 # tar carries a Debian epoch (1:1.34-6); the purl uses the conventional
