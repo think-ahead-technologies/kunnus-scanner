@@ -21,5 +21,9 @@ func commonSBOMFlags() []cli.Flag {
 			Name:  "disable",
 			Usage: "remove a scalibr plugin by name (repeatable)",
 		},
+		&cli.BoolFlag{
+			Name:  "online-licenses",
+			Usage: "look up component licences via deps.dev (requires network; off by default)",
+		},
 	}
 }

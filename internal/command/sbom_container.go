@@ -38,6 +38,7 @@ func runContainerScan(ctx context.Context, cmd *cli.Command) error {
 	ov := mode.Overrides{
 		EnablePlugins:  cmd.StringSlice("enable"),
 		DisablePlugins: cmd.StringSlice("disable"),
+		OnlineLicenses: cmd.Bool("online-licenses"),
 	}
 
 	plan, err := container.Open(ctx, ref, container.Source(cmd.String("source")), ov)

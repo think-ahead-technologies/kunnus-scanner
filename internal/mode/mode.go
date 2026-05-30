@@ -64,6 +64,15 @@ type Overrides struct {
 
 	// DisablePlugins removes the named scalibr plugins from the selection.
 	DisablePlugins []string
+
+	// OnlineLicenses opts into deps.dev licence enrichment. Off by default: this
+	// is the only feature that makes network calls, so it is never enabled
+	// implicitly. See OnlineLicenseEnricher.
+	OnlineLicenses bool
+
+	// LicenseAPIURL overrides the deps.dev gRPC endpoint used when OnlineLicenses
+	// is set. Empty means DefaultLicenseAPI. Must speak the deps.dev Insights API.
+	LicenseAPIURL string
 }
 
 // ApplyOverrides folds ov.EnablePlugins and ov.DisablePlugins into the given

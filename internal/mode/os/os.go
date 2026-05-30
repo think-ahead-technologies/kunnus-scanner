@@ -81,13 +81,19 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		return nil, fmt.Errorf("load plugins %v: %w", pluginNames, err)
 	}
 
+	caps := capabilitiesFor(targetOS)
+	plugins, err = mode.AddOnlineLicenses(plugins, caps, ov)
+	if err != nil {
+		return nil, err
+	}
+
 	cfg := &scalibr.ScanConfig{
 		ScanRoots: []*scalibrfs.ScanRoot{{
 			FS:   scalibrfs.DirFS(abs),
 			Path: abs,
 		}},
 		Plugins:      plugins,
-		Capabilities: capabilitiesFor(targetOS),
+		Capabilities: caps,
 	}
 
 	return &mode.Plan{

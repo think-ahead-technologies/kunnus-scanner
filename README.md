@@ -90,7 +90,7 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 - **`kunnus sbom container <image|tarball>`** — scan a container image (registry pull, OCI/docker-save tarball, or local docker daemon) with per-layer attribution.
 - **`kunnus upload <file>`** — push an SBOM to `app.kunnus.tech`.
 
-Override flags (`--target-os`, `--ecosystem`, `--enable`, `--disable`) let you bypass auto-detection.
+Override flags (`--target-os`, `--ecosystem`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only feature that uses the network; off by default).
 
 The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
 [docs/sbom-properties.md](docs/sbom-properties.md) for the full reference.

@@ -35,6 +35,7 @@ func runRepoScan(ctx context.Context, cmd *cli.Command) error {
 		Ecosystems:     cmd.StringSlice("ecosystem"),
 		EnablePlugins:  cmd.StringSlice("enable"),
 		DisablePlugins: cmd.StringSlice("disable"),
+		OnlineLicenses: cmd.Bool("online-licenses"),
 	}
 	return runScan(ctx, cmd, repomode.New(), path, ov)
 }

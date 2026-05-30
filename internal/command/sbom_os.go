@@ -36,6 +36,7 @@ func runOSScan(ctx context.Context, cmd *cli.Command) error {
 		TargetOS:       cmd.String("target-os"),
 		EnablePlugins:  cmd.StringSlice("enable"),
 		DisablePlugins: cmd.StringSlice("disable"),
+		OnlineLicenses: cmd.Bool("online-licenses"),
 	}
 	return runScan(ctx, cmd, osmode.New(), path, ov)
 }

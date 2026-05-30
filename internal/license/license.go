@@ -67,7 +67,9 @@ func Normalize(raw string) (Normalized, bool) {
 		return Normalized{}, false
 	}
 	switch strings.ToLower(s) {
-	case "none", "noassertion":
+	case "none", "noassertion", "unknown":
+		// "UNKNOWN" is deps.dev's placeholder when it has no licence on file;
+		// treat it as no assertion rather than minting a LicenseRef for it.
 		return Normalized{}, false
 	}
 

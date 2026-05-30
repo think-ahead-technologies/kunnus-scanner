@@ -8,6 +8,7 @@ import (
 	"errors"
 	"flag"
 	"io"
+	"net"
 	"net/http"
 	"net/http/httptest"
 	"os"
@@ -356,6 +357,55 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestCLI_SBOM_Repo_OnlineLicenses exercises the real deps.dev licence
+// enrichment over the ecosystem corpus. Offline, a repo scan yields no licences
+// for these language ecosystems; with --online-licenses, deps.dev must populate
+// at least some.
+//
+// It is network-gated twice over: it runs only when KUNNUS_ONLINE_E2E is set
+// (so CI stays deterministically green without depending on deps.dev uptime),
+// and additionally skips if deps.dev is unreachable. This mirrors the
+// documented network-only paths (registry pull, local docker).
+func TestCLI_SBOM_Repo_OnlineLicenses(t *testing.T) {
+	if os.Getenv("KUNNUS_ONLINE_E2E") == "" {
+		t.Skip("set KUNNUS_ONLINE_E2E=1 to run the online deps.dev licence e2e")
+	}
+	if c, err := net.DialTimeout("tcp", "api.deps.dev:443", 5*time.Second); err != nil {
+		t.Skipf("deps.dev unreachable: %v", err)
+	} else {
+		_ = c.Close()
+	}
+
+	out := filepath.Join(t.TempDir(), "sbom.json")
+	_, stderr, runErr := runKunnus(t, "sbom", "repo", "--online-licenses", "--output", out, corpusDir(t))
+
+	// The SBOM is written even if some lookups fail (partial failure still
+	// produces output), so assert on the file rather than the exit code.
+	data, err := os.ReadFile(out)
+	if err != nil {
+		t.Fatalf("no SBOM produced (run err=%v):\n%s", runErr, stderr)
+	}
+	var doc struct {
+		Components []struct {
+			PURL     string `json:"purl"`
+			Licenses []any  `json:"licenses"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom not valid JSON: %v", err)
+	}
+	licensed := 0
+	for _, c := range doc.Components {
+		if len(c.Licenses) > 0 {
+			licensed++
+		}
+	}
+	if licensed == 0 {
+		t.Errorf("online enrichment produced no licences; want >0\nstderr:\n%s", stderr)
+	}
+	t.Logf("online licence enrichment: %d/%d components licensed", licensed, len(doc.Components))
 }
 
 // corpusDir resolves <module-root>/testdata/ecosystems. The corpus is shared

@@ -63,7 +63,9 @@ func TestNormalize_Expression(t *testing.T) {
 }
 
 func TestNormalize_NoAssertion(t *testing.T) {
-	for _, in := range []string{"", "  ", "NONE", "NOASSERTION", "noassertion", "none"} {
+	// "UNKNOWN" is what deps.dev returns when it has no licence on file; treat it
+	// like NONE/NOASSERTION rather than minting a LicenseRef-kunnus-UNKNOWN.
+	for _, in := range []string{"", "  ", "NONE", "NOASSERTION", "noassertion", "none", "UNKNOWN", "unknown"} {
 		if got, ok := Normalize(in); ok {
 			t.Errorf("Normalize(%q) = (%+v, true), want ok=false", in, got)
 		}
