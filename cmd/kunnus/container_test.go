@@ -27,10 +27,13 @@ func TestCLI_SBOM_Container(t *testing.T) {
 		"etc/os-release":       "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.18.4\n",
 		"lib/apk/db/installed": "C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=\nP:musl\nV:1.2.4-r2\nA:x86_64\no:musl\n",
 	})
-	// An installed npm dependency lives as a package.json under node_modules;
-	// container scans use installed-state extractors, not lockfiles.
+	// Installed dependencies as their own manifests: an npm package.json and a
+	// Python dist-info METADATA. Container scans use installed-state extractors,
+	// not lockfiles, and the manifest-license enricher recovers the licence each
+	// manifest declares but scalibr drops.
 	appLayer := layerFromFiles(t, map[string]string{
-		"app/node_modules/left-pad/package.json": `{"name":"left-pad","version":"1.3.0"}`,
+		"app/node_modules/left-pad/package.json":             `{"name":"left-pad","version":"1.3.0","license":"WTFPL"}`,
+		"app/site-packages/coolpkg-2.5.0.dist-info/METADATA": "Metadata-Version: 2.4\nName: coolpkg\nVersion: 2.5.0\nLicense-Expression: BSD-3-Clause\n",
 	})
 	tarPath := writeImageTarball(t, osLayer, appLayer)
 
@@ -86,6 +89,44 @@ func TestCLI_SBOM_Container(t *testing.T) {
 		if idx != wantIdx {
 			t.Errorf("component %q kunnus:layer:index = %q, want %q", substr, idx, wantIdx)
 		}
+	}
+
+	// The manifest-license enricher recovers left-pad's licence from its
+	// installed package.json — a licence scalibr's packagejson extractor reads
+	// but drops. This is the offline per-installed-package manifest path.
+	var licDoc struct {
+		Components []struct {
+			PURL     string `json:"purl"`
+			Licenses []struct {
+				License struct {
+					ID string `json:"id"`
+				} `json:"license"`
+			} `json:"licenses"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &licDoc); err != nil {
+		t.Fatalf("re-parse sbom for licences: %v", err)
+	}
+	// licenceFor returns the first licence id of the component whose purl contains
+	// substr (scalibr may append purl qualifiers like "?source=...").
+	licenceFor := func(substr string) string {
+		for _, c := range licDoc.Components {
+			if !contains(c.PURL, substr) {
+				continue
+			}
+			for _, l := range c.Licenses {
+				if l.License.ID != "" {
+					return l.License.ID
+				}
+			}
+		}
+		return ""
+	}
+	if got := licenceFor("pkg:npm/left-pad@1.3.0"); got != "WTFPL" {
+		t.Errorf("left-pad licence = %q, want WTFPL (recovered from package.json)", got)
+	}
+	if got := licenceFor("pkg:pypi/coolpkg@2.5.0"); got != "BSD-3-Clause" {
+		t.Errorf("coolpkg licence = %q, want BSD-3-Clause (recovered from dist-info METADATA)", got)
 	}
 
 	// The image's operating system is emitted as its own component, named by the

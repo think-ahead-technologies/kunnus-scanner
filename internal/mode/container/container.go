@@ -183,6 +183,7 @@ func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
 		return nil, fmt.Errorf("no extractors selected for container scan")
 	}
 
+	plugins = mode.AddManifestLicenses(plugins)
 	plugins, err = mode.AddOnlineLicenses(plugins, caps, ov)
 	if err != nil {
 		return nil, err
