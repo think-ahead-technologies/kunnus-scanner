@@ -8,6 +8,8 @@ import (
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+
+	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
 
 // licensedComponent builds a one-package inventory and a matching component,
@@ -26,7 +28,7 @@ func injectAndGet(t *testing.T, pkgLicenses []string, existing *cyclonedx.Licens
 	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{comp}}
 	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
 
-	injectLicensesCDX(bom, inv)
+	injectLicensesCDX(bom, inv, nil)
 
 	got := (*bom.Components)[0].Licenses
 	if got == nil {
@@ -102,6 +104,23 @@ func TestInjectLicenses_DedupAndUnion(t *testing.T) {
 	}
 	if len(lics) != 2 || !ids["MIT"] || !ids["Apache-2.0"] {
 		t.Errorf("got %d licenses %v, want exactly MIT + Apache-2.0", len(lics), ids)
+	}
+}
+
+func TestInjectLicenses_FromOfflineMap(t *testing.T) {
+	// A component with no inventory licence picks up the offline licence map,
+	// keyed by the conventional (normalized) purl — composer emits an escaped
+	// %2F separator before normalization, so the lookup must normalize first.
+	const rawPURL = "pkg:composer/psr%2Flog@3.0.0"
+	const normPURL = "pkg:composer/psr/log@3.0.0"
+	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{{PackageURL: rawPURL}}}
+	licenseMap := license.Map{normPURL: {"MIT"}}
+
+	injectLicensesCDX(bom, inventory.Inventory{}, licenseMap)
+
+	lics := (*bom.Components)[0].Licenses
+	if lics == nil || len(*lics) != 1 || (*lics)[0].License == nil || (*lics)[0].License.ID != "MIT" {
+		t.Fatalf("offline-map licence not applied: %+v", lics)
 	}
 }
 

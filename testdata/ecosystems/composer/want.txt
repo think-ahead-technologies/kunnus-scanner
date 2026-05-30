@@ -3,3 +3,5 @@
 # escaped %2F separator back to "/"), and the CPE splits the vendor out.
 purl pkg:composer/psr/log@3.0.0
 cpe  cpe:2.3:a:psr:log:3.0.0:*:*:*:*:*:*:*
+# Licence mined offline from composer.lock's per-package license array.
+license MIT

@@ -222,8 +222,15 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 	var doc struct {
 		BOMFormat  string `json:"bomFormat"`
 		Components []struct {
-			PURL string `json:"purl"`
-			CPE  string `json:"cpe"`
+			PURL     string `json:"purl"`
+			CPE      string `json:"cpe"`
+			Licenses []struct {
+				License struct {
+					ID   string `json:"id"`
+					Name string `json:"name"`
+				} `json:"license"`
+				Expression string `json:"expression"`
+			} `json:"licenses"`
 		} `json:"components"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
@@ -235,12 +242,24 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 
 	purls := make(map[string]bool)
 	cpes := make(map[string]bool)
+	licenses := make(map[string]bool)
 	for _, c := range doc.Components {
 		if c.PURL != "" {
 			purls[c.PURL] = true
 		}
 		if c.CPE != "" {
 			cpes[c.CPE] = true
+		}
+		for _, l := range c.Licenses {
+			if l.License.ID != "" {
+				licenses[l.License.ID] = true
+			}
+			if l.License.Name != "" {
+				licenses[l.License.Name] = true
+			}
+			if l.Expression != "" {
+				licenses[l.Expression] = true
+			}
 		}
 	}
 
@@ -261,6 +280,11 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 		for _, c := range w.cpes {
 			if !cpes[c] {
 				t.Errorf("ecosystem %q: expected cpe %q missing from combined SBOM", e.Name(), c)
+			}
+		}
+		for _, l := range w.licenses {
+			if !licenses[l] {
+				t.Errorf("ecosystem %q: expected licence %q missing from combined SBOM", e.Name(), l)
 			}
 		}
 	}

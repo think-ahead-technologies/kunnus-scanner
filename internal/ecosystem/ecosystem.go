@@ -12,6 +12,7 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 )
 
@@ -49,6 +50,22 @@ type Ecosystem struct {
 	// extract native digests. nil for ecosystems we detect and scan via
 	// scalibr but do not deep-hash ourselves.
 	HashParsers []Parser
+
+	// LicenseParsers is the optional set of lockfile/manifest parsers kunnus
+	// runs to extract licences offline — for ecosystems whose lockfile embeds
+	// per-package licence data (e.g. composer.lock) and which scalibr does not
+	// surface. nil for ecosystems with no offline licence source. Each Parser's
+	// Filenames must be a subset of the owning Ecosystem.Filenames.
+	LicenseParsers []LicenseParser
+}
+
+// LicenseParser describes one lockfile/manifest format kunnus mines for licences
+// offline. Parse returns a license.Map keyed by the conventional (normalized)
+// purl form, so the SBOM encoder matches it after purl normalization.
+type LicenseParser struct {
+	Name      string
+	Filenames []string
+	Parse     func(r io.Reader) (license.Map, error)
 }
 
 // Parser describes one lockfile format kunnus mines for native digests.
@@ -163,16 +180,35 @@ func buildParsersByFilename(ecos []Ecosystem) map[string]*Parser {
 	return m
 }
 
-// Survey walks fsys once and returns both the ecosystems detected from marker
-// filenames and the merged native-digest map mined from lockfiles. One pass
-// replaces the previous detect+hash double walk. Operating on an fs.FS lets the
-// same detection serve a real directory (os.DirFS) and any virtual filesystem.
+// licenseParsersByFilename is the walker's O(1) dispatch table for offline
+// licence extraction, built once over every LicenseParser in every ecosystem.
+var licenseParsersByFilename = buildLicenseParsersByFilename(all)
+
+func buildLicenseParsersByFilename(ecos []Ecosystem) map[string]*LicenseParser {
+	m := make(map[string]*LicenseParser)
+	for i := range ecos {
+		for j := range ecos[i].LicenseParsers {
+			p := &ecos[i].LicenseParsers[j]
+			for _, f := range p.Filenames {
+				m[f] = p
+			}
+		}
+	}
+	return m
+}
+
+// Survey walks fsys once and returns the ecosystems detected from marker
+// filenames, the merged native-digest map mined from lockfiles, and the merged
+// licence map mined from lockfiles that embed licence data. One pass covers
+// detection, hashes, and licences. Operating on an fs.FS lets the same survey
+// serve a real directory (os.DirFS) and any virtual filesystem.
 //
 // Per-parser failures are logged at warn level via slog.Default() but never
 // fail the walk — a single broken lockfile must not block SBOM output.
 // Permission errors on subtrees are skipped, not surfaced.
-func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map) {
+func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses license.Map) {
 	digests = make(hashes.Map)
+	licenses = make(license.Map)
 	found := make(map[string]struct{})
 
 	_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -203,6 +239,17 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map) {
 			}
 			digests.Merge(m)
 		}
+		if p, ok := licenseParsersByFilename[name]; ok {
+			m, perr := parseLicenseFile(fsys, path, p)
+			if perr != nil {
+				slog.Warn("licence parser failed",
+					"ecosystem", p.Name,
+					"path", path,
+					"err", perr,
+				)
+			}
+			licenses.Merge(m)
+		}
 		return nil
 	})
 
@@ -211,13 +258,25 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map) {
 		ecosystems = append(ecosystems, e)
 	}
 	slices.Sort(ecosystems)
-	return ecosystems, digests
+	return ecosystems, digests, licenses
 }
 
 // parseFile opens path within fsys and runs the lockfile parser over its
 // contents, so parsers stay pure (io.Reader in, hashes out) and Survey owns the
 // filesystem access.
 func parseFile(fsys fs.FS, path string, p *Parser) (hashes.Map, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	return p.Parse(f)
+}
+
+// parseLicenseFile opens path within fsys and runs the licence parser over its
+// contents, mirroring parseFile so licence parsers stay pure (io.Reader in,
+// license.Map out) and Survey owns the filesystem access.
+func parseLicenseFile(fsys fs.FS, path string, p *LicenseParser) (license.Map, error) {
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)

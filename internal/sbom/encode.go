@@ -11,6 +11,7 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
@@ -18,10 +19,12 @@ import (
 // Encode converts the scan result into a CycloneDX 1.6 SBOM and writes JSON
 // to out. hashMap is an optional map of PURL → native digests (one or more
 // per package, typically populated from lockfiles); pass nil if unavailable.
+// licenseMap is an optional map of conventional PURL → raw licence strings
+// mined offline from lockfiles (e.g. composer.lock); pass nil if unavailable.
 // extras carries components scalibr did not produce — today, vendored C/C++
 // libraries surfaced by the kunnus walker. Their per-file hashes ride in
 // hashMap under the same PURL.
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap hashes.Map, extras []bom.ExtraComponent) error {
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -51,7 +54,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	dedupCDXComponents(cdxBom)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
-	injectLicensesCDX(cdxBom, result.Inventory)
+	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
 	injectCPEsCDX(cdxBom)
 	// Extras must be appended before injectHashesCDX so the hash injector sees
 	// them in its PURL index, and before injectDepGraphCDX so their BOMRefs

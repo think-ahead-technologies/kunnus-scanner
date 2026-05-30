@@ -51,8 +51,9 @@ func runContainerScan(ctx context.Context, cmd *cli.Command) error {
 		return fmt.Errorf("run container scan: %w", err)
 	}
 
-	// Container scans harvest no native digests of their own; scalibr's
-	// per-package hashes ride in the inventory. The only extra component is the
-	// image's operating-system entry, synthesized during planning.
-	return encodeResult(cmd, result, plan.Component, nil, plan.ExtraComponents)
+	// Container scans harvest no native digests or offline licences of their own;
+	// scalibr's per-package hashes and (apk/rpm) licences ride in the inventory.
+	// The only extra component is the image's operating-system entry, synthesized
+	// during planning.
+	return encodeResult(cmd, result, plan.Component, nil, nil, plan.ExtraComponents)
 }

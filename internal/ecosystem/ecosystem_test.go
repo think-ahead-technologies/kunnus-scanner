@@ -186,7 +186,7 @@ func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 }
 
 func TestSurvey_EmptyTree(t *testing.T) {
-	ecos, digests := Survey(os.DirFS(t.TempDir()))
+	ecos, digests, _ := Survey(os.DirFS(t.TempDir()))
 	if len(ecos) != 0 {
 		t.Errorf("empty tree: got ecosystems %v, want []", ecos)
 	}
@@ -243,7 +243,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 			for _, rel := range tc.files {
 				writeAt(t, root, rel, "")
 			}
-			got, _ := Survey(os.DirFS(root))
+			got, _, _ := Survey(os.DirFS(root))
 			if got == nil {
 				got = []string{}
 			}
@@ -264,7 +264,7 @@ func TestSurvey_PermissionErrorOnSubdirSkipped(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o755) })
 
-	got, _ := Survey(os.DirFS(root))
+	got, _, _ := Survey(os.DirFS(root))
 	if !slices.Equal(got, []string{"go"}) {
 		t.Errorf("Survey with unreadable subdir: %v, want [go]", got)
 	}
@@ -282,7 +282,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
-	_, digests := Survey(os.DirFS(root))
+	_, digests, _ := Survey(os.DirFS(root))
 	if _, ok := digests["pkg:cargo/serde@1.0.0"]; !ok {
 		t.Errorf("walker did not dispatch Cargo.lock through cargo parser; got %v", digests)
 	}
@@ -303,7 +303,7 @@ checksum = "`+checksum+`"
 	logBuf, restore := captureSlog(t)
 	defer restore()
 
-	_, digests := Survey(os.DirFS(root))
+	_, digests, _ := Survey(os.DirFS(root))
 	if _, ok := digests["pkg:cargo/ok@1.0.0"]; !ok {
 		t.Errorf("sibling parser output lost: %v", digests)
 	}

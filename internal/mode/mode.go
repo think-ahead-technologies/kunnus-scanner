@@ -10,6 +10,7 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
 
 // Mode is a scan flavour. Implementations live in subpackages (mode/repo, mode/os).
@@ -45,6 +46,12 @@ type Plan struct {
 	Component       bom.ComponentInfo
 	Hashes          hashes.Map
 	ExtraComponents []bom.ExtraComponent
+
+	// Licenses holds raw licences mined offline from lockfiles during planning
+	// (e.g. composer.lock), keyed by conventional purl. The SBOM encoder
+	// normalizes and merges these with any licences scalibr put in the
+	// inventory. nil for modes/scans with no offline licence source.
+	Licenses license.Map
 }
 
 // Overrides captures user-facing flags that adjust what auto-detection chose.
