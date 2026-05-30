@@ -2,7 +2,7 @@
 // ABOUTME: One primitive shared by every registry fan-out so plugin selection cannot drift on ordering or dupes.
 package pluginset
 
-import "sort"
+import "slices"
 
 // Union returns the deduplicated, sorted union of the given plugin-name lists.
 // Empty input yields a non-nil empty slice. Every registry fan-out
@@ -20,6 +20,6 @@ func Union(lists ...[]string) []string {
 	for name := range seen {
 		out = append(out, name)
 	}
-	sort.Strings(out)
+	slices.Sort(out)
 	return out
 }

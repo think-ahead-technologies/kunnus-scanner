@@ -10,7 +10,7 @@ import (
 	"log/slog"
 	"os"
 	"path/filepath"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
@@ -103,7 +103,7 @@ func Survey(scanRoot string) ([]Hit, hashes.Map) {
 		}
 	}
 
-	sort.Slice(hits, func(i, j int) bool { return hits[i].RelPath < hits[j].RelPath })
+	slices.SortFunc(hits, func(a, b Hit) int { return strings.Compare(a.RelPath, b.RelPath) })
 	return hits, digests
 }
 

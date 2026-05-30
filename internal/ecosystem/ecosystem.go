@@ -7,7 +7,7 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
-	"sort"
+	"slices"
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
@@ -210,7 +210,7 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map) {
 	for e := range found {
 		ecosystems = append(ecosystems, e)
 	}
-	sort.Strings(ecosystems)
+	slices.Sort(ecosystems)
 	return ecosystems, digests
 }
 

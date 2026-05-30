@@ -5,7 +5,6 @@ package mode
 import (
 	"context"
 	"slices"
-	"sort"
 
 	scalibr "github.com/google/osv-scalibr"
 
@@ -79,6 +78,6 @@ func ApplyOverrides(plugins []string, ov Overrides) []string {
 	plugins = slices.DeleteFunc(plugins, func(p string) bool {
 		return slices.Contains(ov.DisablePlugins, p)
 	})
-	sort.Strings(plugins)
+	slices.Sort(plugins)
 	return plugins
 }
