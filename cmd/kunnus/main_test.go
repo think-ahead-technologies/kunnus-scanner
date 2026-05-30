@@ -6,6 +6,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"flag"
 	"io"
 	"net/http"
 	"net/http/httptest"
@@ -38,7 +39,18 @@ func buildBinary() (string, error) {
 		return "", err
 	}
 	out := filepath.Join(dir, "kunnus")
-	cmd := exec.Command("go", "build", "-o", out, "github.com/think-ahead/kunnus-scanner/cmd/kunnus")
+	args := []string{"build", "-o", out}
+	if testing.CoverMode() != "" {
+		// When the test run collects coverage, instrument the binary so the
+		// subprocess e2e exercises count toward the profile. -coverpkg spans the
+		// whole module because the command/ and mode/ wiring is reachable only
+		// through the binary — without this it shows as 0% despite being driven
+		// end-to-end here. Subprocess counters merge via GOCOVERDIR (see
+		// subprocessCoverDir). Builds without coverage stay uninstrumented.
+		args = append(args, "-cover", "-coverpkg=github.com/think-ahead/kunnus-scanner/...")
+	}
+	args = append(args, "github.com/think-ahead/kunnus-scanner/cmd/kunnus")
+	cmd := exec.Command("go", args...)
 	cmd.Stderr = os.Stderr
 	if err := cmd.Run(); err != nil {
 		return "", err
@@ -46,11 +58,44 @@ func buildBinary() (string, error) {
 	return out, nil
 }
 
+// subprocessCoverDir returns the directory an instrumented kunnus binary should
+// write its coverage data to, or "" when this run has no coverage enabled. When
+// enabled it returns the same directory `go test` uses for its own coverage
+// (passed as -test.gocoverdir), so the subprocess counters land in one place and
+// merge into the final profile. Call only after flags are parsed — i.e. from a
+// test, not from TestMain before m.Run.
+func subprocessCoverDir() string {
+	if testing.CoverMode() == "" {
+		return ""
+	}
+	if f := flag.Lookup("test.gocoverdir"); f != nil {
+		if dir := f.Value.String(); dir != "" {
+			return dir
+		}
+	}
+	return os.Getenv("GOCOVERDIR")
+}
+
+// withCoverEnv points cmd at the shared coverage directory via GOCOVERDIR when
+// coverage is enabled, so the instrumented binary records its counters. A no-op
+// otherwise. Preserves any environment the caller already set.
+func withCoverEnv(cmd *exec.Cmd) {
+	dir := subprocessCoverDir()
+	if dir == "" {
+		return
+	}
+	if cmd.Env == nil {
+		cmd.Env = os.Environ()
+	}
+	cmd.Env = append(cmd.Env, "GOCOVERDIR="+dir)
+}
+
 func runKunnus(t *testing.T, args ...string) (stdout, stderr string, err error) {
 	t.Helper()
 	ctx, cancel := context.WithTimeout(context.Background(), 60*time.Second)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, kunnusBin, args...)
+	withCoverEnv(cmd)
 	var out, errBuf strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
@@ -489,6 +534,7 @@ func TestCLI_Upload_MissingAPIKey(t *testing.T) {
 	// Clear any inherited env so the test is reproducible.
 	cmd := exec.Command(kunnusBin, "upload", sbom)
 	cmd.Env = append(os.Environ(), "KUNNUS_API_KEY=")
+	withCoverEnv(cmd)
 	var out, errBuf strings.Builder
 	cmd.Stdout = &out
 	cmd.Stderr = &errBuf
