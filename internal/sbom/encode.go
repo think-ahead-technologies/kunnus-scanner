@@ -42,12 +42,16 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	//   3. injectDepGraphCDX LAST among the joining stages: it iterates every
 	//      component's BOMRef, so any mutation that adds or renames components
 	//      must precede it.
-	//   4. normalizePURLsCDX after all PURL-keyed joins: it rewrites the emitted
+	//   4. injectLicensesCDX after dedup (so it sees one component per PURL) and
+	//      before normalizePURLsCDX: it indexes the inventory by the original
+	//      PURL strings, like the enrichment stages.
+	//   5. normalizePURLsCDX after all PURL-keyed joins: it rewrites the emitted
 	//      PURL strings, so it must run once every stage that matches on the
 	//      original strings is done.
 	dedupCDXComponents(cdxBom)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
+	injectLicensesCDX(cdxBom, result.Inventory)
 	injectCPEsCDX(cdxBom)
 	// Extras must be appended before injectHashesCDX so the hash injector sees
 	// them in its PURL index, and before injectDepGraphCDX so their BOMRefs

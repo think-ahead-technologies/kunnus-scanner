@@ -105,15 +105,19 @@ func sortedKeys(m map[string]bool) []string {
 	return out
 }
 
-// wants holds the expected purls and cpes declared in a fixture's want.txt.
+// wants holds the expected purls, cpes, and licenses declared in a fixture's
+// want.txt. The licenses field is parsed here for a shared corpus format but is
+// asserted only by the binary e2e tier, where the SBOM is encoded; this
+// scan-seam tier inspects the pre-encode inventory and so ignores it.
 type wants struct {
-	purls []string
-	cpes  []string
+	purls    []string
+	cpes     []string
+	licenses []string
 }
 
 // readWants parses dir/want.txt. Each non-blank, non-comment line is
-// "<kind> <value>" where kind is "purl" or "cpe". A missing want.txt is an
-// error — fixtures without expectations are not coverage.
+// "<kind> <value>" where kind is "purl", "cpe", or "license". A missing want.txt
+// is an error — fixtures without expectations are not coverage.
 func readWants(dir string) (wants, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
 	if err != nil {
@@ -135,6 +139,8 @@ func readWants(dir string) (wants, error) {
 			w.purls = append(w.purls, value)
 		case "cpe":
 			w.cpes = append(w.cpes, value)
+		case "license":
+			w.licenses = append(w.licenses, value)
 		default:
 			return wants{}, &parseError{line: line}
 		}
@@ -145,7 +151,7 @@ func readWants(dir string) (wants, error) {
 type parseError struct{ line string }
 
 func (e *parseError) Error() string {
-	return "malformed want.txt line (want \"purl <value>\" or \"cpe <value>\"): " + e.line
+	return "malformed want.txt line (want \"purl <value>\", \"cpe <value>\", or \"license <value>\"): " + e.line
 }
 
 // corpusDir resolves <module-root>/testdata/ecosystems. The corpus lives at the

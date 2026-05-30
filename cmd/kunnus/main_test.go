@@ -297,8 +297,15 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			var doc struct {
 				BOMFormat  string `json:"bomFormat"`
 				Components []struct {
-					PURL string `json:"purl"`
-					CPE  string `json:"cpe"`
+					PURL     string `json:"purl"`
+					CPE      string `json:"cpe"`
+					Licenses []struct {
+						License struct {
+							ID   string `json:"id"`
+							Name string `json:"name"`
+						} `json:"license"`
+						Expression string `json:"expression"`
+					} `json:"licenses"`
 				} `json:"components"`
 			}
 			if err := json.Unmarshal(data, &doc); err != nil {
@@ -310,12 +317,24 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 
 			purls := make(map[string]bool)
 			cpes := make(map[string]bool)
+			licenses := make(map[string]bool)
 			for _, c := range doc.Components {
 				if c.PURL != "" {
 					purls[c.PURL] = true
 				}
 				if c.CPE != "" {
 					cpes[c.CPE] = true
+				}
+				for _, l := range c.Licenses {
+					if l.License.ID != "" {
+						licenses[l.License.ID] = true
+					}
+					if l.License.Name != "" {
+						licenses[l.License.Name] = true
+					}
+					if l.Expression != "" {
+						licenses[l.Expression] = true
+					}
 				}
 			}
 
@@ -328,6 +347,11 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			for _, c := range w.cpes {
 				if !cpes[c] {
 					t.Errorf("family %q: expected cpe %q missing from SBOM", e.Name(), c)
+				}
+			}
+			for _, l := range w.licenses {
+				if !licenses[l] {
+					t.Errorf("family %q: expected license %q missing from SBOM", e.Name(), l)
 				}
 			}
 		})
@@ -360,14 +384,16 @@ func moduleRoot(t *testing.T) string {
 	}
 }
 
-// wants holds the expected purls and cpes declared in a fixture's want.txt.
+// wants holds the expected purls, cpes, and licenses declared in a fixture's
+// want.txt.
 type wants struct {
-	purls []string
-	cpes  []string
+	purls    []string
+	cpes     []string
+	licenses []string
 }
 
 // readWants parses dir/want.txt. Each non-blank, non-comment line is
-// "<kind> <value>" where kind is "purl" or "cpe".
+// "<kind> <value>" where kind is "purl", "cpe", or "license".
 func readWants(t *testing.T, dir string) wants {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
@@ -390,6 +416,8 @@ func readWants(t *testing.T, dir string) wants {
 			w.purls = append(w.purls, value)
 		case "cpe":
 			w.cpes = append(w.cpes, value)
+		case "license":
+			w.licenses = append(w.licenses, value)
 		default:
 			t.Fatalf("unknown want.txt kind %q in %s", kind, dir)
 		}

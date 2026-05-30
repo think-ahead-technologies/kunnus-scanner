@@ -5,9 +5,11 @@ go 1.26.3
 require (
 	github.com/BurntSushi/toml v1.5.0
 	github.com/CycloneDX/cyclonedx-go v0.11.0
+	github.com/github/go-spdx/v2 v2.7.0
 	github.com/google/go-containerregistry v0.20.6
 	github.com/google/osv-scalibr v0.4.5
 	github.com/google/uuid v1.6.0
+	github.com/opencontainers/go-digest v1.0.0
 	github.com/tidwall/jsonc v0.3.2
 	github.com/urfave/cli/v3 v3.9.0
 	gopkg.in/yaml.v3 v3.0.1
@@ -96,7 +98,6 @@ require (
 	github.com/moby/sys/user v0.4.0 // indirect
 	github.com/moby/sys/userns v0.1.0 // indirect
 	github.com/ncruces/go-strftime v0.1.9 // indirect
-	github.com/opencontainers/go-digest v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/opencontainers/runtime-spec v1.2.1 // indirect
 	github.com/opencontainers/selinux v1.12.0 // indirect
