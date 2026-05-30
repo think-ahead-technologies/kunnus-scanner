@@ -83,16 +83,29 @@ var all = []Ecosystem{
 // All returns the registered ecosystems.
 func All() []Ecosystem { return all }
 
+// ecosystemByFilename is the O(1) exact-name dispatch table for detection,
+// built once over every marker filename in every ecosystem. Keys are
+// lowercased so lookups are case-insensitive. Mirrors parsersByFilename, which
+// does the same for hash parsers.
+var ecosystemByFilename = buildEcosystemByFilename(all)
+
+func buildEcosystemByFilename(ecos []Ecosystem) map[string]string {
+	m := make(map[string]string)
+	for _, eco := range ecos {
+		for _, f := range eco.Filenames {
+			m[strings.ToLower(f)] = eco.Name
+		}
+	}
+	return m
+}
+
 // ForFile returns the ecosystem Name claimed by a marker filename
-// (case-insensitive), or "" if no ecosystem matches.
+// (case-insensitive), or "" if no ecosystem matches. Exact-name matches are an
+// O(1) map lookup; suffixes (a small set) fall back to a linear scan.
 func ForFile(name string) string {
 	lower := strings.ToLower(name)
-	for _, eco := range all {
-		for _, f := range eco.Filenames {
-			if strings.ToLower(f) == lower {
-				return eco.Name
-			}
-		}
+	if eco, ok := ecosystemByFilename[lower]; ok {
+		return eco
 	}
 	for _, eco := range all {
 		for _, suf := range eco.FilenameSuffixes {
