@@ -40,21 +40,7 @@ func Run(ctx context.Context, cfg *scalibr.ScanConfig) (*Result, error) {
 		return nil, fmt.Errorf("scan failed: %s", res.Status.FailureReason)
 	}
 
-	for _, ps := range res.PluginStatus {
-		if ps == nil || ps.Status == nil || ps.Status.FailureReason == "" {
-			continue
-		}
-		slog.Warn("scalibr plugin failed",
-			"name", ps.Name,
-			"version", ps.Version,
-			"reason", ps.Status.FailureReason,
-		)
-	}
-
-	return &Result{
-		Inventory:      res.Inventory,
-		PluginStatuses: res.PluginStatus,
-	}, nil
+	return resultFrom(res), nil
 }
 
 // RunContainer scans a container image. Unlike Run, it invokes
@@ -84,6 +70,13 @@ func RunContainer(ctx context.Context, img image.Image, cfg *scalibr.ScanConfig)
 		return nil, fmt.Errorf("container scan failed: %s", res.Status.FailureReason)
 	}
 
+	return resultFrom(res), nil
+}
+
+// resultFrom logs any per-plugin failures at warn level and wraps the scalibr
+// result into our Result. Shared by Run and RunContainer, whose post-scan
+// handling of partial failures is identical.
+func resultFrom(res *scalibr.ScanResult) *Result {
 	for _, ps := range res.PluginStatus {
 		if ps == nil || ps.Status == nil || ps.Status.FailureReason == "" {
 			continue
@@ -94,9 +87,8 @@ func RunContainer(ctx context.Context, img image.Image, cfg *scalibr.ScanConfig)
 			"reason", ps.Status.FailureReason,
 		)
 	}
-
 	return &Result{
 		Inventory:      res.Inventory,
 		PluginStatuses: res.PluginStatus,
-	}, nil
+	}
 }
