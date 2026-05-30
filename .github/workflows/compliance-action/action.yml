@@ -1,14 +1,20 @@
 name: compliance
-description: "Generates an SBOM and gates on its BSI TR-03183-2 v2 conformance score (sbomqs)"
+description: "Generates SBOMs and gates on their BSI TR-03183-2 v2 conformance score (sbomqs)"
 
 inputs:
-  threshold:
-    description: "Minimum BSI v2 required-elements score (0-10) the generated SBOM must reach"
+  repo-threshold:
+    description: "Minimum BSI v2 required-elements score for a repo (source) SBOM"
     required: false
-    # Current baseline is ~4.86. The dominant required gap is component licences
-    # (0/21) — adding them will lift this well past 7, at which point ratchet the
-    # floor up. See docs/sbom-properties.md for the conformance baseline.
+    # Repo scans carry no licences (scalibr's language extractors don't extract
+    # them), so this surface is capped lower by design — BSI permits omitting an
+    # unavailable field. Raise only if other required fields improve.
     default: "4.5"
+  os-threshold:
+    description: "Minimum BSI v2 required-elements score for an OS SBOM"
+    required: false
+    # OS scans carry apk/rpm licences, so this surface clears a higher bar.
+    # Current baseline ~7.4; ratchet up as further gaps close.
+    default: "7.0"
   sbomqs-version:
     description: "Pinned sbomqs version to install"
     required: false
@@ -25,24 +31,37 @@ runs:
     - name: Build kunnus
       shell: bash
       run: go build -o /tmp/kunnus ./cmd/kunnus
-    - name: Generate SBOM over the fixture corpus
-      shell: bash
-      # The ecosystem fixture corpus exercises every registered language
-      # ecosystem in one scan, so the conformance score reflects real output
-      # rather than a hand-built sample.
-      run: /tmp/kunnus sbom repo testdata/ecosystems -o /tmp/kunnus-sbom.json
     - name: Check BSI TR-03183-2 v2 conformance
       shell: bash
       env:
-        THRESHOLD: ${{ inputs.threshold }}
+        REPO_THRESHOLD: ${{ inputs.repo-threshold }}
+        OS_THRESHOLD: ${{ inputs.os-threshold }}
       run: |
-        # Human-readable report in the job log for diagnosis.
-        sbomqs compliance --bsi-v2 /tmp/kunnus-sbom.json || true
-        sbomqs compliance --bsi-v2 --json /tmp/kunnus-sbom.json > /tmp/bsi.json
-        required=$(jq -r '.summary.required_elements_score' /tmp/bsi.json)
-        total=$(jq -r '.summary.total_score' /tmp/bsi.json)
-        printf 'BSI v2 required-elements score: %.2f (threshold %s), total: %.2f\n' "$required" "$THRESHOLD" "$total"
-        if ! awk -v s="$required" -v t="$THRESHOLD" 'BEGIN { exit !(s+0 >= t+0) }'; then
-          echo "::error::BSI v2 required-elements score ${required} is below the required ${THRESHOLD}"
-          exit 1
-        fi
+        set -euo pipefail
+
+        # gate <label> <sbom-file> <threshold>
+        gate() {
+          local label="$1" file="$2" threshold="$3"
+          echo "::group::BSI v2 conformance — ${label}"
+          sbomqs compliance --bsi-v2 "$file" || true
+          echo "::endgroup::"
+          sbomqs compliance --bsi-v2 --json "$file" > "${file}.bsi.json"
+          local required total
+          required=$(jq -r '.summary.required_elements_score' "${file}.bsi.json")
+          total=$(jq -r '.summary.total_score' "${file}.bsi.json")
+          printf '%s: required=%.2f (threshold %s), total=%.2f\n' "$label" "$required" "$threshold" "$total"
+          if ! awk -v s="$required" -v t="$threshold" 'BEGIN { exit !(s+0 >= t+0) }'; then
+            echo "::error::${label} BSI v2 required-elements score ${required} is below ${threshold}"
+            return 1
+          fi
+        }
+
+        # The ecosystem corpus exercises every language ecosystem in one scan;
+        # the alpine fixture exercises OS packages with apk licences.
+        /tmp/kunnus sbom repo testdata/ecosystems -o /tmp/repo.cdx.json
+        /tmp/kunnus sbom os --target-os linux testdata/osfamilies/alpine -o /tmp/os.cdx.json
+
+        rc=0
+        gate "repo" /tmp/repo.cdx.json "$REPO_THRESHOLD" || rc=1
+        gate "os" /tmp/os.cdx.json "$OS_THRESHOLD" || rc=1
+        exit "$rc"

@@ -27,8 +27,10 @@ cover:
 # anything that affects SBOM field output to see the score move.
 compliance: build
 	go install github.com/interlynk-io/sbomqs@$(SBOMQS_VERSION)
-	$(BINARY) sbom repo testdata/ecosystems -o /tmp/kunnus-sbom.json
-	sbomqs compliance --bsi-v2 /tmp/kunnus-sbom.json
+	$(BINARY) sbom repo testdata/ecosystems -o /tmp/repo.cdx.json
+	$(BINARY) sbom os --target-os linux testdata/osfamilies/alpine -o /tmp/os.cdx.json
+	@echo "== repo SBOM ==" && sbomqs compliance --bsi-v2 /tmp/repo.cdx.json
+	@echo "== os SBOM (apk licences) ==" && sbomqs compliance --bsi-v2 /tmp/os.cdx.json
 
 lint:
 	golangci-lint run $(PKG)
