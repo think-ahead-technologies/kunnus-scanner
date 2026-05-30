@@ -11,7 +11,9 @@ import (
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/java/archive"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/packagejson"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/lua/luarocks"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemspec"
 )
 
 // manifestLicenseParsers maps a scalibr extractor name to the parser that reads
@@ -24,6 +26,8 @@ var manifestLicenseParsers = map[string]func(io.Reader) ([]string, error){
 	packagejson.Name: parsePackageJSONLicense,
 	wheelegg.Name:    parseWheelMetadataLicense,
 	archive.Name:     parseJavaArchiveLicense,
+	luarocks.Name:    parseRockspecLicense,
+	gemspec.Name:     parseGemspecLicense,
 }
 
 // ManifestLicenseParser returns the parser for the per-package manifest produced

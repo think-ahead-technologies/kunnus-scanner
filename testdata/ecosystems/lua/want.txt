@@ -3,3 +3,5 @@
 # under rocks-5.4/mylib/1.0-1/ for the extractor to fire.
 purl pkg:lua/mylib@1.0-1
 cpe  cpe:2.3:a:mylib:mylib:1.0-1:*:*:*:*:*:*:*
+# Licence mined offline from the rockspec's `license = "MIT"`.
+license MIT

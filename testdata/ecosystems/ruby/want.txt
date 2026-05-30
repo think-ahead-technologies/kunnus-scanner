@@ -1,3 +1,6 @@
-# ruby — sourced from the GEM specs in Gemfile.lock.
+# ruby — rake from Gemfile.lock (no licence there); mygem from a .gemspec, whose
+# `s.licenses` is mined offline by the manifest enricher.
 purl pkg:gem/rake@13.0.6
 cpe  cpe:2.3:a:rake:rake:13.0.6:*:*:*:*:*:*:*
+purl pkg:gem/mygem@2.0.0
+license MIT
