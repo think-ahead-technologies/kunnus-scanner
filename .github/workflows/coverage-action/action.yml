@@ -1,0 +1,31 @@
+name: coverage
+description: "Runs go tests with coverage and enforces a minimum total threshold"
+
+inputs:
+  threshold:
+    description: "Minimum total statement coverage percentage required to pass"
+    required: false
+    default: "83"
+
+runs:
+  using: composite
+  steps:
+    # -coverpkg spans the whole module so the command/ and mode/ wiring reached
+    # only through the cmd/kunnus binary is attributed. The e2e harness builds
+    # that binary with -cover and merges its counters via GOCOVERDIR (see
+    # cmd/kunnus/main_test.go). -race is intentionally omitted: the race signal
+    # comes from the separate test job; here we only measure coverage.
+    - name: Run tests with coverage
+      shell: bash
+      run: go test -count=1 -coverpkg=./... -coverprofile=coverage.out ./...
+    - name: Enforce coverage threshold
+      shell: bash
+      env:
+        THRESHOLD: ${{ inputs.threshold }}
+      run: |
+        total=$(go tool cover -func=coverage.out | awk '/^total:/ {print $NF}' | tr -d '%')
+        echo "Total coverage: ${total}% (threshold: ${THRESHOLD}%)"
+        if ! awk -v t="$total" -v min="$THRESHOLD" 'BEGIN { exit !(t+0 >= min+0) }'; then
+          echo "::error::Total coverage ${total}% is below the required ${THRESHOLD}%"
+          exit 1
+        fi

@@ -80,6 +80,23 @@ jobs:
           check-latest: true
       - name: Run test action
         uses: ./.github/workflows/test-action
+  coverage:
+    permissions:
+      contents: read
+    name: Coverage threshold
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          persist-credentials: false
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+      - name: Run coverage action
+        uses: ./.github/workflows/coverage-action
   docker:
     permissions:
       contents: read
