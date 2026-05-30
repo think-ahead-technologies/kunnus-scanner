@@ -85,15 +85,12 @@ with its own required-elements floor:
 - **os** — `sbom os --target-os linux testdata/osfamilies/alpine`, baseline
   required ≈ 7.4 / 10.
 
-The two differ mainly on **licences**. Licences are normalized to SPDX
-identifiers / expressions (or a `LicenseRef-kunnus-…` fallback) in
-`internal/license` and attached as `components[].licenses[]` with
-acknowledgement `concluded`. But scalibr only extracts licence data for apk/rpm
-packages — its language extractors do not — so:
-
-- **OS / container scans** carry licences and clear the higher bar.
-- **repo (source) scans** carry none; BSI permits omitting an unavailable field,
-  so this surface is capped lower by design, not by a bug.
+The two differ mainly on **licences** and per-package hashes. Licences are
+sourced from package data (OS extractors, Debian copyright files, lockfiles,
+installed manifests, and optionally deps.dev) and normalized to SPDX in
+`internal/license` — see [licenses.md](licenses.md) for the full per-ecosystem
+coverage. The OS surface scores higher mainly because its hashes and licences
+are more consistently available.
 
 Remaining required-field gaps, in priority order:
 

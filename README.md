@@ -93,7 +93,8 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 Override flags (`--target-os`, `--ecosystem`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only feature that uses the network; off by default).
 
 The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
-[docs/sbom-properties.md](docs/sbom-properties.md) for the full reference.
+[docs/sbom-properties.md](docs/sbom-properties.md) for the full reference, and
+[docs/licenses.md](docs/licenses.md) for per-ecosystem licence coverage.
 
 ## Architecture
 
