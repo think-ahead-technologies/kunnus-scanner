@@ -20,17 +20,18 @@ distribution-licence field), deduplicated per component.
 
 ## Sources
 
-Licences come from five sources, in order of how directly they describe the
-component. All but the last are **offline**; the scan stays fully offline unless
-`--online-licenses` is passed.
+Licences come from six sources. All are **offline** except deps.dev (source 5);
+the scan stays fully offline unless `--online-licenses` is passed.
 
 1. **OS package extractors** — apk and rpm carry the licence in their package
    database; scalibr surfaces it directly.
 2. **Debian/Ubuntu copyright files** — dpkg's status DB has no licence, so an
-   enricher reads each package's `usr/share/doc/<name>/copyright`: the structured
-   DEP-5 `License:` fields first (mapped from Debian short names to SPDX), and
-   when a copyright is free-text it falls back to the full-text classifier
-   (source 6). The classifier never overrides a DEP-5 declaration.
+   enricher reads each package's `usr/share/doc/<name>/copyright`, cheapest and
+   most precise first: structured DEP-5 `License:` fields, then
+   `/usr/share/common-licenses/<NAME>` path references (the licence is named by
+   the path), and only if neither is present the full-text classifier (source 6).
+   Each step is deterministic except the last; nothing overrides a structured
+   result.
 3. **Lockfiles** — formats that embed a per-package licence (today: `composer.lock`).
 4. **Installed-package manifests** — each package's own manifest, re-read offline
    by an enricher: npm `package.json`, Python `METADATA`/`PKG-INFO`, Java JAR
@@ -55,7 +56,7 @@ component. All but the last are **offline**; the scan stays fully offline unless
 |---|---|---|---|
 | Alpine (apk) | apk extractor | — | full |
 | RHEL/SUSE/Fedora (rpm) | rpm extractor | — | full |
-| Debian/Ubuntu (deb) | copyright: DEP-5 + text classifier | — | ~99%; only copyrights that merely point to /usr/share/common-licenses miss |
+| Debian/Ubuntu (deb) | copyright: DEP-5 / common-licenses / classifier | — | ~99%; rare misses are pointer-less free-text with no inline licence |
 | npm | installed `package.json` | ✓ | offline covers installed/container scans |
 | Python (pypi) | wheel `METADATA` | ✓ | offline covers installed/container scans |
 | Java (maven) | JAR `pom.xml` / `Bundle-License` | ✓ | offline = installed JARs; parent-pom-inherited licences not in the JAR |
@@ -77,22 +78,21 @@ Offline scans of public images (no `--online-licenses`):
 | Image | Coverage |
 |---|---|
 | `node:20-alpine` | npm 193/193, apk 18/18 |
-| `ruby:3.3` | gem 86/86, deb 449/455 |
+| `ruby:3.3` | gem 86/86, deb 451/455 |
 | `python:3.12-alpine` | pip 1/1, apk 37/38 |
 | `tomcat:10.1-jre21` | maven 26/29 (Apache-2.0) |
 
 Benchmarked against syft/trivy (see `.github/workflows/sbom-compare.yml`),
 offline coverage is at parity: language ecosystems and apk tie, and Debian is
-within a handful of packages (ruby:3.3 overall 537/543 vs syft 540/542) now that
+within a handful of packages (ruby:3.3 overall 539/543 vs syft 540/542) now that
 the copyright enricher falls back to the same kind of full-text classifier
 syft/trivy use.
 
 ## Known limitations
 
-- **Debian pointer-only copyright** — a few packages whose copyright neither
-  declares a DEP-5 `License:` nor inlines the licence text (it merely points to
-  `/usr/share/common-licenses/…`) cannot be resolved: there is no text to parse
-  or classify.
+- **Debian pointer-less free-text** — the few remaining misses are copyrights
+  with no DEP-5 `License:`, no `/usr/share/common-licenses/` reference, and no
+  inline licence text the classifier can match.
 - **Java parent-pom inheritance** — a JAR whose licence is declared only in a
   parent pom not shipped inside the archive cannot be recovered offline. (The
   `license.Classify` fallback could be extended to a JAR's bundled LICENSE text.)

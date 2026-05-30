@@ -53,6 +53,49 @@ func TestParseDEP5(t *testing.T) {
 	}
 }
 
+func TestCommonLicensePointers(t *testing.T) {
+	cases := map[string]struct {
+		copyright string
+		want      []string
+	}{
+		"versioned GPL pointer": {
+			"On Debian systems the full text is in /usr/share/common-licenses/GPL-2.\n",
+			[]string{"GPL-2.0-only"},
+		},
+		"apache + bsd": {
+			"see /usr/share/common-licenses/Apache-2.0\nand /usr/share/common-licenses/BSD\n",
+			[]string{"Apache-2.0", "BSD-3-Clause"},
+		},
+		"bare GPL symlink is skipped (ambiguous version)": {
+			"see /usr/share/common-licenses/GPL\n",
+			nil,
+		},
+		"none": {"no pointer here\n", nil},
+	}
+	for name, tc := range cases {
+		t.Run(name, func(t *testing.T) {
+			got := commonLicensePointers([]byte(tc.copyright))
+			if !reflect.DeepEqual(got, tc.want) {
+				t.Errorf("got %v, want %v", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestLicensesFromCopyright_Priority(t *testing.T) {
+	// DEP-5 is authoritative: its "GPL-2+" wins over the GPL-2 pointer in the
+	// same file (the classifier is not consulted).
+	dep5AndPointer := "Files: *\nLicense: GPL-2+\n On Debian see /usr/share/common-licenses/GPL-2\n"
+	if got := licensesFromCopyright([]byte(dep5AndPointer)); !reflect.DeepEqual(got, []string{"GPL-2.0-or-later"}) {
+		t.Errorf("DEP-5+pointer = %v, want [GPL-2.0-or-later] (DEP-5 wins)", got)
+	}
+	// Pointer-only (no DEP-5, no inline text): resolved by the pointer, cheaply.
+	pointerOnly := "This package is free software.\nOn Debian see /usr/share/common-licenses/GPL-3 for the full text.\n"
+	if got := licensesFromCopyright([]byte(pointerOnly)); !reflect.DeepEqual(got, []string{"GPL-3.0-only"}) {
+		t.Errorf("pointer-only = %v, want [GPL-3.0-only]", got)
+	}
+}
+
 func TestLicensesFromCopyright_ClassifierFallback(t *testing.T) {
 	// A DEP-5 declaration is used as-is (deterministic), and the classifier is
 	// never consulted for it.

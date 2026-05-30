@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"regexp"
 	"strings"
 
 	"github.com/google/osv-scalibr/enricher"
@@ -81,17 +82,67 @@ func (*Enricher) Enrich(_ context.Context, input *enricher.ScanInput, inv *inven
 	return nil
 }
 
-// licensesFromCopyright extracts licences from a Debian copyright file. It tries
-// the structured, deterministic DEP-5 form first; only when that declares no
-// licence does it fall back to the probabilistic full-text classifier, so the
-// classifier never overrides an explicit declaration. Free-text copyright that
-// inlines a recognisable licence is thus still resolved; a copyright that merely
-// points elsewhere (e.g. /usr/share/common-licenses) yields nothing.
+// licensesFromCopyright extracts licences from a Debian copyright file, cheapest
+// and most precise first:
+//  1. structured DEP-5 "License:" fields (authoritative — carries "+" or-later);
+//  2. references to /usr/share/common-licenses/<NAME> (the licence is named by
+//     the path, so no text needs reading);
+//  3. only if neither is present, the probabilistic full-text classifier.
+//
+// The classifier never overrides a structured result, and most copyrights are
+// resolved by steps 1–2 without it.
 func licensesFromCopyright(data []byte) []string {
 	if lics := parseDEP5(data); len(lics) > 0 {
 		return lics
 	}
+	if lics := commonLicensePointers(data); len(lics) > 0 {
+		return lics
+	}
 	return license.Classify(data)
+}
+
+// commonLicenseRe captures the licence name from a /usr/share/common-licenses/
+// reference, e.g. "…/common-licenses/GPL-2" -> "GPL-2".
+var commonLicenseRe = regexp.MustCompile(`/usr/share/common-licenses/([0-9A-Za-z_.+-]*[0-9A-Za-z+])`)
+
+// commonLicensePointers returns the SPDX licences a copyright references by path
+// under /usr/share/common-licenses. Only versioned names map; the bare GPL /
+// LGPL / GFDL symlinks are version-ambiguous and deliberately skipped rather
+// than guess a version.
+func commonLicensePointers(data []byte) []string {
+	var out []string
+	seen := make(map[string]bool)
+	for _, m := range commonLicenseRe.FindAllSubmatch(data, -1) {
+		id, ok := commonLicenseToSPDX[string(m[1])]
+		if !ok || id == "" || seen[id] {
+			continue
+		}
+		seen[id] = true
+		out = append(out, id)
+	}
+	return out
+}
+
+// commonLicenseToSPDX maps /usr/share/common-licenses/ filenames to SPDX ids.
+// A bare path reference names the base licence only, so version-with-"+" nuance
+// (which lives in the DEP-5 "License:" field, checked first) is not represented
+// here. Bare "GPL"/"LGPL"/"GFDL" are omitted — they symlink to the newest
+// version and naming a specific one would be a guess.
+var commonLicenseToSPDX = map[string]string{
+	"Apache-2.0": "Apache-2.0",
+	"Artistic":   "Artistic-1.0",
+	"BSD":        "BSD-3-Clause", // Debian's common-licenses/BSD is the 3-clause form
+	"CC0-1.0":    "CC0-1.0",
+	"GFDL-1.2":   "GFDL-1.2-only",
+	"GFDL-1.3":   "GFDL-1.3-only",
+	"GPL-1":      "GPL-1.0-only",
+	"GPL-2":      "GPL-2.0-only",
+	"GPL-3":      "GPL-3.0-only",
+	"LGPL-2":     "LGPL-2.0-only",
+	"LGPL-2.1":   "LGPL-2.1-only",
+	"LGPL-3":     "LGPL-3.0-only",
+	"MPL-1.1":    "MPL-1.1",
+	"MPL-2.0":    "MPL-2.0",
 }
 
 // parseDEP5 extracts the SPDX licences declared in a DEP-5 copyright file. It
