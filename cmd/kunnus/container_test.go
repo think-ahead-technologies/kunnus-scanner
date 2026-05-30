@@ -4,6 +4,7 @@ package main_test
 
 import (
 	"archive/tar"
+	"archive/zip"
 	"bytes"
 	"encoding/json"
 	"os"
@@ -31,9 +32,17 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	// Python dist-info METADATA. Container scans use installed-state extractors,
 	// not lockfiles, and the manifest-license enricher recovers the licence each
 	// manifest declares but scalibr drops.
+	// A Java JAR carries its identity (pom.properties) and licence (pom.xml)
+	// inside the zip; the enricher cracks it open offline.
+	coollib := jarBytes(t, map[string]string{
+		"META-INF/maven/com.example/coollib/pom.properties": "groupId=com.example\nartifactId=coollib\nversion=1.0\n",
+		"META-INF/maven/com.example/coollib/pom.xml": `<project xmlns="http://maven.apache.org/POM/4.0.0">` +
+			`<licenses><license><name>Apache License, Version 2.0</name></license></licenses></project>`,
+	})
 	appLayer := layerFromFiles(t, map[string]string{
 		"app/node_modules/left-pad/package.json":             `{"name":"left-pad","version":"1.3.0","license":"WTFPL"}`,
 		"app/site-packages/coolpkg-2.5.0.dist-info/METADATA": "Metadata-Version: 2.4\nName: coolpkg\nVersion: 2.5.0\nLicense-Expression: BSD-3-Clause\n",
+		"app/lib/coollib-1.0.jar":                            coollib,
 	})
 	tarPath := writeImageTarball(t, osLayer, appLayer)
 
@@ -127,6 +136,9 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	}
 	if got := licenceFor("pkg:pypi/coolpkg@2.5.0"); got != "BSD-3-Clause" {
 		t.Errorf("coolpkg licence = %q, want BSD-3-Clause (recovered from dist-info METADATA)", got)
+	}
+	if got := licenceFor("pkg:maven/com.example/coollib@1.0"); got != "Apache-2.0" {
+		t.Errorf("coollib licence = %q, want Apache-2.0 (recovered from the JAR's embedded pom.xml)", got)
 	}
 
 	// The image's operating system is emitted as its own component, named by the
@@ -224,6 +236,27 @@ func layerIndexFor(components []struct {
 }
 
 func contains(s, sub string) bool { return bytes.Contains([]byte(s), []byte(sub)) }
+
+// jarBytes builds an in-memory .jar (a zip) from a path→content map and returns
+// its bytes as a string, suitable as file content for layerFromFiles.
+func jarBytes(t *testing.T, files map[string]string) string {
+	t.Helper()
+	var buf bytes.Buffer
+	zw := zip.NewWriter(&buf)
+	for name, content := range files {
+		w, err := zw.Create(name)
+		if err != nil {
+			t.Fatalf("jar create %s: %v", name, err)
+		}
+		if _, err := w.Write([]byte(content)); err != nil {
+			t.Fatalf("jar write %s: %v", name, err)
+		}
+	}
+	if err := zw.Close(); err != nil {
+		t.Fatalf("jar close: %v", err)
+	}
+	return buf.String()
+}
 
 // layerFromFiles builds a single image layer from a path→content map, emitting
 // explicit parent-directory entries so the scalibr layer FS resolves each file.

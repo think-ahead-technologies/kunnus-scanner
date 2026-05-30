@@ -9,6 +9,7 @@ import (
 	"net/textproto"
 	"strings"
 
+	"github.com/google/osv-scalibr/extractor/filesystem/language/java/archive"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/javascript/packagejson"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/python/wheelegg"
 )
@@ -22,6 +23,7 @@ import (
 var manifestLicenseParsers = map[string]func(io.Reader) ([]string, error){
 	packagejson.Name: parsePackageJSONLicense,
 	wheelegg.Name:    parseWheelMetadataLicense,
+	archive.Name:     parseJavaArchiveLicense,
 }
 
 // ManifestLicenseParser returns the parser for the per-package manifest produced
