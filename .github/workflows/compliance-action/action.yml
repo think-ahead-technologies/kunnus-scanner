@@ -1,0 +1,48 @@
+name: compliance
+description: "Generates an SBOM and gates on its BSI TR-03183-2 v2 conformance score (sbomqs)"
+
+inputs:
+  threshold:
+    description: "Minimum BSI v2 required-elements score (0-10) the generated SBOM must reach"
+    required: false
+    # Current baseline is ~4.86. The dominant required gap is component licences
+    # (0/21) — adding them will lift this well past 7, at which point ratchet the
+    # floor up. See docs/sbom-properties.md for the conformance baseline.
+    default: "4.5"
+  sbomqs-version:
+    description: "Pinned sbomqs version to install"
+    required: false
+    default: "v1.3.0"
+
+runs:
+  using: composite
+  steps:
+    - name: Install sbomqs (pinned)
+      shell: bash
+      env:
+        SBOMQS_VERSION: ${{ inputs.sbomqs-version }}
+      run: go install "github.com/interlynk-io/sbomqs@${SBOMQS_VERSION}"
+    - name: Build kunnus
+      shell: bash
+      run: go build -o /tmp/kunnus ./cmd/kunnus
+    - name: Generate SBOM over the fixture corpus
+      shell: bash
+      # The ecosystem fixture corpus exercises every registered language
+      # ecosystem in one scan, so the conformance score reflects real output
+      # rather than a hand-built sample.
+      run: /tmp/kunnus sbom repo testdata/ecosystems -o /tmp/kunnus-sbom.json
+    - name: Check BSI TR-03183-2 v2 conformance
+      shell: bash
+      env:
+        THRESHOLD: ${{ inputs.threshold }}
+      run: |
+        # Human-readable report in the job log for diagnosis.
+        sbomqs compliance --bsi-v2 /tmp/kunnus-sbom.json || true
+        sbomqs compliance --bsi-v2 --json /tmp/kunnus-sbom.json > /tmp/bsi.json
+        required=$(jq -r '.summary.required_elements_score' /tmp/bsi.json)
+        total=$(jq -r '.summary.total_score' /tmp/bsi.json)
+        printf 'BSI v2 required-elements score: %.2f (threshold %s), total: %.2f\n' "$required" "$THRESHOLD" "$total"
+        if ! awk -v s="$required" -v t="$THRESHOLD" 'BEGIN { exit !(s+0 >= t+0) }'; then
+          echo "::error::BSI v2 required-elements score ${required} is below the required ${THRESHOLD}"
+          exit 1
+        fi

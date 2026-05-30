@@ -74,6 +74,35 @@ Present **only for repo scans** (`kunnus sbom repo`), on the synthetic
 |---|---|---|
 | `kunnus:vendored:file` | `<path>:<algorithm>:<hex>` | One per fingerprinted source file in the vendored library. Records the per-file digest the platform uses to recover which file each `component.hashes[]` entry belongs to. `algorithm` is e.g. `MD5`; `path` is relative to the library directory, posix-separated. |
 
+## BSI TR-03183-2 conformance baseline
+
+CI gates on the BSI v2 conformance score of a generated SBOM via
+[sbomqs](https://github.com/interlynk-io/sbomqs) (the `compliance` job / `make
+compliance`). It scans the `testdata/ecosystems` corpus and scores the result
+with `sbomqs compliance --bsi-v2`.
+
+Current baseline (sbomqs v1.3.0): **required-elements ≈ 4.9 / 10**, total ≈ 3.6.
+The gate floor is the required-elements score. Known required-field gaps holding
+it down, in priority order:
+
+- **Distribution licences** — not emitted on any component (`associated license:
+  not-compliant`, 0/21). This is the dominant lever; scalibr extracts licence
+  strings for apk/rpm packages but the converter drops them. Closing this lifts
+  the score the most.
+- **Component creator** — missing on ~1/3 of components (7/21). The PURL→creator
+  derivation in `supplier.go` only covers some ecosystems; swift, haskell, lua,
+  r, and generic/vendored C/C++ produce no creator. (Note: sbomqs accepts our
+  CycloneDX `supplier` for this field, so the populated ones pass.)
+- **Deployable hash** — present only where a lockfile supplies one. The spec
+  permits omission when unavailable, so this is expected for source scans.
+
+Optional fields we deliberately do not emit (signature, source-code URI,
+deployable-form URI, declared/concluded licence) lower the optional score but
+not conformance.
+
+When a gap is closed, raise the threshold in
+`.github/workflows/compliance-action/action.yml` to lock in the gain.
+
 ## Where component locations live
 
 Because the property table above only carries a single `bsi:component:filename`,
