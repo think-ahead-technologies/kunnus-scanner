@@ -30,14 +30,18 @@ func enrichCDXComponents(bom *cyclonedx.BOM, inv inventory.Inventory) {
 			}
 		}
 
-		// Properties need extractor metadata (Locations + Plugins).
-		pkg := byPURL[c.PackageURL]
-		if pkg == nil {
+		// Properties need extractor metadata (Locations + Plugins). A PURL can
+		// map to several packages — the same version found by different
+		// extractors, at different paths, or in different image layers — so we
+		// pass them all and let the property builders aggregate, rather than
+		// pick an arbitrary winner.
+		pkgs := byPURL[c.PackageURL]
+		if len(pkgs) == 0 {
 			return
 		}
-		applyBSIProps(c, bsiProperties(pkg))
+		applyBSIProps(c, bsiProperties(pkgs))
 		// Layer attribution for container scans; nil (no-op) otherwise.
-		applyBSIProps(c, layerProperties(pkg))
+		applyBSIProps(c, layerProperties(pkgs))
 	})
 }
 
@@ -67,8 +71,14 @@ func appendExtraComponents(b *cyclonedx.BOM, extras []bom.ExtraComponent) {
 	}
 }
 
-func indexInventoryByPURL(inv inventory.Inventory) map[string]*extractor.Package {
-	out := make(map[string]*extractor.Package, len(inv.Packages))
+// indexInventoryByPURL groups every package by its PURL string. A PURL is a
+// unique package coordinate, but scalibr can emit more than one package for it:
+// the same version found by different extractors, at different locations, or in
+// different image layers. Returning all of them (in inventory order, which is
+// deterministic for a scan) lets enrichment aggregate their metadata instead of
+// keeping a single arbitrary winner.
+func indexInventoryByPURL(inv inventory.Inventory) map[string][]*extractor.Package {
+	out := make(map[string][]*extractor.Package, len(inv.Packages))
 	for _, p := range inv.Packages {
 		if p == nil {
 			continue
@@ -77,7 +87,7 @@ func indexInventoryByPURL(inv inventory.Inventory) map[string]*extractor.Package
 		if purl == nil {
 			continue
 		}
-		out[purl.String()] = p
+		out[purl.String()] = append(out[purl.String()], p)
 	}
 	return out
 }

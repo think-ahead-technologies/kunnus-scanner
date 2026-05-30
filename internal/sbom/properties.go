@@ -3,7 +3,10 @@
 package sbom
 
 import (
+	"cmp"
+	"slices"
 	"strconv"
+	"strings"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
@@ -12,31 +15,87 @@ import (
 // Layer-attribution property keys. Populated for container scans, where
 // scalibr traces which image layer introduced each package. Absent for repo
 // and OS scans, which have no layer dimension.
+//
+// The singular index/diffid/command/in_base_image keys describe the introducing
+// (lowest-index) layer. When a package occupies more than one layer, the plural
+// indices/diffids keys carry the full set so attribution is not lost to the
+// single-layer keys.
 const (
 	layerPropIndex       = "kunnus:layer:index"
 	layerPropDiffID      = "kunnus:layer:diffid"
 	layerPropCommand     = "kunnus:layer:command"
 	layerPropInBaseImage = "kunnus:layer:in_base_image"
+	layerPropIndices     = "kunnus:layer:indices"
+	layerPropDiffIDs     = "kunnus:layer:diffids"
 )
 
-// layerProperties returns the layer-attribution properties for a package, or
-// nil when the package carries no layer metadata (every non-container scan).
-// The diffID and command keys are omitted when empty so we never emit blank
-// property values.
-func layerProperties(p *extractor.Package) map[string]string {
-	lm := p.LayerMetadata
-	if lm == nil {
+// layerProperties returns the layer-attribution properties aggregated across
+// every package sharing a PURL, or nil when none carry layer metadata (every
+// non-container scan). The singular keys describe the introducing layer (lowest
+// index); when the package spans multiple layers, the plural keys list all of
+// them so no layer is dropped. diffID and command keys are omitted when empty so
+// we never emit blank property values.
+func layerProperties(pkgs []*extractor.Package) map[string]string {
+	var layers []*extractor.LayerMetadata
+	for _, p := range pkgs {
+		if p != nil && p.LayerMetadata != nil {
+			layers = append(layers, p.LayerMetadata)
+		}
+	}
+	if len(layers) == 0 {
 		return nil
 	}
+	// Sort by layer index so the introducing layer is first and the aggregated
+	// sets below are deterministic regardless of inventory order.
+	slices.SortFunc(layers, func(a, b *extractor.LayerMetadata) int {
+		return cmp.Compare(a.Index, b.Index)
+	})
+
+	intro := layers[0]
 	out := map[string]string{
-		layerPropIndex:       strconv.Itoa(lm.Index),
-		layerPropInBaseImage: strconv.FormatBool(lm.BaseImageIndex > 0),
+		layerPropIndex:       strconv.Itoa(intro.Index),
+		layerPropInBaseImage: strconv.FormatBool(intro.BaseImageIndex > 0),
 	}
-	if d := lm.DiffID.String(); d != "" {
+	if d := intro.DiffID.String(); d != "" {
 		out[layerPropDiffID] = d
 	}
-	if lm.Command != "" {
-		out[layerPropCommand] = lm.Command
+	if intro.Command != "" {
+		out[layerPropCommand] = intro.Command
+	}
+
+	// Multi-layer: record the full set of layer indices and diffIDs. The
+	// per-layer Command is intentionally not aggregated — it can contain commas
+	// (breaking the comma-joined form) and is recoverable from the image config
+	// via the diffID.
+	indices := distinctSortedIndices(layers)
+	if len(indices) > 1 {
+		strIdx := make([]string, len(indices))
+		for i, idx := range indices {
+			strIdx[i] = strconv.Itoa(idx)
+		}
+		out[layerPropIndices] = strings.Join(strIdx, ",")
+
+		var diffIDs []string
+		for _, lm := range layers {
+			if d := lm.DiffID.String(); d != "" && !slices.Contains(diffIDs, d) {
+				diffIDs = append(diffIDs, d)
+			}
+		}
+		if len(diffIDs) > 0 {
+			out[layerPropDiffIDs] = strings.Join(diffIDs, ",")
+		}
+	}
+	return out
+}
+
+// distinctSortedIndices returns the unique layer indices in ascending order.
+// layers must already be sorted by Index (layerProperties guarantees this).
+func distinctSortedIndices(layers []*extractor.LayerMetadata) []int {
+	var out []int
+	for _, lm := range layers {
+		if len(out) == 0 || out[len(out)-1] != lm.Index {
+			out = append(out, lm.Index)
+		}
 	}
 	return out
 }
@@ -51,30 +110,37 @@ const (
 	bsiPropStructured = "bsi:component:structured"
 )
 
-// bsiProperties returns the property map BSI expects for a single
-// scalibr package. The filename key is omitted when no location is known —
+// bsiProperties returns the property map BSI expects, aggregated across every
+// package sharing a PURL. The executable/archive/structured flags are OR'd over
+// all of them — if any source is, say, an archive, the component is. The
+// filename takes the first known location (the full set rides in the component's
+// evidence occurrences); it is omitted when no package has a location, since
 // callers must not emit an empty filename property.
-func bsiProperties(p *extractor.Package) map[string]string {
+func bsiProperties(pkgs []*extractor.Package) map[string]string {
 	out := map[string]string{
 		bsiPropExecutable: "false",
 		bsiPropArchive:    "false",
 		bsiPropStructured: "false",
 	}
 
-	if len(p.Locations) > 0 && p.Locations[0] != "" {
-		out[bsiPropFilename] = p.Locations[0]
-	}
-
-	for _, plugin := range p.Plugins {
-		class := classifyPlugin(plugin)
-		if class.executable {
-			out[bsiPropExecutable] = "true"
+	for _, p := range pkgs {
+		if p == nil {
+			continue
 		}
-		if class.archive {
-			out[bsiPropArchive] = "true"
+		if _, set := out[bsiPropFilename]; !set && len(p.Locations) > 0 && p.Locations[0] != "" {
+			out[bsiPropFilename] = p.Locations[0]
 		}
-		if class.structured {
-			out[bsiPropStructured] = "true"
+		for _, plugin := range p.Plugins {
+			class := classifyPlugin(plugin)
+			if class.executable {
+				out[bsiPropExecutable] = "true"
+			}
+			if class.archive {
+				out[bsiPropArchive] = "true"
+			}
+			if class.structured {
+				out[bsiPropStructured] = "true"
+			}
 		}
 	}
 	return out

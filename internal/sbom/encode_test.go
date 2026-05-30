@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
+	"github.com/opencontainers/go-digest"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
@@ -89,6 +90,84 @@ func TestEncode_CycloneDX(t *testing.T) {
 	if !strings.Contains(buf.String(), "testify") {
 		t.Error("CycloneDX output missing testify")
 	}
+}
+
+func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
+	// The same package version can be present in more than one layer of an
+	// image (installed in a base layer, then re-written or re-installed by a
+	// later layer). scalibr emits one Package per layer occurrence: each carries
+	// the same PURL but its own LayerMetadata. Dedup collapses them to one
+	// component — but the component must still record EVERY layer the package
+	// lives in, not one arbitrary winner, or container layer attribution silently
+	// loses where the package actually is.
+	mk := func(idx int, diffID, cmd, loc string) *extractor.Package {
+		return &extractor.Package{
+			Name:      "musl",
+			Version:   "1.2.4-r2",
+			PURLType:  "apk",
+			Plugins:   []string{"os/apk"},
+			Locations: []string{loc},
+			LayerMetadata: &extractor.LayerMetadata{
+				Index:   idx,
+				DiffID:  digest.Digest(diffID),
+				Command: cmd,
+			},
+		}
+	}
+	result := &scan.Result{
+		Inventory: inventory.Inventory{
+			Packages: []*extractor.Package{
+				mk(0, "sha256:aaaa", "ADD base /", "lib/apk/db/installed"),
+				mk(3, "sha256:bbbb", "RUN apk add musl", "usr/lib/libc.musl-x86_64.so.1"),
+			},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v\nbody:\n%s", err, buf.String())
+	}
+
+	// The deduped musl component carries its layer attribution as properties.
+	props := componentProperties(t, doc, "pkg:apk/musl@1.2.4-r2")
+
+	// The full set of layer indices the package occupies must be recoverable.
+	if got := props["kunnus:layer:indices"]; got != "0,3" {
+		t.Errorf("kunnus:layer:indices = %q, want %q", got, "0,3")
+	}
+	// Both layers' diffIDs must survive — index alone shifts if layers change.
+	if got := props["kunnus:layer:diffids"]; !strings.Contains(got, "sha256:aaaa") || !strings.Contains(got, "sha256:bbbb") {
+		t.Errorf("kunnus:layer:diffids = %q, want both sha256:aaaa and sha256:bbbb", got)
+	}
+}
+
+// componentProperties returns the name→value property map of the first component
+// in doc whose purl matches. Fails the test if the component is absent.
+func componentProperties(t *testing.T, doc map[string]any, purl string) map[string]string {
+	t.Helper()
+	comps, _ := doc["components"].([]any)
+	for _, c := range comps {
+		m, _ := c.(map[string]any)
+		if p, _ := m["purl"].(string); p != purl {
+			continue
+		}
+		out := map[string]string{}
+		props, _ := m["properties"].([]any)
+		for _, p := range props {
+			pm, _ := p.(map[string]any)
+			name, _ := pm["name"].(string)
+			val, _ := pm["value"].(string)
+			out[name] = val
+		}
+		return out
+	}
+	t.Fatalf("no component with purl %q in output\ncomponents: %+v", purl, comps)
+	return nil
 }
 
 func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
