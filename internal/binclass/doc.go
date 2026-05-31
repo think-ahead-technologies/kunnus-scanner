@@ -20,15 +20,21 @@
 // direct file-contents evidence, which covers the large majority of entries.
 // Not ported:
 //
-//   - Cross-file evidence: shared-library lookups (python, ruby), sibling
-//     VERSION files (go), and filename-template version hints (libpython). The
-//     python-binary/-lib classifiers, which have no direct content regex, are
-//     therefore omitted; go and ruby keep their content regex and drop the
-//     cross-file fallback.
+//   - Shared-library lookups (the python and ruby binaries' fallback of parsing
+//     ELF imports and resolving the linked .so) and sibling VERSION files (go).
+//     go and ruby keep their direct content regex; python is covered another way
+//     (below), so the resolver-based lookup is not ported.
 //   - The Java JDK/JRE branching set (classifiers_java.go), which needs syft's
 //     BranchingEvidenceMatcher, path predicates, and templated CPEs, and uses
 //     .NET-style named groups that Go's RE2 engine rejects. kunnus already
 //     identifies JARs via scalibr's javaarchive extractor.
+//
+// Python IS covered, via the filename-template matcher (catalog.go's nameTemplate
+// / mcTmpl): the libpython glob matches the shared library directly and the
+// python glob the interpreter, with the major.minor read from the filename and
+// the full version from the NUL-delimited bytes — so syft's shared-library
+// fallback (which starts from the binary and resolves its imports) is unnecessary
+// for the common --enable-shared and static builds.
 //
 // CPE templates are retained on each classifier but not yet emitted into the
 // SBOM; wiring them through the encode pipeline's CPE stage is the remaining

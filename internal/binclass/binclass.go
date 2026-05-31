@@ -7,6 +7,7 @@ import (
 	"context"
 	"io"
 	"path"
+	"regexp"
 	"strings"
 
 	"github.com/google/osv-scalibr/extractor"
@@ -77,7 +78,7 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 	if err != nil {
 		return inventory.Inventory{}, err
 	}
-	version := c.extractVersion(append(header, rest...))
+	version := c.extractVersion(input.Path, append(header, rest...))
 	if version == "" {
 		return inventory.Inventory{}, nil
 	}
@@ -108,9 +109,10 @@ func (e *Extractor) match(p string) *classifier {
 	return nil
 }
 
-// extractVersion runs each of the classifier's patterns over data and returns
-// the first non-empty "version" capture group, or "" if none match.
-func (c *classifier) extractVersion(data []byte) string {
+// extractVersion runs the classifier's content patterns, then its filename
+// template (if any), over the file at path/data and returns the first non-empty
+// "version" capture, or "" if none match.
+func (c *classifier) extractVersion(path string, data []byte) string {
 	for _, re := range c.res {
 		m := re.FindSubmatch(data)
 		if m == nil {
@@ -119,6 +121,42 @@ func (c *classifier) extractVersion(data []byte) string {
 		if i := re.SubexpIndex("version"); i > 0 && len(m[i]) > 0 {
 			return string(m[i])
 		}
+	}
+	if c.nameTmpl != nil {
+		return c.nameTmpl.match(path, data)
+	}
+	return ""
+}
+
+// match extracts version hints from path with fileRe, renders them into a
+// content regex via contentTmpl (escaping regex metacharacters in each hint, as
+// the values are version substrings spliced into a pattern), and returns that
+// pattern's "version" capture from data. Any failure yields "".
+func (nt *nameTemplate) match(path string, data []byte) string {
+	pm := nt.fileRe.FindStringSubmatch(path)
+	if pm == nil {
+		return ""
+	}
+	vals := make(map[string]string, len(pm))
+	for i, name := range nt.fileRe.SubexpNames() {
+		if name != "" {
+			vals[name] = regexp.QuoteMeta(pm[i])
+		}
+	}
+	var buf strings.Builder
+	if err := nt.contentTmpl.Execute(&buf, vals); err != nil {
+		return ""
+	}
+	re, err := regexp.Compile(buf.String())
+	if err != nil {
+		return ""
+	}
+	m := re.FindSubmatch(data)
+	if m == nil {
+		return ""
+	}
+	if i := re.SubexpIndex("version"); i > 0 && len(m[i]) > 0 {
+		return string(m[i])
 	}
 	return ""
 }

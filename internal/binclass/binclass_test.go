@@ -58,6 +58,44 @@ func TestExtractMemcached(t *testing.T) {
 	}
 }
 
+// TestExtractPythonFromSharedLib exercises the filename-template matcher: the
+// libpython fixture's name carries only the major.minor ("3.14"), and the full
+// "3.14.5" lives NUL-delimited in its bytes. The fixture is real bytes of
+// python:latest's libpython3.14.so.1.0 (ELF header + the version region). A
+// version-less file matching the broad "**/python*" glob must yield nothing.
+func TestExtractPythonFromSharedLib(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "usr", "local", "lib", "libpython3.14.so"), readFixture(t, "libpython3.14.so"))
+	// A thin-wrapper python binary with no embedded version (the python:latest
+	// case): matches **/python* but its bytes carry no \x003.14.x\x00, so no package.
+	writeFile(t, filepath.Join(root, "usr", "local", "bin", "python3.14"), append([]byte{0x7f, 'E', 'L', 'F'}, []byte("\x00no version here\x00")...))
+
+	inv, _, err := filesystem.Run(context.Background(), &filesystem.Config{
+		Extractors: []filesystem.Extractor{New()},
+		ScanRoots:  scalibrfs.RealFSScanRoots(root),
+		Stats:      stats.NoopCollector{},
+	})
+	if err != nil {
+		t.Fatalf("filesystem.Run: %v", err)
+	}
+
+	var got []*extractor.Package
+	for _, p := range inv.Packages {
+		if p.Name == "python" {
+			got = append(got, p)
+		}
+	}
+	if len(got) != 1 {
+		t.Fatalf("got %d python packages, want 1; packages=%+v", len(got), inv.Packages)
+	}
+	if got[0].Version != "3.14.5" {
+		t.Errorf("version = %q, want 3.14.5", got[0].Version)
+	}
+	if purl := got[0].PURL(); purl == nil || purl.String() != "pkg:generic/python@3.14.5" {
+		t.Errorf("purl = %v, want pkg:generic/python@3.14.5", purl)
+	}
+}
+
 // TestCatalogInvariants is a drift guard: every classifier must have at least
 // one glob and one pattern, every pattern must carry a "version" capture group,
 // and every PURL template must decompose into a non-empty type and name. A new
@@ -67,13 +105,16 @@ func TestCatalogInvariants(t *testing.T) {
 		if len(c.globs) == 0 {
 			t.Errorf("%s: no globs", c.purl)
 		}
-		if len(c.res) == 0 {
-			t.Errorf("%s: no patterns", c.purl)
+		if len(c.res) == 0 && c.nameTmpl == nil {
+			t.Errorf("%s: no matcher (neither content patterns nor a filename template)", c.purl)
 		}
 		for _, re := range c.res {
 			if re.SubexpIndex("version") <= 0 {
 				t.Errorf("%s: pattern %q has no (?P<version>) group", c.purl, re.String())
 			}
+		}
+		if c.nameTmpl != nil && c.nameTmpl.fileRe.SubexpIndex("version") <= 0 {
+			t.Errorf("%s: filename regex %q has no (?P<version>) group", c.purl, c.nameTmpl.fileRe.String())
 		}
 		typ, name := splitPURLTemplate(c.purl)
 		if typ == "" || name == "" || strings.Contains(name, "@version") {

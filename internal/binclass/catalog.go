@@ -2,18 +2,33 @@
 // ABOUTME: The patterns are ported from anchore/syft's binary cataloger (Apache-2.0); see doc.go for what was simplified.
 package binclass
 
-import "regexp"
+import (
+	"regexp"
+	"text/template"
+)
 
 // classifier fingerprints one piece of software that ships as a bare binary.
-// Files whose path matches any glob are scanned for version with each pattern in
-// res (in order); the first non-empty "version" capture group becomes the
-// package version. purl is the "pkg:type/name@version" template and cpes are the
-// CPE 2.3 templates carried for a downstream CPE stage.
+// Files whose path matches any glob are scanned for a version: first by each
+// content pattern in res, then, if set, by nameTmpl. The first non-empty
+// "version" capture wins. purl is the "pkg:type/name@version" template and cpes
+// are the CPE 2.3 templates carried for a downstream CPE stage.
 type classifier struct {
-	globs []string
-	purl  string
-	res   []*regexp.Regexp
-	cpes  []string
+	globs    []string
+	purl     string
+	res      []*regexp.Regexp
+	nameTmpl *nameTemplate
+	cpes     []string
+}
+
+// nameTemplate matches a version in two steps, for software whose binary carries
+// only the major.minor in its filename and the full version, NUL-delimited, in
+// its bytes (python: libpython3.14.so → "3.14" → \x003.14.5\x00). fileRe extracts
+// named groups from the file path; those values render contentTmpl into a content
+// regex whose "version" group is then matched against the bytes. Ported from
+// syft's FileNameTemplateVersionMatcher (Apache-2.0).
+type nameTemplate struct {
+	fileRe      *regexp.Regexp
+	contentTmpl *template.Template
 }
 
 // matches reports whether path matches any of the classifier's globs.
@@ -29,14 +44,30 @@ func (c *classifier) matches(p string) bool {
 // list is a terse constructor for the glob/cpe string slices below.
 func list(s ...string) []string { return s }
 
-// mc builds a classifier, compiling each pattern at load time (a malformed
-// pattern panics here, which the catalog-integrity test turns into a failure).
+// mc builds a content-regex classifier, compiling each pattern at load time (a
+// malformed pattern panics here, which the catalog-integrity test turns into a
+// failure).
 func mc(purl string, globs, cpes []string, patterns ...string) classifier {
 	res := make([]*regexp.Regexp, len(patterns))
 	for i, p := range patterns {
 		res[i] = regexp.MustCompile(p)
 	}
 	return classifier{globs: globs, purl: purl, res: res, cpes: cpes}
+}
+
+// mcTmpl builds a filename-template classifier: fileRegex extracts version hints
+// from the path, contentTemplate renders into the content regex. Both are
+// compiled at load time.
+func mcTmpl(purl string, globs, cpes []string, fileRegex, contentTemplate string) classifier {
+	return classifier{
+		globs: globs,
+		purl:  purl,
+		cpes:  cpes,
+		nameTmpl: &nameTemplate{
+			fileRe:      regexp.MustCompile(fileRegex),
+			contentTmpl: template.Must(template.New("content").Parse(contentTemplate)),
+		},
+	}
 }
 
 // defaultCatalog returns the built-in classifiers, ported from anchore/syft's
@@ -48,6 +79,18 @@ func defaultCatalog() []classifier {
 	return []classifier{
 		mc("pkg:generic/pypy@version", list("**/libpypy*.so*"), list(),
 			`(?m)\[PyPy (?P<version>[0-9]+\.[0-9]+\.[0-9]+)`),
+		// python: the full version (NUL-delimited in the bytes) is keyed off the
+		// major.minor in the filename. Ported from syft; its shared-library-lookup
+		// fallback is omitted — the .so is matched directly by the libpython glob,
+		// and a static build carries the version in the binary itself.
+		mcTmpl("pkg:generic/python@version", list("**/libpython*.so*"),
+			list("cpe:2.3:a:python_software_foundation:python:*:*:*:*:*:*:*:*", "cpe:2.3:a:python:python:*:*:*:*:*:*:*:*"),
+			`(?:.*/|^)libpython(?P<version>[0-9]+(?:\.[0-9]+)+)[a-z]?\.so.*$`,
+			`(?m)\x00(?P<version>{{ .version }}[-._a-zA-Z0-9]*)\x00`),
+		mcTmpl("pkg:generic/python@version", list("**/python*"),
+			list("cpe:2.3:a:python_software_foundation:python:*:*:*:*:*:*:*:*", "cpe:2.3:a:python:python:*:*:*:*:*:*:*:*"),
+			`(?:.*/|^)python(?P<version>[0-9]+(?:\.[0-9]+)+)$`,
+			`(?m)\x00(?P<version>{{ .version }}[-._a-zA-Z0-9]*)\x00`),
 		mc("pkg:generic/go@version", list("**/go", "**/go.exe"), list("cpe:2.3:a:golang:go:*:*:*:*:*:*:*:*"),
 			`(?m)go(?P<version>[0-9]+\.[0-9]+(\.[0-9]+|beta[0-9]+|alpha[0-9]+|rc[0-9]+)?)\x00`),
 		mc("pkg:generic/julia@version", list("**/libjulia-internal.so"), list("cpe:2.3:a:julialang:julia:*:*:*:*:*:*:*:*"),

@@ -90,11 +90,13 @@ executable — no apk/dpkg/rpm record, and no embedded manifest for scalibr's
 memcached daemon). It is a scalibr `filesystem.Extractor`: a filename glob
 selects candidate files, an ELF-magic check rejects non-binaries, and a version
 regex scanned over the file's bytes yields a `pkg:generic` (or
-`pkg:golang`/`pkg:github`) package. The catalog (`catalog.go`) is ported from
+`pkg:golang`/`pkg:github`) package. A second matcher mode (`nameTemplate`) reads
+a major.minor hint from the filename and renders it into the content regex —
+this is how python is caught (the `libpython*.so*` and `python*` globs, version
+read from the NUL-delimited bytes). The catalog (`catalog.go`) is ported from
 anchore/syft's binary cataloger (Apache-2.0); `doc.go` records what was left out
-— syft's cross-file matchers (shared-library / sibling-VERSION / filename-
-template) and its Java JDK/JRE branching set. CPE templates are carried on each
-classifier as data but not yet emitted.
+— syft's resolver-based shared-library lookup and its Java JDK/JRE branching set.
+CPE templates are carried on each classifier as data but not yet emitted.
 
 It is a kunnus extractor, not a scalibr-registry plugin, so `mode/os` and
 `mode/container` append `binclass.New()` directly to their plugin lists (it is
@@ -154,10 +156,10 @@ package name, so it survives.
   correct groupId.
 
 - **Binary classifier is a simplified syft port.** `internal/binclass/` carries
-  only the direct file-contents regexes from syft's catalog; cross-file evidence
-  (shared libraries, sibling VERSION files, filename templates) and the Java
-  JDK/JRE branching set are not ported, so `python-binary` (no content regex) is
-  omitted. CPE templates ship in the catalog but are not yet emitted into the
+  syft's direct file-contents regexes plus a filename-template matcher (which
+  covers python); not ported are syft's resolver-based shared-library lookup and
+  the Java JDK/JRE branching set. CPE templates ship in the catalog but are not
+  yet emitted into the
   SBOM. Overlap suppression is path-based via `internal/ownership/` (with a
   name+version fallback) across dpkg, apk and rpm, so it correctly collapses
   packages whose name differs from the binary's (`xz-utils`, `postgresql-18`,
@@ -173,7 +175,9 @@ the fast/narrow ones:
   guards: parser filenames must be detectable, names unique, etc. `binclass`
   carries its own catalog drift guard (every classifier has a glob, a `version`
   capture group, and a well-formed PURL/CPE) and proves extraction + the ELF
-  gate against a real slice of the `memcached:latest` binary. `ownership` parses
+  gate against a real slice of the `memcached:latest` binary, and the
+  filename-template matcher against a real slice of `python:latest`'s
+  `libpython3.14.so`. `ownership` parses
   real dpkg `.list` and apk `installed` fixtures and tolerates a corrupt rpm DB
   (a valid rpmdb is a binary sqlite/bdb blob, so the rpm parse path is verified
   e2e against a real rpm image, not an in-tree fixture — see the rpm note below);
