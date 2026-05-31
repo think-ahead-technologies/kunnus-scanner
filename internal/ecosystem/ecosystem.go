@@ -100,21 +100,32 @@ var all = []Ecosystem{
 // All returns the registered ecosystems.
 func All() []Ecosystem { return all }
 
+// indexByFilename builds a filename→value dispatch table over every ecosystem.
+// For each ecosystem it invokes entries, which reports the (filename, value)
+// pairs that ecosystem contributes by calling add. The skeleton (allocate the
+// map, walk every ecosystem) lives here once; each caller's closure owns its own
+// quirk — case-folding for detection, the slice-of-parsers walk for the hash and
+// licence tables — so the three dispatch tables share one shape without forcing
+// their differences into a single rigid signature.
+func indexByFilename[V any](ecos []Ecosystem, entries func(eco *Ecosystem, add func(filename string, val V))) map[string]V {
+	m := make(map[string]V)
+	for i := range ecos {
+		entries(&ecos[i], func(filename string, val V) {
+			m[filename] = val
+		})
+	}
+	return m
+}
+
 // ecosystemByFilename is the O(1) exact-name dispatch table for detection,
 // built once over every marker filename in every ecosystem. Keys are
 // lowercased so lookups are case-insensitive. Mirrors parsersByFilename, which
 // does the same for hash parsers.
-var ecosystemByFilename = buildEcosystemByFilename(all)
-
-func buildEcosystemByFilename(ecos []Ecosystem) map[string]string {
-	m := make(map[string]string)
-	for _, eco := range ecos {
-		for _, f := range eco.Filenames {
-			m[strings.ToLower(f)] = eco.Name
-		}
+var ecosystemByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, string)) {
+	for _, f := range eco.Filenames {
+		add(strings.ToLower(f), eco.Name)
 	}
-	return m
-}
+})
 
 // ForFile returns the ecosystem Name claimed by a marker filename
 // (case-insensitive), or "" if no ecosystem matches. Exact-name matches are an
@@ -164,38 +175,27 @@ func AllInstalledPlugins() []string {
 }
 
 // parsersByFilename is the walker's O(1) dispatch table, built once over
-// every HashParser in every ecosystem.
-var parsersByFilename = buildParsersByFilename(all)
-
-func buildParsersByFilename(ecos []Ecosystem) map[string]*Parser {
-	m := make(map[string]*Parser)
-	for i := range ecos {
-		for j := range ecos[i].HashParsers {
-			p := &ecos[i].HashParsers[j]
-			for _, f := range p.Filenames {
-				m[f] = p
-			}
+// every HashParser in every ecosystem. Keys are matched exactly (the walker
+// dispatches on the entry's basename), unlike the case-folded detection table.
+var parsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *Parser)) {
+	for j := range eco.HashParsers {
+		p := &eco.HashParsers[j]
+		for _, f := range p.Filenames {
+			add(f, p)
 		}
 	}
-	return m
-}
+})
 
 // licenseParsersByFilename is the walker's O(1) dispatch table for offline
 // licence extraction, built once over every LicenseParser in every ecosystem.
-var licenseParsersByFilename = buildLicenseParsersByFilename(all)
-
-func buildLicenseParsersByFilename(ecos []Ecosystem) map[string]*LicenseParser {
-	m := make(map[string]*LicenseParser)
-	for i := range ecos {
-		for j := range ecos[i].LicenseParsers {
-			p := &ecos[i].LicenseParsers[j]
-			for _, f := range p.Filenames {
-				m[f] = p
-			}
+var licenseParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *LicenseParser)) {
+	for j := range eco.LicenseParsers {
+		p := &eco.LicenseParsers[j]
+		for _, f := range p.Filenames {
+			add(f, p)
 		}
 	}
-	return m
-}
+})
 
 // Survey walks fsys once and returns the ecosystems detected from marker
 // filenames, the merged native-digest map mined from lockfiles, and the merged
