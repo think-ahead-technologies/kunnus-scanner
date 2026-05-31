@@ -17,6 +17,7 @@ import (
 	pl "github.com/google/osv-scalibr/plugin/list"
 
 	"github.com/think-ahead/kunnus-scanner/internal/apkchecksum"
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
@@ -199,6 +200,12 @@ func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
 	if len(plugins) == 0 {
 		return nil, fmt.Errorf("no extractors selected for container scan")
 	}
+
+	// The binary classifier is a kunnus extractor (not in scalibr's name
+	// registry), so it is appended directly. It surfaces software compiled into
+	// the image outside any package manager — the one class of component the
+	// installed-state extractors above cannot see.
+	plugins = append(plugins, binclass.New())
 
 	plugins = mode.AddOfflineLicenseEnrichers(plugins)
 	plugins, err = mode.AddOnlineLicenses(plugins, caps, ov)

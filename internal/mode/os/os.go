@@ -13,6 +13,7 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
@@ -93,6 +94,13 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	if err != nil {
 		return nil, err
 	}
+
+	// The binary classifier surfaces software compiled into the root outside any
+	// package manager. It is a kunnus extractor (not in scalibr's name registry),
+	// so it is appended directly; its pkg:generic twins of OS-managed packages are
+	// suppressed later in the encode pipeline. The ELF gate makes it a no-op on
+	// the Windows/Mac targets.
+	plugins = append(plugins, binclass.New())
 
 	cfg := &scalibr.ScanConfig{
 		ScanRoots: []*scalibrfs.ScanRoot{{

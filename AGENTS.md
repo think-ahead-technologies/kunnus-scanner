@@ -53,8 +53,9 @@ encoder; the scanner library does the extraction work.
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
 | `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
+| `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution | modes, CLI, scanning |
+| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
@@ -80,6 +81,38 @@ version:
   parses inline (one format, no ecosystem home). Same rule — parsing lives with
   the domain that owns the format, registry only when N > 1.
 
+## Binary classifier (non-packaged software)
+
+`internal/binclass/` surfaces software compiled into an image as a bare
+executable — no apk/dpkg/rpm record, and no embedded manifest for scalibr's
+`gobinary`/`cargoauditable`/`dotnetpe` extractors to read (e.g. a hand-built
+memcached daemon). It is a scalibr `filesystem.Extractor`: a filename glob
+selects candidate files, an ELF-magic check rejects non-binaries, and a version
+regex scanned over the file's bytes yields a `pkg:generic` (or
+`pkg:golang`/`pkg:github`) package. The catalog (`catalog.go`) is ported from
+anchore/syft's binary cataloger (Apache-2.0); `doc.go` records what was left out
+— syft's cross-file matchers (shared-library / sibling-VERSION / filename-
+template) and its Java JDK/JRE branching set. CPE templates are carried on each
+classifier as data but not yet emitted.
+
+It is a kunnus extractor, not a scalibr-registry plugin, so `mode/os` and
+`mode/container` append `binclass.New()` directly to their plugin lists (it is
+**not** added to `mode/repo`: source trees rarely carry compiled server
+binaries). The ELF gate makes it a no-op on the Windows/Mac OS targets.
+
+**Overlap suppression** (`sbom.suppressOSManagedBinaries`, an encode stage run
+right after dedup, before enrichment/CPEs/dep-graph). The classifier keys on
+filename + bytes, so a binary an OS package manager also tracks (`/bin/bash`
+owned by the bash `.deb`) would otherwise appear twice — once as `pkg:deb/...`
+and once as `pkg:generic/...`. The stage drops the generic twin when a
+deb/apk/rpm component shares its name and a version that *covers* it: equal, or
+the binary's upstream version followed by a packaging separator, so
+`5.2.37-2+b9` covers `5.2.37` but `1.130` does not cover `1.13`. This is a name +
+version-prefix heuristic, not dpkg/apk file-ownership — only `pkg:generic` is
+ever suppressed (the `pkg:golang`/`pkg:github` catalog entries are left alone),
+and the authoritative OS package (with its distro version, supplier and licence)
+is the one kept.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.
@@ -102,6 +135,14 @@ version:
   contradicts the no-network design. JARs that do embed `pom.properties` get the
   correct groupId.
 
+- **Binary classifier is a simplified syft port.** `internal/binclass/` carries
+  only the direct file-contents regexes from syft's catalog; cross-file evidence
+  (shared libraries, sibling VERSION files, filename templates) and the Java
+  JDK/JRE branching set are not ported, so `python-binary` (no content regex) is
+  omitted. Overlap suppression matches name + version-prefix, not dpkg/apk file-
+  ownership, so an epoch'd OS version (`1:2.41-5`) won't suppress its binary twin.
+  CPE templates ship in the catalog but are not yet emitted into the SBOM.
+
 ## Testing
 
 TDD throughout. **No mocks** — real fixtures and real I/O at every boundary.
@@ -109,9 +150,12 @@ Coverage is layered, with the slow/broad tests built on the same fixtures as
 the fast/narrow ones:
 
 - **Unit + registry invariants.** `ecosystem` and `osfamily` each carry drift
-  guards: parser filenames must be detectable, names unique, etc. Hash parsers,
-  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/encode), and
-  `upload` (via `httptest`) are tested in isolation.
+  guards: parser filenames must be detectable, names unique, etc. `binclass`
+  carries its own catalog drift guard (every classifier has a glob, a `version`
+  capture group, and a well-formed PURL/CPE) and proves extraction + the ELF
+  gate against a real slice of the `memcached:latest` binary. Hash parsers,
+  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/encode),
+  and `upload` (via `httptest`) are tested in isolation.
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`
   and `testdata/osfamilies/<name>/` each hold a real manifest/lockfile (or
   package DB + `etc/os-release`) plus a `want.txt` listing the exact `purl` and

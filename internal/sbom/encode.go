@@ -60,6 +60,11 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	//      emitted PURL strings, so it must run once every stage that matches on
 	//      the original strings is done.
 	dedupCDXComponents(cdxBom)
+	// After dedup (so OS and binary-classifier components are each collapsed
+	// within their own PURL) and before every later stage: drop binary-classifier
+	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
+	// graph never see the redundant components.
+	suppressOSManagedBinaries(cdxBom)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
