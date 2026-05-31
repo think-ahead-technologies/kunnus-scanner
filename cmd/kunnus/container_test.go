@@ -25,8 +25,11 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	// (npm lockfile), so the run exercises cross-ecosystem extraction and the
 	// per-layer attribution that container scanning adds.
 	osLayer := layerFromFiles(t, map[string]string{
-		"etc/os-release":       "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.18.4\n",
-		"lib/apk/db/installed": "C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=\nP:musl\nV:1.2.4-r2\nA:x86_64\no:musl\n",
+		"etc/os-release": "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.18.4\n",
+		// C is a real Q1 checksum (Q1 + base64 of a 20-byte SHA-1); the apk
+		// checksum recovery decodes it to muslSHA1 and attaches it to the
+		// component.
+		"lib/apk/db/installed": "C:Q1jKMx2ZpwgZjUgK4EZTBYzhfDsQs=\nP:musl\nV:1.2.4-r2\nA:x86_64\no:musl\n",
 	})
 	// Installed dependencies as their own manifests: an npm package.json and a
 	// Python dist-info METADATA. Container scans use installed-state extractors,
@@ -64,13 +67,7 @@ func TestCLI_SBOM_Container(t *testing.T) {
 				Type string `json:"type"`
 			} `json:"component"`
 		} `json:"metadata"`
-		Components []struct {
-			PURL       string `json:"purl"`
-			Properties []struct {
-				Name  string `json:"name"`
-				Value string `json:"value"`
-			} `json:"properties"`
-		} `json:"components"`
+		Components []cdxComponent `json:"components"`
 	}
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("sbom is not valid JSON: %v", err)
@@ -98,6 +95,25 @@ func TestCLI_SBOM_Container(t *testing.T) {
 		if idx != wantIdx {
 			t.Errorf("component %q kunnus:layer:index = %q, want %q", substr, idx, wantIdx)
 		}
+	}
+
+	// The apk pull-checksum scalibr drops is recovered post-scan (container
+	// mode's Plan.PostScanHashes) and lands as a SHA-1 hash on the apk component
+	// — proving the integrity-digest path end to end through the real binary.
+	const muslSHA1 = "8ca331d99a708198d480ae04653058ce17c3b10b"
+	muslHashed := false
+	for _, c := range doc.Components {
+		if !contains(c.PURL, "pkg:apk/alpine/musl@1.2.4-r2") {
+			continue
+		}
+		for _, h := range c.Hashes {
+			if h.Alg == "SHA-1" && h.Content == muslSHA1 {
+				muslHashed = true
+			}
+		}
+	}
+	if !muslHashed {
+		t.Errorf("musl apk component missing recovered SHA-1 %s in container SBOM", muslSHA1)
 	}
 
 	// The manifest-license enricher recovers left-pad's licence from its
@@ -212,15 +228,23 @@ func TestCLI_SBOM_Container_EmbeddedSBOM(t *testing.T) {
 	}
 }
 
-// layerIndexFor returns the kunnus:layer:index property value of the first
-// component whose purl contains substr.
-func layerIndexFor(components []struct {
+// cdxComponent is the slice of a CycloneDX component the container e2e test
+// inspects: purl, the kunnus property bag, and the hashes injected for it.
+type cdxComponent struct {
 	PURL       string `json:"purl"`
 	Properties []struct {
 		Name  string `json:"name"`
 		Value string `json:"value"`
 	} `json:"properties"`
-}, substr string) (string, bool) {
+	Hashes []struct {
+		Alg     string `json:"alg"`
+		Content string `json:"content"`
+	} `json:"hashes"`
+}
+
+// layerIndexFor returns the kunnus:layer:index property value of the first
+// component whose purl contains substr.
+func layerIndexFor(components []cdxComponent, substr string) (string, bool) {
 	for _, c := range components {
 		if !contains(c.PURL, substr) {
 			continue

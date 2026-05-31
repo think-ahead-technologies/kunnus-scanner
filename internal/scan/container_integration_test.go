@@ -21,7 +21,9 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/apkchecksum"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
@@ -33,7 +35,9 @@ import (
 func TestRunContainer_MultiLayer(t *testing.T) {
 	osLayer := layerFromFiles(t, map[string]string{
 		"etc/os-release": "NAME=\"Alpine Linux\"\nID=alpine\nVERSION_ID=3.18.4\n",
-		"lib/apk/db/installed": "C:Q1eVpkksZ6wkkjssudkkaXmIYCBN2A=\nP:musl\n" +
+		// C is a real Q1 checksum (Q1 + base64 of a 20-byte SHA-1) so the
+		// apkchecksum miner below recovers a genuine digest.
+		"lib/apk/db/installed": "C:Q1jKMx2ZpwgZjUgK4EZTBYzhfDsQs=\nP:musl\n" +
 			"V:1.2.4-r2\nA:x86_64\no:musl\n",
 	})
 	// An installed npm dependency: a package.json under node_modules, not a
@@ -74,6 +78,20 @@ func TestRunContainer_MultiLayer(t *testing.T) {
 	}
 	if leftPad.LayerMetadata.Index != 1 {
 		t.Errorf("left-pad layer index = %d, want 1", leftPad.LayerMetadata.Index)
+	}
+
+	// apk checksum recovery: scalibr drops the DB's "C" field, so apkchecksum
+	// re-reads it from the image FS. Keying by the scanned package's own purl is
+	// the integration risk this asserts — the miner's key must match the exact
+	// purl (namespace + qualifiers) the inventory carries.
+	apkHashes := apkchecksum.Mine(res.Inventory, img.FS())
+	hs, ok := apkHashes[musl.PURL().String()]
+	if !ok || len(hs) != 1 {
+		t.Fatalf("musl apk checksum not mined under %q; got %v", musl.PURL().String(), apkHashes)
+	}
+	const wantHex = "8ca331d99a708198d480ae04653058ce17c3b10b"
+	if hs[0].Algorithm != hashes.AlgSHA1 || hs[0].Hex != wantHex {
+		t.Errorf("musl checksum = %+v, want SHA-1 %s", hs[0], wantHex)
 	}
 }
 

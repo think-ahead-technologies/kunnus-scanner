@@ -12,11 +12,14 @@ import (
 	scalibrimage "github.com/google/osv-scalibr/artifact/image/layerscanning/image"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/cdx"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/spdx"
+	"github.com/google/osv-scalibr/inventory"
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/apkchecksum"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
@@ -59,9 +62,11 @@ func (*Mode) Name() string { return "container" }
 
 // Plan resolves target into an image and builds the installed-state union scan
 // config. It sets Plan.Image so the runner dispatches to a container scan (via
-// scalibr ScanContainer). Overrides' Source selects how the reference is
-// resolved; EnablePlugins / DisablePlugins adjust the selection; TargetOS and
-// Ecosystems are ignored (containers are Linux and carry every ecosystem).
+// scalibr ScanContainer), and Plan.PostScanHashes so the apk pull-checksums
+// scalibr drops are recovered once the inventory exists. Overrides' Source
+// selects how the reference is resolved; EnablePlugins / DisablePlugins adjust
+// the selection; TargetOS and Ecosystems are ignored (containers are Linux and
+// carry every ecosystem).
 func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.Plan, error) {
 	if target == "" {
 		return nil, fmt.Errorf("a container image reference or tarball path is required")
@@ -85,6 +90,12 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 			Type: bom.ComponentTypeContainer,
 		},
 		ExtraComponents: osComponent(img),
+		// apk pull-checksums key off the scanned packages, so they can only be
+		// recovered after the scan from the resulting inventory — the container
+		// analog of repo mode's planning-time lockfile hash mining.
+		PostScanHashes: func(inv inventory.Inventory) hashes.Map {
+			return apkchecksum.Mine(inv, img.FS())
+		},
 	}, nil
 }
 
