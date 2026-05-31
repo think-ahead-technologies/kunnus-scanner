@@ -29,18 +29,49 @@ import (
 // lands at the requested output and a non-nil error names the failed plugins
 // so the CLI exits non-zero. Callers that only care about partial success can
 // inspect this via errors.As(err, &partialScanError{}).
-func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, path string, ov mode.Overrides) error {
-	plan, err := m.Plan(ctx, path, ov)
+func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, ov mode.Overrides) error {
+	plan, err := m.Plan(ctx, target, ov)
 	if err != nil {
 		return fmt.Errorf("plan %s scan: %w", m.Name(), err)
 	}
 
-	result, err := scan.Run(ctx, plan.Config)
+	result, err := runPlan(ctx, plan)
 	if err != nil {
-		return fmt.Errorf("run scan: %w", err)
+		return fmt.Errorf("run %s scan: %w", m.Name(), err)
 	}
 
-	return encodeResult(cmd, result, plan.Component, plan.Hashes, plan.Licenses, plan.ExtraComponents)
+	// Most digests are harvested during planning (plan.Hashes); a mode whose
+	// digests depend on scan output (container apk checksums) supplies a
+	// post-scan recovery hook instead. Merge the two so the encoder sees one map.
+	hashMap := plan.Hashes
+	if plan.PostScanHashes != nil {
+		hashMap = mergeHashMaps(hashMap, plan.PostScanHashes(result.Inventory))
+	}
+
+	return encodeResult(cmd, result, plan.Component, hashMap, plan.Licenses, plan.ExtraComponents)
+}
+
+// runPlan dispatches to the matching scalibr scan: a container scan when the
+// mode opened an image, otherwise a filesystem scan over the configured scan
+// roots. Keeping the branch here lets internal/scan stay free of mode types.
+func runPlan(ctx context.Context, plan *mode.Plan) (*scan.Result, error) {
+	if plan.Image != nil {
+		return scan.RunContainer(ctx, plan.Image, plan.Config)
+	}
+	return scan.Run(ctx, plan.Config)
+}
+
+// mergeHashMaps folds extra into base, tolerating nil on either side, and
+// returns the combined map.
+func mergeHashMaps(base, extra hashes.Map) hashes.Map {
+	if len(extra) == 0 {
+		return base
+	}
+	if base == nil {
+		return extra
+	}
+	base.Merge(extra)
+	return base
 }
 
 // encodeResult writes the SBOM for a completed scan to the requested output and

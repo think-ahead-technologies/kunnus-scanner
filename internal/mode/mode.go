@@ -1,5 +1,5 @@
-// ABOUTME: Defines the Mode interface that the two scan flavours (repo, os) implement.
-// ABOUTME: A Mode turns a target path plus user overrides into a ready-to-run scalibr ScanConfig.
+// ABOUTME: Defines the Mode interface that every scan flavour (repo, os, container) implements.
+// ABOUTME: A Mode turns a target (path or image ref) plus user overrides into a ready-to-run scalibr scan plan.
 package mode
 
 import (
@@ -7,35 +7,42 @@ import (
 	"slices"
 
 	scalibr "github.com/google/osv-scalibr"
+	"github.com/google/osv-scalibr/artifact/image"
+	"github.com/google/osv-scalibr/inventory"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
 
-// Mode is a scan flavour. Implementations live in subpackages (mode/repo, mode/os).
+// Mode is a scan flavour. Implementations live in subpackages (mode/repo,
+// mode/os, mode/container).
 //
-// The contract is intentionally narrow: a Mode plans a scan and describes what it
-// will produce. It does not run the scan, encode the SBOM, or talk to the network.
+// The contract is intentionally narrow: a Mode plans a scan and describes what
+// it will produce. It does not run the scan, encode the SBOM, or upload.
 // Those concerns live in internal/scan, internal/sbom, and internal/upload.
 type Mode interface {
-	// Name returns the user-facing mode name ("repo" or "os").
+	// Name returns the user-facing mode name ("repo", "os", or "container").
 	Name() string
 
-	// Plan inspects the target and the overrides, then returns a fully-populated
-	// scalibr ScanConfig together with the root component metadata and any
-	// native digests harvested during planning.
+	// Plan resolves the target and the overrides into a fully-populated Plan:
+	// the scalibr ScanConfig, the root component metadata, and any native digests
+	// harvested during planning. The target is a filesystem path for the
+	// path-based modes (repo, os) and an image reference for container.
 	//
-	// Plan must not perform the scan itself. It may read the filesystem for
-	// auto-detection (e.g. /etc/os-release, walking for lockfiles), but must
-	// not invoke any scalibr plugin.
-	Plan(ctx context.Context, path string, overrides Overrides) (*Plan, error)
+	// Plan must not invoke any scalibr extractor — running the scan is
+	// internal/scan's job. It may read the filesystem for auto-detection (e.g.
+	// /etc/os-release, walking for lockfiles) and, for the container mode, open
+	// the target image (which for a remote reference pulls it). When the scan
+	// kind needs an opened image, Plan sets Plan.Image; the runner dispatches on
+	// it.
+	Plan(ctx context.Context, target string, overrides Overrides) (*Plan, error)
 }
 
 // Plan is everything a Mode produces from one planning pass: the scalibr
 // ScanConfig, the root component metadata, and any native deployable hashes
 // the mode harvested while it was already walking the tree. Hashes is nil for
-// modes that have no per-package hash sources (e.g. OS scans).
+// modes that have no planning-time hash sources (e.g. OS scans).
 //
 // ExtraComponents covers components scalibr did not produce — today, vendored
 // C/C++ directories surfaced by the kunnus walker. The SBOM encoder appends
@@ -46,6 +53,18 @@ type Plan struct {
 	Component       bom.ComponentInfo
 	Hashes          hashes.Map
 	ExtraComponents []bom.ExtraComponent
+
+	// Image is the opened container image to scan. Non-nil selects a container
+	// scan (scalibr ScanContainer over the image's layers); nil selects a
+	// filesystem scan over Config.ScanRoots. Only the container mode sets it.
+	Image image.Image
+
+	// PostScanHashes recovers native digests that are only knowable once the
+	// scan has produced its inventory — keyed, like Hashes, by the conventional
+	// purl. nil for modes whose digests are all harvested during planning (repo,
+	// os). The runner invokes it with the scan inventory and merges the result
+	// into Hashes.
+	PostScanHashes func(inventory.Inventory) hashes.Map
 
 	// Licenses holds raw licences mined offline from lockfiles during planning
 	// (e.g. composer.lock), keyed by conventional purl. The SBOM encoder
@@ -59,12 +78,17 @@ type Plan struct {
 // plugins without disabling the helpful defaults.
 type Overrides struct {
 	// TargetOS forces a specific OS for plugin selection. Empty means auto-detect.
-	// Accepted values: "linux", "windows", "mac".
+	// Accepted values: "linux", "windows", "mac". Used by os mode.
 	TargetOS string
 
 	// Ecosystems restricts repo-mode auto-detection to the listed ecosystems.
-	// Empty means "use whatever detection found". Ignored by os mode.
+	// Empty means "use whatever detection found". Used by repo mode.
 	Ecosystems []string
+
+	// Source selects how the container mode resolves an image reference:
+	// "auto" (or empty), "remote", "tarball", or "docker". Used by container
+	// mode; ignored by the path-based modes.
+	Source string
 
 	// EnablePlugins adds the named scalibr plugins to the selection.
 	EnablePlugins []string

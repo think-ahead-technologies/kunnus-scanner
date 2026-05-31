@@ -87,8 +87,8 @@ func TestResolveSource(t *testing.T) {
 	}
 }
 
-func TestOpen_EmptyRefErrors(t *testing.T) {
-	if _, err := Open(context.Background(), "", SourceAuto, mode.Overrides{}); err == nil {
+func TestPlan_EmptyRefErrors(t *testing.T) {
+	if _, err := New().Plan(context.Background(), "", mode.Overrides{}); err == nil {
 		t.Fatal("want error for empty image reference")
 	}
 }

@@ -1,5 +1,5 @@
-// ABOUTME: Container-image scan planner. A sibling to mode/repo and mode/os: it opens an image and builds the union scan config.
-// ABOUTME: Containers are not path-based, so this does not implement mode.Mode — the command runs scan.RunContainer with the Plan.
+// ABOUTME: Container-image scan mode. Implements mode.Mode with an image reference as its target.
+// ABOUTME: Opens the image, builds the installed-state union config, and signals a container scan via Plan.Image.
 package container
 
 import (
@@ -9,7 +9,6 @@ import (
 
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	scalibr "github.com/google/osv-scalibr"
-	"github.com/google/osv-scalibr/artifact/image"
 	scalibrimage "github.com/google/osv-scalibr/artifact/image/layerscanning/image"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/cdx"
 	"github.com/google/osv-scalibr/extractor/filesystem/sbom/spdx"
@@ -46,33 +45,31 @@ const (
 	maxSymlinkDepth = 6
 )
 
-// Plan is everything the container pipeline needs: the opened image, the scan
-// config, and the root component metadata. It is the container analog of
-// mode.Plan, but carries the image because container scans run via
-// scan.RunContainer rather than over a filesystem path.
-type Plan struct {
-	Image     image.Image
-	Config    *scalibr.ScanConfig
-	Component bom.ComponentInfo
-	// ExtraComponents carries components beyond scalibr's inventory — for a
-	// container, the operating-system component synthesized from the image's
-	// /etc/os-release. Empty for images with no recognisable OS (scratch,
-	// distroless without os-release).
-	ExtraComponents []bom.ExtraComponent
-}
+// Mode implements mode.Mode for container-image scans. Unlike the path-based
+// modes its target is an image reference (a registry name, a tarball path, or a
+// local docker image), and its Plan opens that image — for a remote reference,
+// pulling it — so the runner can scan the image's layers via ScanContainer.
+type Mode struct{}
 
-// Open resolves ref into an image and builds the scan config. The caller scans
-// it with scan.RunContainer(plan.Image, plan.Config). Overrides' EnablePlugins
-// / DisablePlugins adjust the plugin selection; TargetOS and Ecosystems are
-// ignored (containers are Linux and carry every ecosystem).
-func Open(ctx context.Context, ref string, src Source, ov mode.Overrides) (*Plan, error) {
-	if ref == "" {
-		return nil, fmt.Errorf("image reference is required")
+// New returns a fresh container mode.
+func New() *Mode { return &Mode{} }
+
+// Name returns the user-facing name.
+func (*Mode) Name() string { return "container" }
+
+// Plan resolves target into an image and builds the installed-state union scan
+// config. It sets Plan.Image so the runner dispatches to a container scan (via
+// scalibr ScanContainer). Overrides' Source selects how the reference is
+// resolved; EnablePlugins / DisablePlugins adjust the selection; TargetOS and
+// Ecosystems are ignored (containers are Linux and carry every ecosystem).
+func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.Plan, error) {
+	if target == "" {
+		return nil, fmt.Errorf("a container image reference or tarball path is required")
 	}
 
-	img, err := openImage(ctx, ref, resolveSource(ref, src))
+	img, err := openImage(ctx, target, resolveSource(target, sourceFromOverrides(ov)))
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("open image: %w", err)
 	}
 
 	cfg, err := buildConfig(ov)
@@ -80,22 +77,31 @@ func Open(ctx context.Context, ref string, src Source, ov mode.Overrides) (*Plan
 		return nil, err
 	}
 
-	return &Plan{
-		Image:  img,
+	return &mode.Plan{
 		Config: cfg,
+		Image:  img,
 		Component: bom.ComponentInfo{
-			Name: ref,
+			Name: target,
 			Type: bom.ComponentTypeContainer,
 		},
 		ExtraComponents: osComponent(img),
 	}, nil
 }
 
+// sourceFromOverrides maps the user-facing Source override to a Source, treating
+// an empty value as SourceAuto.
+func sourceFromOverrides(ov mode.Overrides) Source {
+	if ov.Source == "" {
+		return SourceAuto
+	}
+	return Source(ov.Source)
+}
+
 // osComponent reads the image's /etc/os-release and returns the
 // operating-system component, named by the distro ID with VERSION_ID as its
 // version. Returns nil when the image declares no OS, so scratch and distroless
 // images get no nameless component.
-func osComponent(img image.Image) []bom.ExtraComponent {
+func osComponent(img *scalibrimage.Image) []bom.ExtraComponent {
 	id, version, ok := osfamily.LinuxOSRelease(img.FS())
 	if !ok {
 		return nil

@@ -26,14 +26,22 @@ encoder; the scanner library does the extraction work.
 4. Each `internal/mode/<x>/` package builds a `*scalibr.ScanConfig` from a path
    plus `mode.Overrides`. Its only I/O is calls into `detect`, `ecosystem`, or
    `osfamily` — no raw filesystem reads of its own.
-5. **Container scanning is a sibling, not a path-based mode.**
-   `internal/mode/container/` opens an image (registry name, OCI/docker-save
-   tarball, or local docker daemon) and builds the union of every ecosystem and
-   Linux OS-family plugin, filtered to Linux capabilities. It deliberately does
-   *not* implement `mode.Mode` — its input is an image reference, not a
-   filesystem path — and the command runs `scan.RunContainer` rather than
-   `scan.Run`. Plugin selection skips detection: the union is enabled and
-   scalibr's per-extractor `FileRequired` decides what the image matches.
+5. **Every scan flavour is a `mode.Mode`; the runner dispatches on the plan.**
+   `internal/mode/container/` implements `mode.Mode` like repo and os — its
+   `Plan` just takes an image reference instead of a filesystem path, opens the
+   image (pulling it for a remote reference), and builds the union of every
+   ecosystem and Linux OS-family plugin filtered to Linux capabilities. It
+   signals a container scan by setting `Plan.Image`; the shared `runScan` calls
+   `scan.RunContainer` when `Plan.Image` is non-nil and `scan.Run` otherwise, so
+   all three subcommands are the same `runScan(ctx, cmd, mode, target, ov)`
+   one-liner and `internal/scan` stays free of mode types (the dispatch lives in
+   `command`, which may know both). Plugin selection skips detection: the union
+   is enabled and scalibr's per-extractor `FileRequired` decides what the image
+   matches.
+   Digests that are only knowable after the scan ride on `Plan.PostScanHashes`,
+   a hook the runner invokes with the resulting inventory and merges into
+   `Plan.Hashes` — for modes (like container) whose digests key off the scanned
+   packages rather than being harvestable during planning.
 
 ## Cohesion summary
 
