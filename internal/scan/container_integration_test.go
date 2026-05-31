@@ -44,7 +44,7 @@ func TestRunContainer_MultiLayer(t *testing.T) {
 
 	img := buildImage(t, osLayer, appLayer)
 
-	names := dedup(append(ecosystem.AllInstalledPlugins(), osfamily.LinuxPluginsFor(nil)...))
+	names := dedup(append(ecosystem.AllInstalledPlugins(), osfamily.AllLinuxPlugins()...))
 	plugins, err := pl.FromNames(names, nil)
 	if err != nil {
 		t.Fatalf("FromNames: %v", err)

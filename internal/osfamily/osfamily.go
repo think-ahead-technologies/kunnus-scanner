@@ -118,19 +118,13 @@ var linuxFamilies = []LinuxFamily{
 func LinuxFamilies() []LinuxFamily { return linuxFamilies }
 
 // LinuxPluginsFor returns the deduplicated, sorted scalibr plugin names
-// enabled by the given family names. If families is empty, returns the union
-// of every known Linux family's plugins — the "unknown distro, scan
-// everything" fallback used when detection produced nothing.
+// enabled by the given family names. An empty families list yields an empty
+// result: callers that want the broad "unknown distro, scan everything" set
+// call AllLinuxPlugins explicitly rather than relying on a magic-nil argument.
 //
 // Unknown family names are silently ignored: callers (mode/os) drive the
 // list from detect output, which is itself derived from this package.
 func LinuxPluginsFor(families []string) []string {
-	if len(families) == 0 {
-		families = make([]string, 0, len(linuxFamilies))
-		for _, f := range linuxFamilies {
-			families = append(families, f.Name)
-		}
-	}
 	var lists [][]string
 	for _, name := range families {
 		for _, f := range linuxFamilies {
@@ -138,6 +132,19 @@ func LinuxPluginsFor(families []string) []string {
 				lists = append(lists, f.ScalibrPlugins)
 			}
 		}
+	}
+	return pluginset.Union(lists...)
+}
+
+// AllLinuxPlugins returns the deduplicated, sorted union of every registered
+// Linux family's plugins — the "unknown distro, scan everything" set used when
+// detection produced no family, and the installed-state baseline for container
+// scans. Mirrors ecosystem.AllInstalledPlugins so the two registries answer
+// "give me everything" the same way.
+func AllLinuxPlugins() []string {
+	lists := make([][]string, 0, len(linuxFamilies))
+	for _, f := range linuxFamilies {
+		lists = append(lists, f.ScalibrPlugins)
 	}
 	return pluginset.Union(lists...)
 }

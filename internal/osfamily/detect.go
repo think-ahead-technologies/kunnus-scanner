@@ -12,7 +12,7 @@ import (
 // LinuxDistroFamilies inspects the filesystem root fsys and returns the distro
 // families it recognises, evaluated against the registered linuxFamilies.
 // Returns an empty slice when nothing matched — callers can then fall back to
-// LinuxPluginsFor(nil) for the broad "all Linux extractors" set. Operating on
+// AllLinuxPlugins for the broad "all Linux extractors" set. Operating on
 // an fs.FS lets the same detection serve a real root (os.DirFS) and any virtual
 // filesystem.
 //

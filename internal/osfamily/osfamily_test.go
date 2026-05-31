@@ -85,9 +85,9 @@ func TestLinuxPluginsFor(t *testing.T) {
 			wantSome: []string{"os/apk"},
 		},
 		{
-			name:     "empty falls back to all linux extractors",
+			name:     "empty yields nothing (callers use AllLinuxPlugins for the fallback)",
 			families: nil,
-			wantSome: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage"},
+			wantSome: nil,
 		},
 		{
 			name:     "unknown family yields nothing",
@@ -111,14 +111,17 @@ func TestLinuxPluginsFor(t *testing.T) {
 	}
 }
 
-func TestLinuxPluginsFor_FallbackIncludesFlatpakAndSnap(t *testing.T) {
+func TestAllLinuxPlugins_IncludesFlatpakAndSnap(t *testing.T) {
 	// Fallback-only families exist for exactly one purpose: ride along on the
-	// empty-families path. If they drop out of LinuxPluginsFor(nil) the
-	// "unknown distro" scan loses coverage silently.
-	got := LinuxPluginsFor(nil)
-	for _, must := range []string{"os/flatpak", "os/snap"} {
+	// scan-everything set. If they drop out of AllLinuxPlugins the "unknown
+	// distro" scan loses coverage silently.
+	got := AllLinuxPlugins()
+	if !slices.IsSorted(got) {
+		t.Errorf("AllLinuxPlugins not sorted: %v", got)
+	}
+	for _, must := range []string{"os/flatpak", "os/snap", "os/dpkg", "os/rpm", "os/apk"} {
 		if !slices.Contains(got, must) {
-			t.Errorf("fallback set missing %q (got %v)", must, got)
+			t.Errorf("AllLinuxPlugins missing %q (got %v)", must, got)
 		}
 	}
 }

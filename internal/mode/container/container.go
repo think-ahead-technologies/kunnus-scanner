@@ -167,7 +167,7 @@ func openImage(ctx context.Context, ref string, src Source) (*scalibrimage.Image
 func buildConfig(ov mode.Overrides) (*scalibr.ScanConfig, error) {
 	names := pluginset.Union(
 		ecosystem.AllInstalledPlugins(),
-		osfamily.LinuxPluginsFor(nil),
+		osfamily.AllLinuxPlugins(),
 		[]string{cdx.Name, spdx.Name}, // SBOMs shipped inside the image
 	)
 	names = mode.ApplyOverrides(names, ov)

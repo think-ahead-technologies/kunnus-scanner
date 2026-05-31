@@ -47,7 +47,13 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	switch targetOS {
 	case "linux":
 		families := osfamily.LinuxDistroFamilies(scalibrfs.DirFS(abs))
-		pluginNames = osfamily.LinuxPluginsFor(families)
+		if len(families) == 0 {
+			// No distro fingerprint at the scan root: enable every Linux
+			// extractor so an unrecognised root is still scanned.
+			pluginNames = osfamily.AllLinuxPlugins()
+		} else {
+			pluginNames = osfamily.LinuxPluginsFor(families)
+		}
 		component = bom.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",
