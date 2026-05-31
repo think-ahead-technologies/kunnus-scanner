@@ -37,28 +37,36 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	}
 
 	cdxBom := converter.ToCDX(result.Inventory, cfg)
-	// Order matters here. Constraints:
-	//   1. dedupCDXComponents BEFORE enrichCDXComponents: enrichment indexes by
-	//      PURL, and duplicates would shadow each other in that index.
-	//   2. enrichCDXMetadata BEFORE injectDepGraphCDX: the dep graph reads the
-	//      root component's BOMRef, which metadata enrichment may populate.
+	// Order matters here. Constraints are marked [enforced] when a test in
+	// encode_ordering_test.go fails if the stage is reordered (verified by
+	// mutation testing), or [defensive] when the order is currently harmless to
+	// change but kept to stay correct if a stage's inputs change.
+	//   1. [defensive] dedupCDXComponents BEFORE enrichCDXComponents. The intent
+	//      is that enrichment sees one component per PURL. Today enrichCDXComponents
+	//      indexes result.Inventory (the scalibr packages), not the CDX component
+	//      slice, so deduping components cannot change its output — but an
+	//      enrichment that read the component slice would need this order.
+	//   2. [defensive] enrichCDXMetadata BEFORE injectDepGraphCDX. The dep graph
+	//      reads the root component's BOMRef; this order guarantees it is set
+	//      first. Today scalibr's converter already sets the root BOMRef and
+	//      enrichCDXMetadata never touches it, so the order is not yet load-bearing.
 	//   3. injectDepGraphCDX LAST among the joining stages: it iterates every
 	//      component's BOMRef, so any mutation that adds or renames components
-	//      must precede it.
-	//   4. injectLicensesCDX after dedup (so it sees one component per PURL) and
-	//      before normalizePURLsCDX: it indexes the inventory by the original
-	//      PURL strings, like the enrichment stages.
-	//   5. normalizePURLsCDX after all PURL-keyed joins: it rewrites the emitted
-	//      PURL strings, so it must run once every stage that matches on the
-	//      original strings is done.
+	//      must precede it. (See the [enforced] extras-before-depgraph case below.)
+	//   4. [enforced] injectLicensesCDX after dedup (so it sees one component per
+	//      PURL) and before normalizePURLsCDX: it indexes the inventory by the
+	//      original PURL strings, like the enrichment stages.
+	//   5. [enforced] normalizePURLsCDX after all PURL-keyed joins: it rewrites the
+	//      emitted PURL strings, so it must run once every stage that matches on
+	//      the original strings is done.
 	dedupCDXComponents(cdxBom)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
 	injectCPEsCDX(cdxBom)
-	// Extras must be appended before injectHashesCDX so the hash injector sees
-	// them in its PURL index, and before injectDepGraphCDX so their BOMRefs
-	// participate in the dep graph.
+	// [enforced] Extras must be appended before injectHashesCDX so the hash
+	// injector sees them in its PURL index, and before injectDepGraphCDX so their
+	// BOMRefs participate in the dep graph.
 	appendExtraComponents(cdxBom, extras)
 	injectHashesCDX(cdxBom, hashMap)
 	injectDepGraphCDX(cdxBom)
