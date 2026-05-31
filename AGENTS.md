@@ -54,7 +54,7 @@ encoder; the scanner library does the extraction work.
 | `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
-| `ownership` | dpkg/apk database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
+| `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
@@ -109,13 +109,16 @@ and once as `pkg:generic/...`. The stage drops the `pkg:generic` twin when
 either signal fires:
 
 - **File ownership (primary).** `internal/ownership/` reads the dpkg
-  (`var/lib/dpkg/info/*.list`) and apk (`lib/apk/db/installed`) databases at the
-  scan root into a set of owned paths, carried on `Plan.OwnedFiles` (built by
-  `mode/os` and `mode/container`, which have the root/image FS) and passed into
-  `sbom.Encode`. A generic component is dropped when one of its evidence
-  locations is an owned file. Because this keys on **path, not name**, it bridges
-  the common case where the owning package's name differs from the binary's —
-  `/usr/bin/xz` owned by `xz-utils`, `…/bin/postgres` owned by `postgresql-18`.
+  (`var/lib/dpkg/info/*.list`), apk (`lib/apk/db/installed`) and rpm
+  (`var/lib/rpm/rpmdb.sqlite` etc., via go-rpmdb) databases at the scan root into
+  a set of owned paths, carried on `Plan.OwnedFiles` (built by `mode/os` and
+  `mode/container`, which have the root/image FS) and passed into `sbom.Encode`.
+  A generic component is dropped when one of its evidence locations is an owned
+  file. Because this keys on **path, not name**, it bridges the common case where
+  the owning package's name differs from the binary's — `/usr/bin/xz` owned by
+  `xz-utils`, `…/bin/postgres` owned by `postgresql-18`, `/usr/bin/curl` owned by
+  `curl-minimal`. (The rpm reader materialises the binary DB to a temp file,
+  since go-rpmdb's sqlite/BerkeleyDB drivers open by path, not via `fs.FS`.)
 - **Name + version (fallback).** A deb/apk/rpm component shares the generic
   component's name and a version that *covers* it — equal, or the binary's
   upstream version followed by a packaging separator, so `5.2.37-2+b9` covers
@@ -156,10 +159,9 @@ package name, so it survives.
   JDK/JRE branching set are not ported, so `python-binary` (no content regex) is
   omitted. CPE templates ship in the catalog but are not yet emitted into the
   SBOM. Overlap suppression is path-based via `internal/ownership/` (with a
-  name+version fallback), so it correctly collapses packages whose name differs
-  from the binary's (`xz-utils`, `postgresql-18`); the remaining edge is rpm,
-  whose owned-file list lives in the binary rpm DB that `ownership` does not yet
-  read (only dpkg/apk), so on rpm distros suppression falls back to name+version.
+  name+version fallback) across dpkg, apk and rpm, so it correctly collapses
+  packages whose name differs from the binary's (`xz-utils`, `postgresql-18`,
+  `curl-minimal`).
 
 ## Testing
 
@@ -172,8 +174,11 @@ the fast/narrow ones:
   carries its own catalog drift guard (every classifier has a glob, a `version`
   capture group, and a well-formed PURL/CPE) and proves extraction + the ELF
   gate against a real slice of the `memcached:latest` binary. `ownership` parses
-  real dpkg `.list` and apk `installed` fixtures; the `sbom` overlap stage is
-  tested for both the path-ownership and name+version drop signals. Hash parsers,
+  real dpkg `.list` and apk `installed` fixtures and tolerates a corrupt rpm DB
+  (a valid rpmdb is a binary sqlite/bdb blob, so the rpm parse path is verified
+  e2e against a real rpm image, not an in-tree fixture — see the rpm note below);
+  the `sbom` overlap stage is tested for both the path-ownership and name+version
+  drop signals. Hash parsers,
   `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/encode),
   and `upload` (via `httptest`) are tested in isolation.
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`

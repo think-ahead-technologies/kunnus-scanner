@@ -48,10 +48,30 @@ func TestScan(t *testing.T) {
 }
 
 func TestScanMissingDatabases(t *testing.T) {
-	// A root with neither database yields an empty Set, not a panic or error.
+	// A root with no database yields an empty Set, not a panic or error.
 	got := Scan(os.DirFS(t.TempDir()))
 	if len(got) != 0 {
 		t.Errorf("expected empty Set for a root with no package DB, got %d entries", len(got))
+	}
+}
+
+// TestScanCorruptRpmDB checks that a present-but-unparseable rpm database is
+// tolerated: scanRpm materialises and opens it, the parse fails, and Scan
+// returns the dpkg/apk entries without surfacing an error. (A valid rpmdb is a
+// binary sqlite/BerkeleyDB blob that is not in-tree fixturable; the parse path
+// is exercised end-to-end against a real rpm image.)
+func TestScanCorruptRpmDB(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "var/lib/rpm/rpmdb.sqlite"), "this is not a valid rpm database")
+	write(t, filepath.Join(root, "var/lib/dpkg/info/bash.list"), "/usr/bin/bash\n")
+
+	got := Scan(os.DirFS(root))
+
+	if !got.Owns("usr/bin/bash") {
+		t.Errorf("dpkg ownership must still be read alongside a corrupt rpm DB")
+	}
+	if got.Owns("usr/bin/anything-rpm") {
+		t.Errorf("a corrupt rpm DB must contribute no owned paths")
 	}
 }
 
