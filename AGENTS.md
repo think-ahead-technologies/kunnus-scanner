@@ -54,8 +54,9 @@ encoder; the scanner library does the extraction work.
 | `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
+| `ownership` | dpkg/apk database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression | modes, CLI, scanning |
+| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
@@ -104,14 +105,28 @@ binaries). The ELF gate makes it a no-op on the Windows/Mac OS targets.
 right after dedup, before enrichment/CPEs/dep-graph). The classifier keys on
 filename + bytes, so a binary an OS package manager also tracks (`/bin/bash`
 owned by the bash `.deb`) would otherwise appear twice — once as `pkg:deb/...`
-and once as `pkg:generic/...`. The stage drops the generic twin when a
-deb/apk/rpm component shares its name and a version that *covers* it: equal, or
-the binary's upstream version followed by a packaging separator, so
-`5.2.37-2+b9` covers `5.2.37` but `1.130` does not cover `1.13`. This is a name +
-version-prefix heuristic, not dpkg/apk file-ownership — only `pkg:generic` is
-ever suppressed (the `pkg:golang`/`pkg:github` catalog entries are left alone),
-and the authoritative OS package (with its distro version, supplier and licence)
-is the one kept.
+and once as `pkg:generic/...`. The stage drops the `pkg:generic` twin when
+either signal fires:
+
+- **File ownership (primary).** `internal/ownership/` reads the dpkg
+  (`var/lib/dpkg/info/*.list`) and apk (`lib/apk/db/installed`) databases at the
+  scan root into a set of owned paths, carried on `Plan.OwnedFiles` (built by
+  `mode/os` and `mode/container`, which have the root/image FS) and passed into
+  `sbom.Encode`. A generic component is dropped when one of its evidence
+  locations is an owned file. Because this keys on **path, not name**, it bridges
+  the common case where the owning package's name differs from the binary's —
+  `/usr/bin/xz` owned by `xz-utils`, `…/bin/postgres` owned by `postgresql-18`.
+- **Name + version (fallback).** A deb/apk/rpm component shares the generic
+  component's name and a version that *covers* it — equal, or the binary's
+  upstream version followed by a packaging separator, so `5.2.37-2+b9` covers
+  `5.2.37` but `1.130` does not cover `1.13`. This backstops the cases ownership
+  misses (no DB readable, or a merged-usr `/bin`↔`/usr/bin` path mismatch).
+
+Only `pkg:generic` is ever suppressed (the `pkg:golang`/`pkg:github` catalog
+entries are left alone), and the authoritative OS package (with its distro
+version, supplier and licence) is the one kept. A genuinely non-packaged binary
+— memcached or redis compiled from source — is owned by nothing and matches no
+package name, so it survives.
 
 ## Things we deliberately did NOT build
 
@@ -139,9 +154,12 @@ is the one kept.
   only the direct file-contents regexes from syft's catalog; cross-file evidence
   (shared libraries, sibling VERSION files, filename templates) and the Java
   JDK/JRE branching set are not ported, so `python-binary` (no content regex) is
-  omitted. Overlap suppression matches name + version-prefix, not dpkg/apk file-
-  ownership, so an epoch'd OS version (`1:2.41-5`) won't suppress its binary twin.
-  CPE templates ship in the catalog but are not yet emitted into the SBOM.
+  omitted. CPE templates ship in the catalog but are not yet emitted into the
+  SBOM. Overlap suppression is path-based via `internal/ownership/` (with a
+  name+version fallback), so it correctly collapses packages whose name differs
+  from the binary's (`xz-utils`, `postgresql-18`); the remaining edge is rpm,
+  whose owned-file list lives in the binary rpm DB that `ownership` does not yet
+  read (only dpkg/apk), so on rpm distros suppression falls back to name+version.
 
 ## Testing
 
@@ -153,7 +171,9 @@ the fast/narrow ones:
   guards: parser filenames must be detectable, names unique, etc. `binclass`
   carries its own catalog drift guard (every classifier has a glob, a `version`
   capture group, and a well-formed PURL/CPE) and proves extraction + the ELF
-  gate against a real slice of the `memcached:latest` binary. Hash parsers,
+  gate against a real slice of the `memcached:latest` binary. `ownership` parses
+  real dpkg `.list` and apk `installed` fixtures; the `sbom` overlap stage is
+  tested for both the path-ownership and name+version drop signals. Hash parsers,
   `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/encode),
   and `upload` (via `httptest`) are tested in isolation.
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`

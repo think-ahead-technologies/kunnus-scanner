@@ -12,6 +12,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 	"github.com/think-ahead/kunnus-scanner/internal/sbom"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
@@ -48,7 +49,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		hashMap = mergeHashMaps(hashMap, plan.PostScanHashes(result.Inventory))
 	}
 
-	return encodeResult(cmd, result, plan.Component, hashMap, plan.Licenses, plan.ExtraComponents)
+	return encodeResult(cmd, result, plan.Component, hashMap, plan.Licenses, plan.ExtraComponents, plan.OwnedFiles)
 }
 
 // runPlan dispatches to the matching scalibr scan: a container scan when the
@@ -78,7 +79,7 @@ func mergeHashMaps(base, extra hashes.Map) hashes.Map {
 // returns a non-nil error naming any failed plugins so the CLI exits non-zero.
 // Shared by every scan flavour: the steps after a scan completes are identical
 // whether the result came from scan.Run or scan.RunContainer.
-func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, h hashes.Map, lic license.Map, extras []bom.ExtraComponent) error {
+func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, h hashes.Map, lic license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	sink, err := openOutput(cmd.String("output"))
 	if err != nil {
 		return fmt.Errorf("open output: %w", err)
@@ -90,7 +91,7 @@ func encodeResult(cmd *cli.Command, result *scan.Result, component bom.Component
 		}
 	}()
 
-	if err := sbom.Encode(sink.w, result, component, h, lic, extras); err != nil {
+	if err := sbom.Encode(sink.w, result, component, h, lic, extras, owned); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	if err := sink.commit(); err != nil {

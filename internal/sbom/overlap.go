@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 )
 
 // osPackagePURLTypes are the package-manager PURL types whose entry is
@@ -14,21 +16,27 @@ import (
 // from the raw executable) is redundant.
 var osPackagePURLTypes = map[string]bool{"deb": true, "apk": true, "rpm": true}
 
-// suppressOSManagedBinaries removes every pkg:generic component whose name and
-// version are already covered by a deb/apk/rpm component. The binary classifier
-// identifies software from a bare executable and emits pkg:generic packages; for
-// a binary an OS package manager also tracks (e.g. /bin/bash owned by the bash
-// .deb) this double-counts the artifact. The OS package is authoritative — it
-// carries the distro version, supplier and licence — so the generic twin is
-// dropped.
+// suppressOSManagedBinaries removes every pkg:generic component that an OS
+// package manager already accounts for. The binary classifier identifies
+// software from a bare executable and emits pkg:generic packages; for a binary
+// an OS package manager also tracks (e.g. /bin/bash owned by the bash .deb) this
+// double-counts the artifact. The OS package is authoritative — it carries the
+// distro version, supplier and licence — so the generic twin is dropped.
 //
-// "Covered" means same component name and a version the OS package's version
-// begins with, up to a packaging separator: the classifier reads the upstream
-// version from the binary ("5.2.37") while the OS package carries the distro
-// revision ("5.2.37-2+b9"). Matching the upstream version as a separator-bounded
-// prefix bridges the two without suppressing an unrelated neighbour (binary
-// "1.13" must not be covered by package "1.130").
-func suppressOSManagedBinaries(bom *cyclonedx.BOM) {
+// A generic component is dropped when either signal fires:
+//
+//   - File ownership (precise): one of the component's evidence locations is a
+//     file recorded as owned in the dpkg/apk database. This keys on path, so it
+//     works even when the owning package's name differs from the binary's — the
+//     /usr/bin/xz binary owned by the xz-utils package, postgres owned by
+//     postgresql-18 — which the name signal alone cannot bridge.
+//   - Name + version (fallback): a deb/apk/rpm component shares this component's
+//     name and a version that covers it, for the cases where ownership data is
+//     unavailable or the located path was not recorded (e.g. a merged-usr
+//     /bin↔/usr/bin path mismatch). "Covers" means the OS version equals the
+//     binary's upstream version or extends it past a packaging separator, so
+//     "5.2.37-2+b9" covers "5.2.37" but "1.130" does not cover "1.13".
+func suppressOSManagedBinaries(bom *cyclonedx.BOM, owned ownership.Set) {
 	if bom == nil || bom.Components == nil {
 		return
 	}
@@ -44,12 +52,27 @@ func suppressOSManagedBinaries(bom *cyclonedx.BOM) {
 	out := make([]cyclonedx.Component, 0, len(comps))
 	for i := range comps {
 		c := comps[i]
-		if purlType(c.PackageURL) == "generic" && coveredByOSPackage(c.Version, osVersions[c.Name]) {
+		if purlType(c.PackageURL) == "generic" &&
+			(componentOwned(c, owned) || coveredByOSPackage(c.Version, osVersions[c.Name])) {
 			continue
 		}
 		out = append(out, c)
 	}
 	*bom.Components = out
+}
+
+// componentOwned reports whether any of the component's evidence locations is a
+// file owned by an OS package.
+func componentOwned(c cyclonedx.Component, owned ownership.Set) bool {
+	if c.Evidence == nil || c.Evidence.Occurrences == nil {
+		return false
+	}
+	for _, occ := range *c.Evidence.Occurrences {
+		if owned.Owns(occ.Location) {
+			return true
+		}
+	}
+	return false
 }
 
 // coveredByOSPackage reports whether any OS-package version covers binVer.

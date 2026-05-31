@@ -23,6 +23,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 )
 
@@ -91,6 +92,10 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 			Type: bom.ComponentTypeContainer,
 		},
 		ExtraComponents: osComponent(img),
+		// Read the image's dpkg/apk file ownership so the encoder can drop binary
+		// classifier pkg:generic twins of packaged binaries (e.g. /usr/bin/xz
+		// owned by xz-utils) by path rather than by name.
+		OwnedFiles: ownership.Scan(img.FS()),
 		// apk pull-checksums key off the scanned packages, so they can only be
 		// recovered after the scan from the resulting inventory — the container
 		// analog of repo mode's planning-time lockfile hash mining.

@@ -13,6 +13,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 )
 
 // Mode is a scan flavour. Implementations live in subpackages (mode/repo,
@@ -71,6 +72,13 @@ type Plan struct {
 	// normalizes and merges these with any licences scalibr put in the
 	// inventory. nil for modes/scans with no offline licence source.
 	Licenses license.Map
+
+	// OwnedFiles is the set of paths the scan root's OS package manager records
+	// as owned (read from the dpkg/apk databases during planning). The SBOM
+	// encoder uses it to suppress binary-classifier pkg:generic components that
+	// duplicate a packaged binary. nil for modes with no OS package database
+	// (repo).
+	OwnedFiles ownership.Set
 }
 
 // Overrides captures user-facing flags that adjust what auto-detection chose.

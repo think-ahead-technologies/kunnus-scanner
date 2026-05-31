@@ -12,6 +12,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
@@ -24,7 +25,10 @@ import (
 // extras carries components scalibr did not produce — today, vendored C/C++
 // libraries surfaced by the kunnus walker. Their per-file hashes ride in
 // hashMap under the same PURL.
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent) error {
+// owned is the set of filesystem paths the scan root's OS package manager
+// records as owned; it drives binary-classifier overlap suppression. Pass nil
+// for scans with no OS package database (repo mode).
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -64,7 +68,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	// within their own PURL) and before every later stage: drop binary-classifier
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
-	suppressOSManagedBinaries(cdxBom)
+	suppressOSManagedBinaries(cdxBom, owned)
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)

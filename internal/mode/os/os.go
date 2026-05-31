@@ -18,6 +18,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/detect"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 )
 
 // Mode implements mode.Mode for OS-package scans.
@@ -114,6 +115,9 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	return &mode.Plan{
 		Config:    cfg,
 		Component: component,
+		// dpkg/apk file ownership at the scan root, so the encoder can suppress
+		// binary-classifier pkg:generic twins of packaged binaries by path.
+		OwnedFiles: ownership.Scan(scalibrfs.DirFS(abs)),
 	}, nil
 }
 
