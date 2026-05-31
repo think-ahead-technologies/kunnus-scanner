@@ -50,6 +50,28 @@ encoder; the scanner library does the extraction work.
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
+## Licence pipeline
+
+Licence handling is spread across several packages on purpose; the map of the
+whole flow lives in `internal/license/doc.go` (read that first). The short
+version:
+
+- **Five sources** feed a component's licence: apk/rpm (scalibr, free),
+  deps.dev (opt-in online enricher), per-package manifests of installed packages
+  (npm/python/java/lua/ruby), Debian/Ubuntu copyright files, and composer.lock.
+- **Two paths** carry them, chosen by cardinality + timing: *enrichers* mutate
+  `pkg.Licenses` post-scan, one package at a time (and are the **only** path that
+  works for container scans, which never call `ecosystem.Survey`); the *map path*
+  (`license.Map`) mines a lockfile once during the planning walk and rides
+  through `mode.Plan` into `sbom.Encode` (repo-mode only). `license.Map` mirrors
+  `hashes.Map` because both are mined in the same Survey pass.
+- **One merge:** `sbom.injectLicensesCDX` unions both paths and normalizes every
+  value through `license.Normalize`.
+- **Parsing asymmetry is intentional:** `manifestlicense` delegates to
+  `ecosystem` (five formats, each keyed by its scalibr extractor); `debiancopyright`
+  parses inline (one format, no ecosystem home). Same rule — parsing lives with
+  the domain that owns the format, registry only when N > 1.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.

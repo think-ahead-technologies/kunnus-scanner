@@ -36,6 +36,12 @@ var _ enricher.Enricher = (*Enricher)(nil)
 // /usr/share/doc/<name>/copyright (Debian Policy DEP-5). Non-deb packages,
 // already-licensed packages, and packages whose copyright is absent or
 // free-text are left untouched.
+//
+// Parsing is inline here (not delegated to a registry like manifestlicense)
+// because there is a single format — DEP-5 — and no ecosystem to delegate to:
+// deb packages are OS-level, and osfamily owns plugin selection, not format
+// parsing. A registry of one would be over-engineering. See
+// internal/license/doc.go for how this fits the rest of the licence subsystem.
 type Enricher struct{}
 
 // New returns a Debian copyright enricher.

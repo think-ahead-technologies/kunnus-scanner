@@ -24,6 +24,12 @@ var _ enricher.Enricher = (*Enricher)(nil)
 // packages from extractors that have a manifest parser (see
 // ecosystem.ManifestLicenseParser), so lockfile-sourced packages — whose
 // location is a shared lockfile, not their own manifest — are left alone.
+//
+// Parsing is delegated to ecosystem rather than done here because there are five
+// manifest formats, each keyed by the scalibr extractor that owns it, so each
+// parser lives next to its ecosystem's other knowledge. (debiancopyright, with a
+// single format and no ecosystem home, parses inline instead — same principle,
+// different N. See internal/license/doc.go for the whole picture.)
 type Enricher struct{}
 
 // New returns a manifest-license enricher.
