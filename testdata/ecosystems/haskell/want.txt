@@ -1,3 +1,8 @@
 # haskell — sourced from cabal.project.freeze constraints.
 purl pkg:haskell/aeson@2.1.2.1
 cpe  cpe:2.3:a:aeson:aeson:2.1.2.1:*:*:*:*:*:*:*
+# stack.yaml.lock — scalibr's stacklock extractor reads the completed.hackage
+# pin; kunnus additionally mines its sha256 locator (the revisioned .cabal
+# file hash) as the component hash.
+purl pkg:haskell/mtl@2.3.1
+cpe  cpe:2.3:a:mtl:mtl:2.3.1:*:*:*:*:*:*:*
