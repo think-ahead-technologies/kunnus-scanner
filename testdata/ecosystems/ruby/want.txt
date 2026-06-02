@@ -1,6 +1,12 @@
-# ruby — rake from Gemfile.lock (no licence there); mygem from a .gemspec, whose
+# ruby — Gemfile.lock is the real rails/rails lockfile (Bundler 4, CHECKSUMS
+# section with per-artifact sha256, PATH/GIT sources, platform-variant gems).
+# rake from its GEM specs (no licence there); mygem from a .gemspec, whose
 # `s.licenses` is mined offline by the manifest enricher.
-purl pkg:gem/rake@13.0.6
-cpe  cpe:2.3:a:rake:rake:13.0.6:*:*:*:*:*:*:*
+purl pkg:gem/rake@13.3.0
+cpe  cpe:2.3:a:rake:rake:13.3.0:*:*:*:*:*:*:*
+# nokogiri appears five times in the lock (ruby + four platform builds); the
+# platform suffix strips to one purl, proving the variant handling end to end.
+purl pkg:gem/nokogiri@1.19.1
+cpe  cpe:2.3:a:nokogiri:nokogiri:1.19.1:*:*:*:*:*:*:*
 purl pkg:gem/mygem@2.0.0
 license MIT
