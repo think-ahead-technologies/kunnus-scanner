@@ -19,19 +19,19 @@ func TestSuppressOSManagedBinaries(t *testing.T) {
 	}
 	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
 		{Name: "bash", Version: "5.2.37-2+b9", PackageURL: "pkg:deb/debian/bash@5.2.37-2%2Bb9"},
-		{Name: "bash", Version: "5.2.37", PackageURL: "pkg:generic/bash@5.2.37"},                              // drop: deb name+version covers it
+		{Name: "bash", Version: "5.2.37", PackageURL: "pkg:generic/bash@5.2.37"}, // drop: deb name+version covers it
 		{Name: "gzip", Version: "1.13-1", PackageURL: "pkg:deb/debian/gzip@1.13-1"},
-		{Name: "gzip", Version: "1.13", PackageURL: "pkg:generic/gzip@1.13"},                                 // drop
+		{Name: "gzip", Version: "1.13", PackageURL: "pkg:generic/gzip@1.13"},                                                         // drop
 		{Name: "memcached", Version: "1.6.42", PackageURL: "pkg:generic/memcached@1.6.42", Evidence: occ("usr/local/bin/memcached")}, // keep: not owned, no OS twin
 		{Name: "bar", Version: "1.130-1", PackageURL: "pkg:deb/debian/bar@1.130-1"},
-		{Name: "bar", Version: "1.13", PackageURL: "pkg:generic/bar@1.13"},                                   // keep: 1.130 boundary, not owned
-		{Name: "consul", Version: "1.18.0", PackageURL: "pkg:golang/github.com/hashicorp/consul@1.18.0"},     // keep: not generic
+		{Name: "bar", Version: "1.13", PackageURL: "pkg:generic/bar@1.13"},                               // keep: 1.130 boundary, not owned
+		{Name: "consul", Version: "1.18.0", PackageURL: "pkg:golang/github.com/hashicorp/consul@1.18.0"}, // keep: not generic
 		{Name: "musl", Version: "1.2.5-r23", PackageURL: "pkg:apk/alpine/musl@1.2.5-r23"},
-		{Name: "musl", Version: "1.2.5", PackageURL: "pkg:generic/musl@1.2.5"},                               // drop: apk name+version covers it
+		{Name: "musl", Version: "1.2.5", PackageURL: "pkg:generic/musl@1.2.5"}, // drop: apk name+version covers it
 		{Name: "postgresql-18", Version: "18.4-1", PackageURL: "pkg:deb/debian/postgresql-18@18.4-1"},
 		{Name: "postgresql", Version: "18.4", PackageURL: "pkg:generic/postgresql@18.4", Evidence: occ("usr/lib/postgresql/18/bin/postgres")}, // drop: owned by postgresql-18
 		{Name: "xz-utils", Version: "5.8.1-1", PackageURL: "pkg:deb/debian/xz-utils@5.8.1-1"},
-		{Name: "xz", Version: "5.8.1", PackageURL: "pkg:generic/xz@5.8.1", Evidence: occ("usr/bin/xz")},      // drop: owned by xz-utils
+		{Name: "xz", Version: "5.8.1", PackageURL: "pkg:generic/xz@5.8.1", Evidence: occ("usr/bin/xz")}, // drop: owned by xz-utils
 	}}
 
 	suppressOSManagedBinaries(bom, owned)
@@ -102,7 +102,7 @@ func TestVersionCovers(t *testing.T) {
 
 func TestPurlType(t *testing.T) {
 	cases := map[string]string{
-		"pkg:generic/memcached@1.6.42":     "generic",
+		"pkg:generic/memcached@1.6.42":      "generic",
 		"pkg:deb/debian/bash@5.2.37-2%2Bb9": "deb",
 		"pkg:golang/github.com/x/y@1.0":     "golang",
 		"":                                  "",
