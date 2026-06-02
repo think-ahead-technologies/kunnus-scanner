@@ -1,14 +1,16 @@
-// ABOUTME: PHP/Composer ecosystem. Detected via composer.json / composer.lock; scanned by scalibr's php/composerlock.
-// ABOUTME: composer.lock embeds a per-package licence array, which kunnus mines offline (PHP is not on deps.dev).
+// ABOUTME: PHP/Composer ecosystem. Mines composer.lock for per-package licences and dist.shasum (SHA-1) hashes.
+// ABOUTME: PHP is not on deps.dev, so the lockfile is the only offline source for both.
 package ecosystem
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
 
+	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
 
@@ -16,8 +18,9 @@ var composer = Ecosystem{
 	Name:           "composer",
 	Filenames:      []string{"composer.json", "composer.lock"},
 	ScalibrPlugins: []string{composerlock.Name},
-	// No kunnus-side hash parser yet — composer.lock carries integrity values but
-	// we don't mine them. We do mine licences (see parseComposerLock).
+	HashParsers: []Parser{
+		{Name: "composer", Filenames: []string{"composer.lock"}, Parse: parseComposerLockHashes},
+	},
 	LicenseParsers: []LicenseParser{
 		{Name: "composer", Filenames: []string{"composer.lock"}, Parse: parseComposerLock},
 	},
@@ -48,6 +51,69 @@ type composerPackage struct {
 	Name    string          `json:"name"`
 	Version string          `json:"version"`
 	License composerLicense `json:"license"`
+	Dist    struct {
+		Shasum string `json:"shasum"`
+	} `json:"dist"`
+}
+
+// composerPURL builds the conventional composer purl
+// (pkg:composer/<vendor>/<name>@<version>) both lockfile parsers key on, so
+// their maps match the SBOM component after purl normalization.
+func composerPURL(name, version string) string {
+	return "pkg:composer/" + name + "@" + version
+}
+
+// composerLock unmarshals the two package arrays of a composer.lock; both
+// parsers cover "packages" and "packages-dev".
+type composerLock struct {
+	Packages    []composerPackage `json:"packages"`
+	PackagesDev []composerPackage `json:"packages-dev"`
+}
+
+func parseComposerLockfile(r io.Reader) ([]composerPackage, error) {
+	data, err := io.ReadAll(r)
+	if err != nil {
+		return nil, fmt.Errorf("read composer.lock: %w", err)
+	}
+	var lock composerLock
+	if err := json.Unmarshal(data, &lock); err != nil {
+		return nil, fmt.Errorf("parse composer.lock: %w", err)
+	}
+	return append(lock.Packages, lock.PackagesDev...), nil
+}
+
+// parseComposerLockHashes mines the per-package dist.shasum from a
+// composer.lock — the SHA-1 of the dist archive Composer verifies on install.
+// Registries that serve their own archives (Private Packagist, Satis) populate
+// it; GitHub-zipball dists ship it empty, and path/git installs carry no dist
+// at all — those are skipped. The source/dist "reference" fields are git commit
+// ids, not artifact digests, so they are deliberately not emitted.
+func parseComposerLockHashes(r io.Reader) (hashes.Map, error) {
+	pkgs, err := parseComposerLockfile(r)
+	if err != nil {
+		return nil, err
+	}
+
+	out := make(hashes.Map)
+	for _, p := range pkgs {
+		if p.Name == "" || p.Version == "" || p.Dist.Shasum == "" {
+			continue
+		}
+		// Composer writes lowercase hex SHA-1: 40 chars. Anything else is
+		// either malformed or a future format change — skip rather than
+		// emit junk.
+		if len(p.Dist.Shasum) != 40 {
+			continue
+		}
+		if _, err := hex.DecodeString(p.Dist.Shasum); err != nil {
+			continue
+		}
+		out.Add(composerPURL(p.Name, p.Version), hashes.Hash{
+			Algorithm: hashes.AlgSHA1,
+			Hex:       p.Dist.Shasum,
+		})
+	}
+	return out, nil
 }
 
 // parseComposerLock mines the per-package licence array from a composer.lock.
@@ -55,26 +121,18 @@ type composerPackage struct {
 // conventional composer purl (pkg:composer/<vendor>/<name>@<version>) so they
 // match the SBOM component after purl normalization.
 func parseComposerLock(r io.Reader) (license.Map, error) {
-	data, err := io.ReadAll(r)
+	pkgs, err := parseComposerLockfile(r)
 	if err != nil {
-		return nil, fmt.Errorf("read composer.lock: %w", err)
-	}
-	var lock struct {
-		Packages    []composerPackage `json:"packages"`
-		PackagesDev []composerPackage `json:"packages-dev"`
-	}
-	if err := json.Unmarshal(data, &lock); err != nil {
-		return nil, fmt.Errorf("parse composer.lock: %w", err)
+		return nil, err
 	}
 
 	out := make(license.Map)
-	for _, p := range append(lock.Packages, lock.PackagesDev...) {
+	for _, p := range pkgs {
 		if p.Name == "" || p.Version == "" {
 			continue
 		}
-		purl := "pkg:composer/" + p.Name + "@" + p.Version
 		for _, l := range p.License {
-			out.Add(purl, l)
+			out.Add(composerPURL(p.Name, p.Version), l)
 		}
 	}
 	return out, nil
