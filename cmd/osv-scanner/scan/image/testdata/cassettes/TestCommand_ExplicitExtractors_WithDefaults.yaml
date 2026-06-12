@@ -128,7 +128,7 @@ interactions:
       proto: HTTP/2.0
       proto_major: 2
       proto_minor: 0
-      content_length: 364
+      content_length: 139
       body: |
         {
           "results": [
@@ -138,7 +138,7 @@ interactions:
               "vulns": [
                 {
                   "id": "ALPINE-CVE-2021-36159",
-                  "modified": "2025-12-03T22:50:23.251262Z"
+                  "modified": "2026-06-09T21:31:35.444336Z"
                 }
               ]
             },
@@ -153,27 +153,12 @@ interactions:
             {},
             {},
             {},
-            {
-              "vulns": [
-                {
-                  "id": "ALPINE-CVE-2022-37434",
-                  "modified": "2025-12-03T22:50:43.469206Z"
-                },
-                {
-                  "id": "ALPINE-CVE-2026-22184",
-                  "modified": "2026-03-19T08:30:44.326318Z"
-                },
-                {
-                  "id": "ALPINE-CVE-2026-27171",
-                  "modified": "2026-03-09T02:09:33.041671Z"
-                }
-              ]
-            }
+            {}
           ]
         }
       headers:
         Content-Length:
-          - "364"
+          - "139"
         Content-Type:
           - application/json
       status: 200 OK
@@ -309,7 +294,7 @@ interactions:
               "vulns": [
                 {
                   "id": "ALPINE-CVE-2021-36159",
-                  "modified": "2025-12-03T22:50:23.251262Z"
+                  "modified": "2026-06-09T21:31:35.444336Z"
                 }
               ]
             },
@@ -464,7 +449,7 @@ interactions:
               "vulns": [
                 {
                   "id": "ALPINE-CVE-2021-36159",
-                  "modified": "2025-12-03T22:50:23.251262Z"
+                  "modified": "2026-06-09T21:31:35.444336Z"
                 }
               ]
             },
@@ -619,7 +604,7 @@ interactions:
               "vulns": [
                 {
                   "id": "ALPINE-CVE-2021-36159",
-                  "modified": "2025-12-03T22:50:23.251262Z"
+                  "modified": "2026-06-09T21:31:35.444336Z"
                 }
               ]
             },
