@@ -91,7 +91,7 @@ func scanRpm(fsys fs.FS, s Set) {
 	if err != nil {
 		return
 	}
-	defer os.Remove(tmp.Name())
+	defer func() { _ = os.Remove(tmp.Name()) }()
 	_, werr := tmp.Write(data)
 	if cerr := tmp.Close(); werr != nil || cerr != nil {
 		return
@@ -101,7 +101,7 @@ func scanRpm(fsys fs.FS, s Set) {
 	if err != nil {
 		return
 	}
-	defer db.Close()
+	defer func() { _ = db.Close() }()
 	pkgs, err := db.ListPackages()
 	if err != nil {
 		return
