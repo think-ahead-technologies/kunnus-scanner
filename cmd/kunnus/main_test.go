@@ -14,6 +14,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 	"time"
@@ -40,6 +41,11 @@ func buildBinary() (string, error) {
 		return "", err
 	}
 	out := filepath.Join(dir, "kunnus")
+	if runtime.GOOS == "windows" {
+		// Windows refuses to exec a file without a recognised executable
+		// extension, so build (and later run) kunnus.exe rather than kunnus.
+		out += ".exe"
+	}
 	args := []string{"build", "-o", out}
 	if testing.CoverMode() != "" {
 		// When the test run collects coverage, instrument the binary so the
