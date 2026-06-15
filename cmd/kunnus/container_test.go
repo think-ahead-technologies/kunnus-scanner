@@ -7,6 +7,7 @@ import (
 	"archive/zip"
 	"bytes"
 	"encoding/json"
+	"io"
 	"os"
 	"path"
 	"path/filepath"
@@ -317,9 +318,11 @@ func layerFromFiles(t *testing.T, files map[string]string) v1.Layer {
 		t.Fatalf("tar close: %v", err)
 	}
 
-	layer, err := tarball.LayerFromReader(bytes.NewReader(buf.Bytes()))
+	layer, err := tarball.LayerFromOpener(func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(buf.Bytes())), nil
+	})
 	if err != nil {
-		t.Fatalf("LayerFromReader: %v", err)
+		t.Fatalf("LayerFromOpener: %v", err)
 	}
 	return layer
 }
