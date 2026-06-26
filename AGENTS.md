@@ -51,9 +51,10 @@ encoder; the scanner library does the extraction work.
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
-| `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings) | scalibr APIs, modes, CLI |
+| `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
+| `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -132,6 +133,36 @@ entries are left alone), and the authoritative OS package (with its distro
 version, supplier and licence) is the one kept. A genuinely non-packaged binary
 — memcached or redis compiled from source — is owned by nothing and matches no
 package name, so it survives.
+
+## ModusToolbox ecosystem (native extractor, no scalibr plugin)
+
+Infineon ModusToolbox firmware (PSE84 / Cortex-M projects) declares each
+dependency in a one-line `*.mtb` manifest:
+`https://github.com/<owner>/<repo>[.git]#<git-ref>#<storage-location>`. The
+owner/repo become a `pkg:github` component and the git ref its version, kept
+verbatim (refs are tags like `release-v6.1.0`, `STABLE-2_1_2_RELEASE`,
+`v2.86.1` — not semver). The third field is ModusToolbox bookkeeping; ignored.
+`assetlocks.json` is not parsed: it carries no repository URL, so it cannot form
+a PURL, and it is redundant with the `.mtb` files.
+
+scalibr has no ModusToolbox extractor, so `internal/modustoolbox/` is a
+kunnus-native `filesystem.Extractor` (the binclass pattern). It is wired in
+**only for repo scans** — `.mtb` files describe a source tree's declared
+dependencies, not installed state — via a new mechanism that keeps detection and
+plugin selection from drifting (architecture rule #1):
+
+- `internal/ecosystem/` carries a `modustoolbox` entry that detects the `.mtb`
+  suffix and sets the new **`NativeExtractor`** flag instead of `ScalibrPlugins`
+  (the completeness invariant accepts either). The entry names no extractor
+  instance, so `ecosystem` stays free of scalibr APIs.
+- `mode/repo` maps the detected `"modustoolbox"` ecosystem to
+  `modustoolbox.New()` and appends it to the plan's plugins (and counts it in the
+  "something to ship" guard), exactly as `mode/os` appends `binclass.New()`.
+
+No hashes or licences: a `.mtb` pins a git tag, not a commit SHA or checksum, and
+carries no licence data; resolving either needs network access the scanner
+forbids. The cross-project duplication (the same lib pinned by three
+sub-projects) collapses in the sbom dedup stage.
 
 ## Things we deliberately did NOT build
 
