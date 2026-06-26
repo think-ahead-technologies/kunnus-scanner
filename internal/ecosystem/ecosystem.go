@@ -37,6 +37,16 @@ type Ecosystem struct {
 	// describe the dependencies a project declares.
 	ScalibrPlugins []string
 
+	// NativeExtractor marks an ecosystem whose components come from a
+	// kunnus-native filesystem.Extractor that the scanning mode appends directly
+	// (like internal/binclass), not from a scalibr-registry plugin. Such an
+	// ecosystem legitimately carries no ScalibrPlugins: detection still flags it,
+	// and the mode wires in the extractor. The completeness invariant requires
+	// either ScalibrPlugins or this flag, so an ecosystem can never be detected
+	// yet produce nothing. The ecosystem package stays scalibr-free — it names no
+	// extractor instance; the mode owns that mapping.
+	NativeExtractor bool
+
 	// InstalledPlugins is the subset of ScalibrPlugins that report packages
 	// actually installed on disk (compiled binaries, unpacked archives, package
 	// metadata) rather than merely declared in a lockfile or manifest. Container
@@ -90,6 +100,7 @@ var all = []Ecosystem{
 	haskell,
 	lua,
 	maven,
+	modustoolbox,
 	npm,
 	python,
 	r,

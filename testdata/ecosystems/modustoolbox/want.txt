@@ -1,0 +1,6 @@
+# modustoolbox — sourced from .mtb manifests (Infineon ModusToolbox).
+# git refs are kept verbatim (not semver) and the owner/repo case is preserved.
+# No cpe: pkg:github components carry no CPE. No licence: .mtb pins a git ref, not licence data.
+purl pkg:github/Infineon/cmsis@release-v6.1.0
+purl pkg:github/lwip-tcpip/lwip@STABLE-2_1_2_RELEASE
+purl pkg:github/BoschSensortec/BMI270_SensorAPI@v2.86.1

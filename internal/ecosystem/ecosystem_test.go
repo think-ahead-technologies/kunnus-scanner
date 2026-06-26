@@ -133,15 +133,16 @@ func TestRegistry_ParserFieldsAreComplete(t *testing.T) {
 
 // TestRegistry_EcosystemFieldsAreComplete guards against ScalibrPlugins
 // being forgotten on an ecosystem that has filenames — every detected
-// ecosystem must produce at least one scalibr plugin (else detect flags it
-// and the scan emits nothing).
+// ecosystem must produce components, either via at least one scalibr plugin or
+// a kunnus-native extractor (NativeExtractor). Otherwise detect flags it and the
+// scan emits nothing.
 func TestRegistry_EcosystemFieldsAreComplete(t *testing.T) {
 	for _, eco := range all {
 		if len(eco.Filenames) == 0 && len(eco.FilenameSuffixes) == 0 {
 			t.Errorf("ecosystem %q has no filenames and no filename suffixes", eco.Name)
 		}
-		if len(eco.ScalibrPlugins) == 0 {
-			t.Errorf("ecosystem %q has no ScalibrPlugins; detection would flag it but scalibr would do nothing", eco.Name)
+		if len(eco.ScalibrPlugins) == 0 && !eco.NativeExtractor {
+			t.Errorf("ecosystem %q has no ScalibrPlugins and no NativeExtractor; detection would flag it but nothing would produce components", eco.Name)
 		}
 	}
 }
@@ -161,10 +162,13 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"renv.lock":          "r",
 		"unknown.file":       "",
 		"":                   "",
-		"MyApp.csproj":       "dotnet", // suffix match
-		"x.deps.json":        "dotnet", // suffix match
-		"foo-1.0-1.rockspec": "lua",    // luarocks spec file
-		"my_gem.gemspec":     "ruby",   // ruby gem spec
+		"MyApp.csproj":       "dotnet",       // suffix match
+		"x.deps.json":        "dotnet",       // suffix match
+		"foo-1.0-1.rockspec": "lua",          // luarocks spec file
+		"my_gem.gemspec":     "ruby",         // ruby gem spec
+		"cmsis.mtb":          "modustoolbox", // ModusToolbox dependency manifest (suffix match)
+		"freertos.MTB":       "modustoolbox", // case-insensitive suffix
+		".mtbqueryapi":       "",             // longer suffix must not match .mtb
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {

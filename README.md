@@ -85,7 +85,7 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 
 ## What it does
 
-- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems (npm, Go, Cargo, NuGet, Maven, Python, …), emit CycloneDX 1.6.
+- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems (npm, Go, Cargo, NuGet, Maven, Python, Infineon ModusToolbox embedded firmware, …), emit CycloneDX 1.6.
 - **`kunnus sbom os [path]`** — scan an OS or firmware filesystem (auto-detects Linux distro family or Windows registry).
 - **`kunnus sbom container <image|tarball>`** — scan a container image (registry pull, OCI/docker-save tarball, or local docker daemon) with per-layer attribution.
 - **`kunnus upload <file>`** — push an SBOM to `app.kunnus.tech`.

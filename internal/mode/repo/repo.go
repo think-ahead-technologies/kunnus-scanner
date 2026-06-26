@@ -17,6 +17,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
+	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 )
 
@@ -63,10 +64,15 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	pluginNames := ecosystem.PluginsFor(ecosystems)
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
-	// We need something to ship — either a scalibr plugin selection or at least
-	// one ExtraComponent (a vendored-only C/C++ repo is a valid scan target).
-	// Without either, there is genuinely nothing for the SBOM to describe.
-	if len(pluginNames) == 0 && len(extras) == 0 {
+	// Kunnus-native extractors for detected ecosystems that have no scalibr
+	// plugin (ModusToolbox). Like binclass in mode/os, the instance is appended
+	// directly here rather than resolved by name through scalibr's registry.
+	nativeExtractors := nativeExtractorsFor(ecosystems)
+
+	// We need something to ship — a scalibr plugin selection, a kunnus-native
+	// extractor, or at least one ExtraComponent (a vendored-only C/C++ repo is a
+	// valid scan target). Without any, there is nothing for the SBOM to describe.
+	if len(pluginNames) == 0 && len(nativeExtractors) == 0 && len(extras) == 0 {
 		return nil, fmt.Errorf("no extractors selected for %s (detected ecosystems: %v)", abs, ecosystems)
 	}
 
@@ -87,6 +93,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	if err != nil {
 		return nil, err
 	}
+
+	// Append kunnus-native extractors last, after capability filtering and
+	// licence enrichers, mirroring how mode/os wires in binclass.
+	plugins = append(plugins, nativeExtractors...)
 
 	cfg := &scalibr.ScanConfig{
 		ScanRoots: []*scalibrfs.ScanRoot{{
@@ -110,6 +120,19 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		ExtraComponents: extras,
 		Licenses:        licenseMap,
 	}, nil
+}
+
+// nativeExtractorsFor returns the kunnus-native filesystem extractors for the
+// detected ecosystems that scalibr cannot supply a plugin for. The mapping from
+// an ecosystem name to its extractor instance lives here (mode/repo may know
+// both ecosystem names and concrete extractors) so the ecosystem registry stays
+// free of scalibr APIs.
+func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
+	var out []plugin.Plugin
+	if slices.Contains(ecosystems, "modustoolbox") {
+		out = append(out, modustoolbox.New())
+	}
+	return out
 }
 
 // intersect returns the elements of a that also appear in b.
