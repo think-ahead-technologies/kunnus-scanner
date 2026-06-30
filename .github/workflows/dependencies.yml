@@ -1,5 +1,11 @@
 name: Dependencies
 
+# Tracks osv-scalibr's upstream HEAD (it cuts tagged releases rarely, and v2 is
+# built directly on it) and opens a PR with the bump. The PR's own checks.yml
+# run is the authoritative gate; the in-workflow build+test here only decides
+# whether to open the PR as a ready review or a draft, and captures the errors
+# when scalibr's HEAD breaks an API we depend on.
+
 on:
   schedule:
     # weekly on Mondays at 06:47 UTC
@@ -17,8 +23,7 @@ permissions: {}
 jobs:
   update:
     permissions:
-      contents: write # to fetch and commit code
-      pull-requests: write # to open a PR
+      contents: read # checkout only; the scoped app token does the writing
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -28,20 +33,64 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
-      - id: update
+          # Every run pulls a fresh scalibr commit, so the build cache is near
+          # useless here; disabling it also sidesteps cache-poisoning concerns.
+          cache: false
+      - name: Bump osv-scalibr to upstream HEAD
+        id: update
         run: |
+          set -euo pipefail
           latest_commit=$(git ls-remote https://github.com/google/osv-scalibr.git HEAD | cut -f1)
           echo "updating osv-scalibr to $latest_commit"
           go get github.com/google/osv-scalibr@"$latest_commit"
           go mod tidy
-          echo "latest_scalibr_commit=$latest_commit" >> "$GITHUB_OUTPUT"
-      - run: go test ./... || true
-      - uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+          echo "commit=$latest_commit" >> "$GITHUB_OUTPUT"
+      - name: Build and test
+        id: verify
+        # Honest signal: capture the build+test result instead of swallowing it
+        # with `|| true`. The outcome drives the draft flag and the PR body below.
+        run: |
+          set +e
+          log=$( { go build ./... && go test ./...; } 2>&1 )
+          code=$?
+          set -e
+          echo "$log"
+          if [ "$code" -eq 0 ]; then echo "ok=true" >> "$GITHUB_OUTPUT"; else echo "ok=false" >> "$GITHUB_OUTPUT"; fi
+          {
+            echo "log<<__VERIFY_EOF__"
+            echo "$log" | tail -40
+            echo "__VERIFY_EOF__"
+          } >> "$GITHUB_OUTPUT"
+      - name: Mint a repo-scoped app token
+        id: app-token
+        uses: actions/create-github-app-token@bcd2ba49218906704ab6c1aa796996da409d3eb1 # v3.2.0
         with:
-          token: ${{ secrets.PR_TOKEN_BOT }}
+          app-id: ${{ secrets.BOT_APP_ID }}
+          private-key: ${{ secrets.BOT_APP_PRIVATE_KEY }}
+          # Scoped to this repo with only what opening the PR needs, rather than
+          # inheriting all of the app installation's permissions.
+          permission-contents: write
+          permission-pull-requests: write
+      - name: Open or update the bump PR
+        uses: peter-evans/create-pull-request@c0f553fe549906ede9cf27b5156039d195d2ece0 # v8.1.0
+        with:
+          token: ${{ steps.app-token.outputs.token }}
           title: "feat: update osv-scalibr"
           body: |
-            Bumps `osv-scalibr` to https://github.com/google/osv-scalibr/commit/${{ steps.update.outputs.latest_scalibr_commit }}
+            Bumps `osv-scalibr` to https://github.com/google/osv-scalibr/commit/${{ steps.update.outputs.commit }}
+
+            **Build + tests:** ${{ steps.verify.outputs.ok == 'true' && '✅ green — ready to review' || '❌ broken by upstream changes — opened as a draft; the log below is your starting point' }}
+
+            <details><summary>build/test output (last 40 lines)</summary>
+
+            ```
+            ${{ steps.verify.outputs.log }}
+            ```
+
+            </details>
           branch: "bot/update-scalibr"
-          commit-message: "feat: update osv-scalibr to ${{ steps.update.outputs.latest_scalibr_commit }}"
+          commit-message: "feat: update osv-scalibr to ${{ steps.update.outputs.commit }}"
           delete-branch: true
+          # Broken bumps land as drafts so they can't be merged by accident; a
+          # clean bump opens as a normal, review-ready PR.
+          draft: ${{ steps.verify.outputs.ok != 'true' }}
