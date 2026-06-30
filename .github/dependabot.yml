@@ -1,0 +1,41 @@
+# Dependabot configuration — the source of truth for dependency updates.
+#
+# Why the caps below: osv-scalibr pins the containerd 1.7.x line, whose `oci`
+# package assigns a bare int64 to a resource field that
+# opencontainers/runtime-spec changed to *int64 in v1.3.0. Any dependency that
+# drags runtime-spec up to >= 1.3.0 therefore makes containerd 1.7.x fail to
+# compile (Linux-only, so it only surfaces on CI). cgroups/v3 >= 3.1.0 and
+# buildkit >= 0.24.0 both pull runtime-spec >= 1.3.0, so they are capped too.
+# Remove these ignores once osv-scalibr moves to the containerd v2 module path.
+version: 2
+updates:
+  - package-ecosystem: "gomod"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    # Wait at least 24h (1 day, the minimum granularity) after a release before
+    # opening an update for it — lets brand-new releases settle / get yanked.
+    cooldown:
+      default-days: 1
+    groups:
+      go-modules:
+        patterns:
+          - "*"
+    ignore:
+      - dependency-name: "github.com/opencontainers/runtime-spec"
+        versions: [">= 1.3.0"]
+      - dependency-name: "github.com/containerd/cgroups/v3"
+        versions: [">= 3.1.0"]
+      - dependency-name: "github.com/moby/buildkit"
+        versions: [">= 0.24.0"]
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    cooldown:
+      default-days: 1
+    groups:
+      github-actions:
+        patterns:
+          - "*"
