@@ -135,6 +135,9 @@ jobs:
         with:
           go-version-file: "go.mod"
           check-latest: true
+          # Release-style (goreleaser) build: don't restore a potentially-poisoned
+          # module/build cache into a published artifact.
+          cache: false
       - uses: docker/setup-qemu-action@06116385d9baf250c9f4dcb4858b16962ea869c3 # v4.1.0
       - uses: docker/setup-buildx-action@d7f5e7f509e45cec5c76c4d5afdd7de93d0b3df5 # v4.1.0
       - name: Run GoReleaser
