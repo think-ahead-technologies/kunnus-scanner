@@ -30,8 +30,8 @@ func TestEnrich_SetsLicenseFromPackageJSON(t *testing.T) {
 	}
 	pkg := &extractor.Package{
 		Name: "left-pad", Version: "1.3.0", PURLType: "npm",
-		Plugins:   []string{packagejson.Name},
-		Locations: []string{"app/node_modules/left-pad/package.json"},
+		Plugins:  []string{packagejson.Name},
+		Location: extractor.LocationFromPath("app/node_modules/left-pad/package.json"),
 	}
 	enrich(t, fsys, pkg)
 	if !reflect.DeepEqual(pkg.Licenses, []string{"WTFPL"}) {
@@ -44,9 +44,9 @@ func TestEnrich_KeepsExistingLicense(t *testing.T) {
 		"p/package.json": {Data: []byte(`{"license":"MIT"}`)},
 	}
 	pkg := &extractor.Package{
-		Plugins:   []string{packagejson.Name},
-		Locations: []string{"p/package.json"},
-		Licenses:  []string{"already-set"},
+		Plugins:  []string{packagejson.Name},
+		Location: extractor.LocationFromPath("p/package.json"),
+		Licenses: []string{"already-set"},
 	}
 	enrich(t, fsys, pkg)
 	if !reflect.DeepEqual(pkg.Licenses, []string{"already-set"}) {
@@ -57,8 +57,8 @@ func TestEnrich_KeepsExistingLicense(t *testing.T) {
 func TestEnrich_IgnoresExtractorWithoutManifestParser(t *testing.T) {
 	fsys := fstest.MapFS{"var/lib/dpkg/status": {Data: []byte("Package: x\n")}}
 	pkg := &extractor.Package{
-		Plugins:   []string{"os/dpkg"},
-		Locations: []string{"var/lib/dpkg/status"},
+		Plugins:  []string{"os/dpkg"},
+		Location: extractor.LocationFromPath("var/lib/dpkg/status"),
 	}
 	enrich(t, fsys, pkg)
 	if pkg.Licenses != nil {
@@ -68,8 +68,8 @@ func TestEnrich_IgnoresExtractorWithoutManifestParser(t *testing.T) {
 
 func TestEnrich_MissingFileIsSkipped(t *testing.T) {
 	pkg := &extractor.Package{
-		Plugins:   []string{packagejson.Name},
-		Locations: []string{"does/not/exist/package.json"},
+		Plugins:  []string{packagejson.Name},
+		Location: extractor.LocationFromPath("does/not/exist/package.json"),
 	}
 	enrich(t, fstest.MapFS{}, pkg) // must not error
 	if pkg.Licenses != nil {

@@ -61,7 +61,7 @@ func (*Enricher) Enrich(_ context.Context, input *enricher.ScanInput, inv *inven
 	}
 	fsys := input.ScanRoot.FS
 	for _, p := range inv.Packages {
-		if p == nil || len(p.Licenses) > 0 || len(p.Locations) == 0 {
+		if p == nil || len(p.Licenses) > 0 || p.Location.PathOrEmpty() == "" {
 			continue
 		}
 		for _, pluginName := range p.Plugins {
@@ -69,7 +69,7 @@ func (*Enricher) Enrich(_ context.Context, input *enricher.ScanInput, inv *inven
 			if !ok {
 				continue
 			}
-			path := p.Locations[0]
+			path := p.Location.PathOrEmpty()
 			f, err := fsys.Open(path)
 			if err != nil {
 				slog.Debug("manifest license: open failed", "path", path, "err", err)
