@@ -68,10 +68,10 @@ func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inven
 			continue
 		}
 		return inventory.Inventory{Packages: []*extractor.Package{{
-			Name:      ref.name,
-			Version:   ref.version,
-			PURLType:  "github",
-			Locations: []string{input.Path},
+			Name:     ref.name,
+			Version:  ref.version,
+			PURLType: "github",
+			Location: extractor.LocationFromPath(input.Path),
 		}}}, nil
 	}
 	return inventory.Inventory{}, nil

@@ -102,11 +102,11 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	// loses where the package actually is.
 	mk := func(idx int, diffID, cmd, loc string) *extractor.Package {
 		return &extractor.Package{
-			Name:      "musl",
-			Version:   "1.2.4-r2",
-			PURLType:  "apk",
-			Plugins:   []string{"os/apk"},
-			Locations: []string{loc},
+			Name:     "musl",
+			Version:  "1.2.4-r2",
+			PURLType: "apk",
+			Plugins:  []string{"os/apk"},
+			Location: extractor.LocationFromPath(loc),
 			LayerMetadata: &extractor.LayerMetadata{
 				Index:   idx,
 				DiffID:  digest.Digest(diffID),

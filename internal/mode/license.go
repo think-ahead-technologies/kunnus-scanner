@@ -51,7 +51,7 @@ func OnlineLicenseEnricher(ov Overrides) (plugin.Plugin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("connect licence API %q: %w", addr, err)
 	}
-	return licenseenricher.NewWithClient(client), nil
+	return &licenseenricher.Enricher{Client: client}, nil
 }
 
 // AddOnlineLicenses appends the deps.dev licence enricher to plugins and widens

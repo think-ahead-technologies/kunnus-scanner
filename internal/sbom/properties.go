@@ -127,8 +127,8 @@ func bsiProperties(pkgs []*extractor.Package) map[string]string {
 		if p == nil {
 			continue
 		}
-		if _, set := out[bsiPropFilename]; !set && len(p.Locations) > 0 && p.Locations[0] != "" {
-			out[bsiPropFilename] = p.Locations[0]
+		if _, set := out[bsiPropFilename]; !set && p.Location.PathOrEmpty() != "" {
+			out[bsiPropFilename] = p.Location.PathOrEmpty()
 		}
 		for _, plugin := range p.Plugins {
 			class := classifyPlugin(plugin)

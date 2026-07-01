@@ -23,9 +23,9 @@ func TestMine_AttachesSHA1FromValidQ1(t *testing.T) {
 	fsys := fstest.MapFS{dbPath: {Data: []byte(db)}}
 
 	inv := inventory.Inventory{Packages: []*extractor.Package{
-		{Name: "musl", Version: "1.2.4-r2", PURLType: purl.TypeApk, Locations: []string{dbPath}},
-		{Name: "badpkg", Version: "1.0", PURLType: purl.TypeApk, Locations: []string{dbPath}},
-		{Name: "left-pad", Version: "1.3.0", PURLType: purl.TypeNPM, Locations: []string{"app/x"}},
+		{Name: "musl", Version: "1.2.4-r2", PURLType: purl.TypeApk, Location: extractor.LocationFromPath(dbPath)},
+		{Name: "badpkg", Version: "1.0", PURLType: purl.TypeApk, Location: extractor.LocationFromPath(dbPath)},
+		{Name: "left-pad", Version: "1.3.0", PURLType: purl.TypeNPM, Location: extractor.LocationFromPath("app/x")},
 	}}
 
 	got := Mine(inv, fsys)
@@ -54,7 +54,7 @@ func TestMine_NoAPKDBIsEmpty(t *testing.T) {
 	// An image with apk packages whose DB cannot be read yields an empty map,
 	// never a panic — a missing checksum must not fail the scan.
 	inv := inventory.Inventory{Packages: []*extractor.Package{
-		{Name: "musl", Version: "1.2.4-r2", PURLType: purl.TypeApk, Locations: []string{"lib/apk/db/installed"}},
+		{Name: "musl", Version: "1.2.4-r2", PURLType: purl.TypeApk, Location: extractor.LocationFromPath("lib/apk/db/installed")},
 	}}
 	got := Mine(inv, fstest.MapFS{})
 	if len(got) != 0 {

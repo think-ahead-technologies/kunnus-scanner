@@ -37,10 +37,10 @@ func Mine(inv inventory.Inventory, fsys fs.FS) hashes.Map {
 	// Parse each distinct DB once: many packages share one installed file.
 	dbCache := make(map[string]map[string]string)
 	for _, p := range inv.Packages {
-		if p == nil || p.PURLType != purl.TypeApk || p.Name == "" || len(p.Locations) == 0 {
+		if p == nil || p.PURLType != purl.TypeApk || p.Name == "" || p.Location.PathOrEmpty() == "" {
 			continue
 		}
-		dbPath := p.Locations[0]
+		dbPath := p.Location.PathOrEmpty()
 		db, ok := dbCache[dbPath]
 		if !ok {
 			db = parseChecksums(fsys, dbPath)
