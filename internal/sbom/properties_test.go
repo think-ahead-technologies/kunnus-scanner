@@ -12,10 +12,10 @@ import (
 
 func TestBSIProperties_FromGoBinary(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "github.com/foo/bar",
-		Version:   "1.0.0",
-		Locations: []string{"bin/kunnus"},
-		Plugins:   []string{"go/binary"},
+		Name:     "github.com/foo/bar",
+		Version:  "1.0.0",
+		Location: extractor.LocationFromPath("bin/kunnus"),
+		Plugins:  []string{"go/binary"},
 	}
 	got := bsiProperties([]*extractor.Package{pkg})
 	wantContain := map[string]string{
@@ -33,10 +33,10 @@ func TestBSIProperties_FromGoBinary(t *testing.T) {
 
 func TestBSIProperties_FromLockfile(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "lodash",
-		Version:   "4.17.21",
-		Locations: []string{"frontend/package-lock.json"},
-		Plugins:   []string{"javascript/packagelockjson"},
+		Name:     "lodash",
+		Version:  "4.17.21",
+		Location: extractor.LocationFromPath("frontend/package-lock.json"),
+		Plugins:  []string{"javascript/packagelockjson"},
 	}
 	got := bsiProperties([]*extractor.Package{pkg})
 	if got["bsi:component:filename"] != "frontend/package-lock.json" {
@@ -52,10 +52,10 @@ func TestBSIProperties_FromLockfile(t *testing.T) {
 
 func TestBSIProperties_FromJavaArchive(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "org.example/some-jar",
-		Version:   "2.0",
-		Locations: []string{"libs/some-jar-2.0.jar"},
-		Plugins:   []string{"java/archive"},
+		Name:     "org.example/some-jar",
+		Version:  "2.0",
+		Location: extractor.LocationFromPath("libs/some-jar-2.0.jar"),
+		Plugins:  []string{"java/archive"},
 	}
 	got := bsiProperties([]*extractor.Package{pkg})
 	if got["bsi:component:archive"] != "true" {
@@ -65,10 +65,10 @@ func TestBSIProperties_FromJavaArchive(t *testing.T) {
 
 func TestBSIProperties_FromOSPackage(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "openssl",
-		Version:   "3.0.11",
-		Locations: []string{"var/lib/dpkg/status"},
-		Plugins:   []string{"os/dpkg"},
+		Name:     "openssl",
+		Version:  "3.0.11",
+		Location: extractor.LocationFromPath("var/lib/dpkg/status"),
+		Plugins:  []string{"os/dpkg"},
 	}
 	got := bsiProperties([]*extractor.Package{pkg})
 	if got["bsi:component:structured"] != "true" {
@@ -183,8 +183,8 @@ func TestBSIProperties_AggregatesAcrossPackages(t *testing.T) {
 	// The flags must OR across both, and the filename takes the first known
 	// location.
 	pkgs := []*extractor.Package{
-		{Locations: []string{"libs/foo.jar"}, Plugins: []string{"java/archive"}},
-		{Locations: []string{"pom.xml"}, Plugins: []string{"java/pomxml"}},
+		{Location: extractor.LocationFromPath("libs/foo.jar"), Plugins: []string{"java/archive"}},
+		{Location: extractor.LocationFromPath("pom.xml"), Plugins: []string{"java/pomxml"}},
 	}
 	got := bsiProperties(pkgs)
 	if got["bsi:component:archive"] != "true" {

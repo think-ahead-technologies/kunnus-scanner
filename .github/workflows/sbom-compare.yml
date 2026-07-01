@@ -42,17 +42,20 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Go
-        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
-        with:
-          go-version-file: "go.mod"
-          check-latest: true
-
+      # Free disk space before setting up Go: this removes $AGENT_TOOLSDIRECTORY
+      # (/opt/hostedtoolcache), where setup-go installs the toolchain. Running it
+      # afterwards would delete Go and break the build with "go: command not found".
       - name: Free disk space
         run: |
           sudo rm -rf /usr/share/dotnet /opt/ghc /usr/local/lib/android \
             /opt/hostedtoolcache/CodeQL "$AGENT_TOOLSDIRECTORY" || true
           df -h /
+
+      - name: Set up Go
+        uses: actions/setup-go@4b73464bb391d4059bd26b0524d20df3927bd417 # v6.3.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
 
       - name: Build kunnus
         run: go build -o /usr/local/bin/kunnus ./cmd/kunnus
