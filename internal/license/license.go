@@ -83,7 +83,7 @@ func Normalize(raw string) (Normalized, bool) {
 	// A malformed licence string like "(" is not a valid SPDX expression anyway,
 	// so screen out unbalanced parens here and let them fall through to the
 	// LicenseRef fallback.
-	if balancedParens(s) {
+	if balancedParenthesis(s) {
 		if normalized, invalid := spdxexp.ValidateAndNormalizeLicensesWithOptions(
 			[]string{s}, spdxexp.ValidateLicensesOptions{},
 		); len(invalid) == 0 && len(normalized) > 0 {
@@ -100,7 +100,7 @@ func Normalize(raw string) (Normalized, bool) {
 	return Normalized{Value: licenseRef(s), Kind: KindCustomRef}, true
 }
 
-// balancedParens reports whether every "(" in s is matched by a later ")".
+// balancedParenthesis reports whether every "(" in s is matched by a later ")".
 // go-spdx panics on a dangling open parenthesis (a nil-pointer deref), so
 // callers must screen out unbalanced parens before validating a string as an
 // SPDX expression.
