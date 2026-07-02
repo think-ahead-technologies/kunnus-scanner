@@ -16,9 +16,29 @@ FUZZ_TARGETS := \
 	./internal/apkchecksum:FuzzDecodeQ1 \
 	./internal/license:FuzzNormalize \
 	./internal/license:FuzzClassify \
+	./internal/ownership:FuzzParseDpkgList \
+	./internal/ownership:FuzzParseApkInstalled \
+	./internal/debiancopyright:FuzzLicensesFromCopyright \
 	./internal/ecosystem:FuzzParseGoSum \
 	./internal/ecosystem:FuzzParseCargoLock \
-	./internal/ecosystem:FuzzParseRequirementsTxt
+	./internal/ecosystem:FuzzParseRequirementsTxt \
+	./internal/ecosystem:FuzzParseBunLock \
+	./internal/ecosystem:FuzzParseYarnLock \
+	./internal/ecosystem:FuzzParseNPMLock \
+	./internal/ecosystem:FuzzParsePNPMLock \
+	./internal/ecosystem:FuzzParseConanLock \
+	./internal/ecosystem:FuzzParseGemfileLockChecksums \
+	./internal/ecosystem:FuzzParseNuGetLock \
+	./internal/ecosystem:FuzzParseUvLock \
+	./internal/ecosystem:FuzzParsePipfileLock \
+	./internal/ecosystem:FuzzParseStackYamlLock \
+	./internal/ecosystem:FuzzParsePyPIPackagesFilesLock \
+	./internal/ecosystem:FuzzParseComposerLockHashes \
+	./internal/ecosystem:FuzzParsePackageJSONLicense \
+	./internal/ecosystem:FuzzParseWheelMetadataLicense \
+	./internal/ecosystem:FuzzParseRockspecLicense \
+	./internal/ecosystem:FuzzParseGemspecLicense \
+	./internal/ecosystem:FuzzParseJavaArchiveLicense
 
 all: fmt vet lint test build
 

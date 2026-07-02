@@ -6,7 +6,8 @@ runs:
   steps:
     - name: Run fuzz targets
       shell: bash
-      # Short per-target bound: this is a smoke test for crashers on the seed
-      # corpus plus a brief exploration, not an exhaustive fuzzing campaign.
-      # Run `make fuzz FUZZTIME=5m` locally to hunt harder.
-      run: make fuzz FUZZTIME=20s
+      # Short per-target bound: this is a smoke test for crashers plus a brief
+      # exploration, not an exhaustive campaign. Each target's seed corpus also
+      # runs in the main unit-test job, so this job's added value is the active
+      # mutation. Run `make fuzz FUZZTIME=5m` locally to hunt harder.
+      run: make fuzz FUZZTIME=10s
