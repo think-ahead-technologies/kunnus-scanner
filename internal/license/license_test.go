@@ -89,7 +89,7 @@ func TestNormalize_CustomFallback(t *testing.T) {
 	}
 }
 
-func TestNormalize_UnbalancedParens(t *testing.T) {
+func TestNormalize_UnbalancedParenthesis(t *testing.T) {
 	// go-spdx panics (nil-pointer deref) on a dangling open parenthesis, so a
 	// package declaring such a malformed licence would take down the scan. These
 	// are not valid SPDX expressions, so they belong in the LicenseRef fallback.
