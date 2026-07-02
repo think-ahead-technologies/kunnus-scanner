@@ -1,9 +1,24 @@
 BINARY := bin/kunnus
 PKG := ./...
 
-.PHONY: all build test cover compliance lint fmt vet tidy clean
+.PHONY: all build test cover compliance fuzz lint fmt vet tidy clean
 
 SBOMQS_VERSION ?= v1.3.0
+
+# How long each fuzz target runs per invocation. CI overrides this with a short
+# bound; run `make fuzz FUZZTIME=5m` locally to hunt harder.
+FUZZTIME ?= 30s
+
+# Every Fuzz* target, as "<package> <FuzzName>" pairs. `go test -fuzz` runs one
+# target at a time, so each is invoked separately. Add new targets here.
+FUZZ_TARGETS := \
+	./internal/modustoolbox:FuzzParseLine \
+	./internal/apkchecksum:FuzzDecodeQ1 \
+	./internal/license:FuzzNormalize \
+	./internal/license:FuzzClassify \
+	./internal/ecosystem:FuzzParseGoSum \
+	./internal/ecosystem:FuzzParseCargoLock \
+	./internal/ecosystem:FuzzParseRequirementsTxt
 
 all: fmt vet lint test build
 
@@ -31,6 +46,15 @@ compliance: build
 	$(BINARY) sbom os --target-os linux testdata/osfamilies/alpine -o /tmp/os.cdx.json
 	@echo "== repo SBOM ==" && sbomqs compliance --bsi-v2 /tmp/repo.cdx.json
 	@echo "== os SBOM (apk licences) ==" && sbomqs compliance --bsi-v2 /tmp/os.cdx.json
+
+# Run every fuzz target for FUZZTIME each. `-run='^$$'` skips the unit tests so
+# only fuzzing runs; the seed corpus still executes as part of each fuzz target.
+fuzz:
+	@for target in $(FUZZ_TARGETS); do \
+		pkg=$${target%%:*}; name=$${target##*:}; \
+		echo "== fuzzing $$name in $$pkg for $(FUZZTIME) =="; \
+		go test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) $$pkg || exit 1; \
+	done
 
 lint:
 	golangci-lint run $(PKG)

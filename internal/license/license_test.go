@@ -88,3 +88,20 @@ func TestNormalize_CustomFallback(t *testing.T) {
 		t.Errorf("Value = %q, want %q", got.Value, want)
 	}
 }
+
+func TestNormalize_UnbalancedParens(t *testing.T) {
+	// go-spdx panics (nil-pointer deref) on a dangling open parenthesis, so a
+	// package declaring such a malformed licence would take down the scan. These
+	// are not valid SPDX expressions, so they belong in the LicenseRef fallback.
+	// (Regression for the crash found by FuzzNormalize on "(".)
+	for _, in := range []string{"(", ")", "((", "(MIT", "MIT)", "(MIT OR Apache-2.0"} {
+		got, ok := Normalize(in)
+		if !ok {
+			t.Errorf("Normalize(%q): ok=false, want true", in)
+			continue
+		}
+		if got.Kind != KindCustomRef {
+			t.Errorf("Normalize(%q).Kind = %v, want KindCustomRef", in, got.Kind)
+		}
+	}
+}

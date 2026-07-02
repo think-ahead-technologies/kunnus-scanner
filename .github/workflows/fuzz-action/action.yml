@@ -1,0 +1,12 @@
+name: fuzz
+description: "Runs each Go fuzz target for a short bounded time to catch crashers"
+
+runs:
+  using: composite
+  steps:
+    - name: Run fuzz targets
+      shell: bash
+      # Short per-target bound: this is a smoke test for crashers on the seed
+      # corpus plus a brief exploration, not an exhaustive fuzzing campaign.
+      # Run `make fuzz FUZZTIME=5m` locally to hunt harder.
+      run: make fuzz FUZZTIME=20s
