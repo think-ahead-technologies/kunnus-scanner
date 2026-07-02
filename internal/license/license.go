@@ -104,7 +104,7 @@ func Normalize(raw string) (Normalized, bool) {
 // go-spdx panics on a dangling open parenthesis (a nil-pointer deref), so
 // callers must screen out unbalanced parens before validating a string as an
 // SPDX expression.
-func balancedParens(s string) bool {
+func balancedParenthesis(s string) bool {
 	depth := 0
 	for _, r := range s {
 		switch r {
