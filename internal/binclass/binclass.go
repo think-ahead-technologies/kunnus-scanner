@@ -84,11 +84,11 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 	}
 	purlType, name := splitPURLTemplate(c.purl)
 	return inventory.Inventory{Packages: []*extractor.Package{{
-		Name:      name,
-		Version:   version,
-		PURLType:  purlType,
-		Locations: []string{input.Path},
-		Metadata:  &Metadata{CPEs: c.cpes},
+		Name:     name,
+		Version:  version,
+		PURLType: purlType,
+		Location: extractor.LocationFromPath(input.Path),
+		Metadata: &Metadata{CPEs: c.cpes},
 	}}}, nil
 }
 
@@ -98,6 +98,9 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 type Metadata struct {
 	CPEs []string
 }
+
+// IsProtoable marks Metadata as a scalibr package-metadata type.
+func (*Metadata) IsProtoable() {}
 
 // match returns the first classifier whose glob matches path, or nil.
 func (e *Extractor) match(p string) *classifier {

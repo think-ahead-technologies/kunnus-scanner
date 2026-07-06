@@ -54,12 +54,12 @@ import (
 // "%2F" check is trivially satisfied and the test still holds.
 func TestEncode_Ordering_LicenseJoinBeforePURLNormalize(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "@isaacs/cliui",
-		Version:   "8.0.0",
-		PURLType:  "npm",
-		Locations: []string{"package-lock.json"},
-		Plugins:   []string{"javascript/packagelockjson"},
-		Licenses:  []string{"ISC"},
+		Name:     "@isaacs/cliui",
+		Version:  "8.0.0",
+		PURLType: "npm",
+		Location: extractor.LocationFromPath("package-lock.json"),
+		Plugins:  []string{"javascript/packagelockjson"},
+		Licenses: []string{"ISC"},
 	}
 	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{pkg}}}
 
@@ -131,11 +131,11 @@ func TestEncode_Ordering_ExtrasBeforeHashesAndDepGraph(t *testing.T) {
 func TestEncode_DedupCollapsesSharedPURL(t *testing.T) {
 	mk := func(loc string) *extractor.Package {
 		return &extractor.Package{
-			Name:      "left-pad",
-			Version:   "1.3.0",
-			PURLType:  "npm",
-			Locations: []string{loc},
-			Plugins:   []string{"javascript/packagelockjson"},
+			Name:     "left-pad",
+			Version:  "1.3.0",
+			PURLType: "npm",
+			Location: extractor.LocationFromPath(loc),
+			Plugins:  []string{"javascript/packagelockjson"},
 		}
 	}
 	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{
@@ -169,11 +169,11 @@ func TestEncode_DedupCollapsesSharedPURL(t *testing.T) {
 // today would require a structural stage-order assertion.
 func TestEncode_RootDependsOnAllComponents(t *testing.T) {
 	pkg := &extractor.Package{
-		Name:      "left-pad",
-		Version:   "1.3.0",
-		PURLType:  "npm",
-		Locations: []string{"package-lock.json"},
-		Plugins:   []string{"javascript/packagelockjson"},
+		Name:     "left-pad",
+		Version:  "1.3.0",
+		PURLType: "npm",
+		Location: extractor.LocationFromPath("package-lock.json"),
+		Plugins:  []string{"javascript/packagelockjson"},
 	}
 	const extraRef = "vendored:zlib"
 	extras := []bom.ExtraComponent{{
