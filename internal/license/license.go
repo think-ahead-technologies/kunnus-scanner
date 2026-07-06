@@ -77,19 +77,47 @@ func Normalize(raw string) (Normalized, bool) {
 		return Normalized{Value: mapped, Kind: KindID}, true
 	}
 
-	if normalized, invalid := spdxexp.ValidateAndNormalizeLicensesWithOptions(
-		[]string{s}, spdxexp.ValidateLicensesOptions{},
-	); len(invalid) == 0 && len(normalized) > 0 {
-		// A compound expression (operators / parentheses) is preserved verbatim
-		// so AND/OR/WITH semantics survive; a single identifier uses the
-		// SPDX-canonical spelling the validator returned.
-		if isExpression(s) {
-			return Normalized{Value: s, Kind: KindExpression}, true
+	// go-spdx v2.7.0 panics (nil-pointer deref in parseOperator) on a dangling
+	// open parenthesis: parseParenthesizedExpression consumes "(" then recurses
+	// without checking for end-of-input, and peek() returns nil (github/go-spdx#158).
+	// A malformed licence string like "(" is not a valid SPDX expression anyway,
+	// so screen out unbalanced parens here and let them fall through to the
+	// LicenseRef fallback.
+	if balancedParenthesis(s) {
+		if normalized, invalid := spdxexp.ValidateAndNormalizeLicensesWithOptions(
+			[]string{s}, spdxexp.ValidateLicensesOptions{},
+		); len(invalid) == 0 && len(normalized) > 0 {
+			// A compound expression (operators / parentheses) is preserved verbatim
+			// so AND/OR/WITH semantics survive; a single identifier uses the
+			// SPDX-canonical spelling the validator returned.
+			if isExpression(s) {
+				return Normalized{Value: s, Kind: KindExpression}, true
+			}
+			return Normalized{Value: normalized[0], Kind: KindID}, true
 		}
-		return Normalized{Value: normalized[0], Kind: KindID}, true
 	}
 
 	return Normalized{Value: licenseRef(s), Kind: KindCustomRef}, true
+}
+
+// balancedParenthesis reports whether every "(" in s is matched by a later ")".
+// go-spdx panics on a dangling open parenthesis (a nil-pointer deref), so
+// callers must screen out unbalanced parens before validating a string as an
+// SPDX expression.
+func balancedParenthesis(s string) bool {
+	depth := 0
+	for _, r := range s {
+		switch r {
+		case '(':
+			depth++
+		case ')':
+			depth--
+			if depth < 0 {
+				return false
+			}
+		}
+	}
+	return depth == 0
 }
 
 // isExpression reports whether s uses SPDX expression syntax (operators or

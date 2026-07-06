@@ -4,8 +4,25 @@ package ownership
 import (
 	"os"
 	"path/filepath"
+	"reflect"
 	"testing"
 )
+
+func TestParseDpkgList(t *testing.T) {
+	got := parseDpkgList([]byte("/.\n/usr\n/usr/bin/xz\n\n  /usr/bin/xzcat  \n"))
+	want := []string{".", "usr", "usr/bin/xz", "usr/bin/xzcat"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseDpkgList = %q, want %q", got, want)
+	}
+}
+
+func TestParseApkInstalled(t *testing.T) {
+	got := parseApkInstalled([]byte("P:busybox\nV:1.37.0-r30\nF:bin\nR:busybox\nR:busybox.suid\nF:usr/sbin\nR:ssl_client\n"))
+	want := []string{"bin/busybox", "bin/busybox.suid", "usr/sbin/ssl_client"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseApkInstalled = %q, want %q", got, want)
+	}
+}
 
 func TestScan(t *testing.T) {
 	root := t.TempDir()

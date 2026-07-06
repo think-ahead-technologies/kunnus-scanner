@@ -57,13 +57,25 @@ func scanDpkg(fsys fs.FS, s Set) {
 		if err != nil {
 			continue
 		}
-		sc := bufio.NewScanner(bytes.NewReader(data))
-		for sc.Scan() {
-			if p := strings.TrimPrefix(strings.TrimSpace(sc.Text()), "/"); p != "" {
-				s[p] = struct{}{}
-			}
+		for _, p := range parseDpkgList(data) {
+			s[p] = struct{}{}
 		}
 	}
+}
+
+// parseDpkgList reads one dpkg *.list file — each line an absolute path the
+// package owns — and returns those paths root-relative (leading slash stripped),
+// skipping blank lines. Split from the filesystem walk so the line parsing is
+// exercisable on raw bytes alone.
+func parseDpkgList(data []byte) []string {
+	var out []string
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	for sc.Scan() {
+		if p := strings.TrimPrefix(strings.TrimSpace(sc.Text()), "/"); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // rpmDBPaths are the rpm database locations across rpm storage backends, in the
@@ -136,6 +148,17 @@ func scanApk(fsys fs.FS, s Set) {
 	if err != nil {
 		return
 	}
+	for _, p := range parseApkInstalled(data) {
+		s[p] = struct{}{}
+	}
+}
+
+// parseApkInstalled reads an apk installed database and returns the owned file
+// paths. Records list files as an "F:" directory line followed by "R:" file
+// lines relative to it. Split from the filesystem read so the record parsing is
+// exercisable on raw bytes alone.
+func parseApkInstalled(data []byte) []string {
+	var out []string
 	sc := bufio.NewScanner(bytes.NewReader(data))
 	dir := ""
 	for sc.Scan() {
@@ -149,10 +172,11 @@ func scanApk(fsys fs.FS, s Set) {
 		case 'R': // file name within the current directory
 			name := line[2:]
 			if dir != "" {
-				s[dir+"/"+name] = struct{}{}
+				out = append(out, dir+"/"+name)
 			} else {
-				s[name] = struct{}{}
+				out = append(out, name)
 			}
 		}
 	}
+	return out
 }
