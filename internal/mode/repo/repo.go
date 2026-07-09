@@ -23,6 +23,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/platformio"
 	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
+	"github.com/think-ahead/kunnus-scanner/internal/zephyr"
 )
 
 // Mode implements mode.Mode for source-code scans.
@@ -147,6 +148,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "espidf") {
 		out = append(out, espidf.New())
+	}
+	if slices.Contains(ecosystems, "zephyr") {
+		out = append(out, zephyr.New())
 	}
 	return out
 }
