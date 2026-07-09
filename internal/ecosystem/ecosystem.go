@@ -91,6 +91,7 @@ type Parser struct {
 // plus one file declaring the aggregate — there is no other registration
 // site to keep in sync.
 var all = []Ecosystem{
+	arduino,
 	cargo,
 	cmake,
 	composer,
