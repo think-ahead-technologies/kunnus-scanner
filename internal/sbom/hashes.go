@@ -28,6 +28,13 @@ func injectHashesCDX(bom *cyclonedx.BOM, hashMap hashes.Map) {
 		}
 		hs, ok := hashMap[c.PackageURL]
 		if !ok {
+			// This stage runs before normalizePURLsCDX, so a namespaced package
+			// still carries the scalibr-encoded purl (%2F namespace separator)
+			// while lockfile hash maps are keyed by the conventional decoded
+			// form. Match on the normalized purl too, like the licence stage.
+			hs, ok = hashMap[normalizePURL(c.PackageURL)]
+		}
+		if !ok {
 			return
 		}
 		cdxHashes := make([]cyclonedx.Hash, 0, len(hs))
