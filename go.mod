@@ -7,6 +7,7 @@ require (
 	github.com/CycloneDX/cyclonedx-go v0.11.0
 	github.com/erikvarga/go-rpmdb v0.0.0-20250523120114-a15a62cd4593
 	github.com/github/go-spdx/v2 v2.7.0
+	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-containerregistry v0.20.6
 	github.com/google/licensecheck v0.3.1
 	github.com/google/osv-scalibr v0.4.6-0.20260630155948-6ec6526e494b
@@ -68,7 +69,6 @@ require (
 	github.com/go-errors/errors v1.5.1 // indirect
 	github.com/go-git/gcfg v1.5.1-0.20230307220236-3a3c6141e376 // indirect
 	github.com/go-git/go-billy/v5 v5.9.0 // indirect
-	github.com/go-git/go-git/v5 v5.19.1 // indirect
 	github.com/go-logr/logr v1.4.3 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-ole/go-ole v1.3.0 // indirect

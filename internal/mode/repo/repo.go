@@ -16,6 +16,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
+	"github.com/think-ahead/kunnus-scanner/internal/gitsubmodule"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
 	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
@@ -135,6 +136,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "vcpkg") {
 		out = append(out, vcpkg.New())
+	}
+	if slices.Contains(ecosystems, "gitsubmodule") {
+		out = append(out, gitsubmodule.New())
 	}
 	return out
 }

@@ -1,0 +1,7 @@
+# gitsubmodule — sourced from .gitmodules. Versionless here: the pinned
+# commit lives in .git/index gitlink entries, and a .git directory cannot be
+# committed as a fixture; SHA resolution is proven by the extractor's unit
+# tests, which encode a real index with go-git at test time.
+purl pkg:github/fmtlib/fmt
+purl pkg:github/FreeRTOS/FreeRTOS-Kernel
+purl pkg:generic/internal-sdk

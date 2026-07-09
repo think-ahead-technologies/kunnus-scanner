@@ -95,6 +95,7 @@ var all = []Ecosystem{
 	composer,
 	cpp,
 	dotnet,
+	gitsubmodule,
 	golang,
 	gradle,
 	haskell,
