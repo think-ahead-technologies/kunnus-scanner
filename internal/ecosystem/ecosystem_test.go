@@ -180,6 +180,9 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"dependencies.lock":  "espidf",       // ESP-IDF resolved lockfile
 		"west.yml":           "zephyr",       // Zephyr west manifest
 		"west.yaml":          "zephyr",       // alternate spelling
+		"CMakeLists.txt":     "cmake",        // CMake build file (FetchContent/CPM declares)
+		"cmakelists.txt":     "cmake",        // case-insensitive
+		"Dependencies.cmake": "cmake",        // CPM convention module (suffix match)
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -232,6 +235,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"platformio project", []string{"platformio.ini"}, []string{"platformio"}},
 		{"esp-idf project", []string{"main/idf_component.yml", "dependencies.lock"}, []string{"espidf"}},
 		{"zephyr west workspace", []string{"west.yml"}, []string{"zephyr"}},
+		{"cmake project", []string{"CMakeLists.txt", "cmake/deps.cmake"}, []string{"cmake"}},
 		{
 			name: "mixed monorepo",
 			files: []string{

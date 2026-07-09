@@ -60,6 +60,8 @@ encoder; the scanner library does the extraction work.
 | `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `zephyr` | `west.yml` manifest resolution (remotes + defaults + repo-path) → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `cmakedecl` | FetchContent/ExternalProject/CPM declare grammar in CMake source (pure: stdlib + hashes only) | scalibr, modes, CLI, encoding |
+| `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -239,6 +241,22 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   `manifest.self` is the scanned tree itself, never a component. Manifest
   `import:` resolution (pulling further manifests from other repos) needs
   those repos on disk and is deliberately out of scope.
+
+- **CMake declares** (`internal/cmake/` + `internal/cmakedecl/`): surfaces
+  dependencies pinned directly in CMake source — `FetchContent_Declare` /
+  `ExternalProject_Add` (git URL + `GIT_TAG`, or tarball `URL` + `URL_HASH`)
+  and CPM.cmake (`CPMAddPackage`/`CPMFindPackage`, shorthand and keyword
+  forms). This is **not** a CMake interpreter: a command-invocation scanner
+  reads literal arguments, and any identity field containing `${...}` drops
+  the declare — the correctness rule (we cannot evaluate variables) doubles as
+  the false-positive control. The vendored `CPM.cmake` script is rejected by
+  filename. The grammar lives in `internal/cmakedecl` (scalibr-free) because
+  two consumers must derive identical purls: the `internal/cmake` extractor
+  and the ecosystem registry's `URL_HASH` HashParser (SHA-256/512/SHA-1/MD5
+  digests on tarball declares → the standard hashes.Map path). Detection flags
+  `cmake` on essentially every C++ repo; that is harmless — no declares, no
+  components. Known gap: the hash-parser dispatch is exact-filename, so
+  URL_HASH mining runs for `CMakeLists.txt` but not `*.cmake` modules.
 
 ## Things we deliberately did NOT build
 
