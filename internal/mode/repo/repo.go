@@ -13,6 +13,7 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/arduino"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/cmake"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
@@ -155,6 +156,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "cmake") {
 		out = append(out, cmake.New())
+	}
+	if slices.Contains(ecosystems, "arduino") {
+		out = append(out, arduino.New())
 	}
 	return out
 }
