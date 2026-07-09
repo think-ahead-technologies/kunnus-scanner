@@ -176,6 +176,8 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		".gitmodules.bak":    "",             // exact name only
 		"platformio.ini":     "platformio",   // PlatformIO project config
 		"PLATFORMIO.INI":     "platformio",   // case-insensitive
+		"idf_component.yml":  "espidf",       // ESP-IDF component manifest
+		"dependencies.lock":  "espidf",       // ESP-IDF resolved lockfile
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -226,6 +228,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"vcpkg manifest project", []string{"vcpkg.json"}, []string{"vcpkg"}},
 		{"git submodule project", []string{".gitmodules"}, []string{"gitsubmodule"}},
 		{"platformio project", []string{"platformio.ini"}, []string{"platformio"}},
+		{"esp-idf project", []string{"main/idf_component.yml", "dependencies.lock"}, []string{"espidf"}},
 		{
 			name: "mixed monorepo",
 			files: []string{
