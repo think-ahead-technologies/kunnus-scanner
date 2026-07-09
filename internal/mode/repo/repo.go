@@ -18,6 +18,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
+	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 )
 
@@ -131,6 +132,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	var out []plugin.Plugin
 	if slices.Contains(ecosystems, "modustoolbox") {
 		out = append(out, modustoolbox.New())
+	}
+	if slices.Contains(ecosystems, "vcpkg") {
+		out = append(out, vcpkg.New())
 	}
 	return out
 }

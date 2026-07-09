@@ -1,0 +1,8 @@
+# vcpkg — sourced from vcpkg.json (manifest mode). Versions come from
+# overrides (zlib, openssl) or the declared "version>=" floor; deps without
+# either (fmt, curl, vcpkg-cmake) are emitted versionless.
+purl pkg:generic/zlib@1.3.1
+purl pkg:generic/openssl@3.0.8
+purl pkg:generic/fmt
+purl pkg:generic/curl
+purl pkg:generic/vcpkg-cmake

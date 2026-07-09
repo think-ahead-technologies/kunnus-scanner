@@ -55,6 +55,7 @@ encoder; the scanner library does the extraction work.
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -163,6 +164,25 @@ No hashes or licences: a `.mtb` pins a git tag, not a commit SHA or checksum, an
 carries no licence data; resolving either needs network access the scanner
 forbids. The cross-project duplication (the same lib pinned by three
 sub-projects) collapses in the sbom dedup stage.
+
+## Embedded C/C++ ecosystems (native extractors, no scalibr plugins)
+
+CRA pushes SBOM coverage into embedded firmware, so kunnus carries native
+extractors (the modustoolbox pattern: `NativeExtractor` registry entry +
+`internal/<name>/` extractor + a branch in `mode/repo`'s
+`nativeExtractorsFor`) for ecosystems scalibr does not cover. Conan needs
+nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
+
+- **vcpkg** (`internal/vcpkg/`): parses manifest-mode `vcpkg.json`. Each
+  `dependencies[]` entry (bare string or object) becomes a `pkg:generic`
+  component. Version resolution is the best offline data, in order: an
+  `overrides[]` pin, else the dep's own `version>=` floor (with the `#N`
+  port-version suffix stripped — that's vcpkg packaging metadata), else
+  versionless. `builtin-baseline` is deliberately ignored: resolving the
+  baseline commit to concrete port versions requires the vcpkg registry, i.e.
+  network access the scanner forbids. Feature-conditional dependencies
+  (`features.<x>.dependencies`) are not walked — whether a feature is enabled
+  is unknowable from the manifest alone.
 
 ## Things we deliberately did NOT build
 
