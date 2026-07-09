@@ -106,6 +106,7 @@ var all = []Ecosystem{
 	r,
 	ruby,
 	swift,
+	vcpkg,
 }
 
 // All returns the registered ecosystems.

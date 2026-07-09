@@ -169,6 +169,9 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"cmsis.mtb":          "modustoolbox", // ModusToolbox dependency manifest (suffix match)
 		"freertos.MTB":       "modustoolbox", // case-insensitive suffix
 		".mtbqueryapi":       "",             // longer suffix must not match .mtb
+		"vcpkg.json":         "vcpkg",        // vcpkg manifest
+		"VCPKG.JSON":         "vcpkg",        // case-insensitive
+		"vcpkg-lock.json":    "",             // only the manifest marks the ecosystem
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -216,6 +219,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"python uv-only project", []string{"uv.lock"}, []string{"python"}},
 		{"cpp conan project", []string{"conanfile.py", "conan.lock"}, []string{"cpp"}},
 		{"cpp conanfile.txt only", []string{"conanfile.txt"}, []string{"cpp"}},
+		{"vcpkg manifest project", []string{"vcpkg.json"}, []string{"vcpkg"}},
 		{
 			name: "mixed monorepo",
 			files: []string{
