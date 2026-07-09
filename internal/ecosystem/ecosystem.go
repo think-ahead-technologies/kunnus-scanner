@@ -103,6 +103,7 @@ var all = []Ecosystem{
 	maven,
 	modustoolbox,
 	npm,
+	platformio,
 	python,
 	r,
 	ruby,
