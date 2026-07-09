@@ -56,6 +56,7 @@ encoder; the scanner library does the extraction work.
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -183,6 +184,21 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   network access the scanner forbids. Feature-conditional dependencies
   (`features.<x>.dependencies`) are not walked — whether a feature is enabled
   is unknowable from the manifest alone.
+
+- **git submodules** (`internal/gitsubmodule/`): parses `.gitmodules` stanzas
+  (via go-git's config decoder) for each submodule's path and remote URL —
+  github.com remotes (https/ssh/scp-like) become `pkg:github/<owner>/<repo>`,
+  everything else `pkg:generic/<last-path-segment>`. The pinned commit is not
+  in the manifest: it is the gitlink entry in the superproject's `.git/index`,
+  which the extractor decodes (go-git's index format reader) through the scan
+  FS — no submodule checkout and no `git` subprocess needed. An exported tree
+  without `.git` yields versionless components. scalibr's `misc/gitrepo` does
+  walk submodules too, but was rejected deliberately: it triggers on `.git`
+  directories (which `fswalk` skips on every kunnus walk) and needs
+  `DirectFS`/`ExtractFromDirs` capabilities repo mode doesn't grant, it emits
+  the scanned repo itself as a package, its GitHub names drop the owner
+  namespace (`pkg:github/fmt`, not `pkg:github/fmtlib/fmt`), and it yields
+  nothing on an exported tree with no `.git`.
 
 ## Things we deliberately did NOT build
 
