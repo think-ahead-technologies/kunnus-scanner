@@ -14,6 +14,7 @@ import (
 	pl "github.com/google/osv-scalibr/plugin/list"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/cmake"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/espidf"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
@@ -151,6 +152,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "zephyr") {
 		out = append(out, zephyr.New())
+	}
+	if slices.Contains(ecosystems, "cmake") {
+		out = append(out, cmake.New())
 	}
 	return out
 }
