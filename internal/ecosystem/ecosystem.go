@@ -92,6 +92,7 @@ type Parser struct {
 // site to keep in sync.
 var all = []Ecosystem{
 	cargo,
+	cmake,
 	composer,
 	cpp,
 	dotnet,
