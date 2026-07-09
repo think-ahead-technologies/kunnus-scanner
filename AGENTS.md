@@ -61,6 +61,7 @@ encoder; the scanner library does the extraction work.
 | `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `zephyr` | `west.yml` manifest resolution (remotes + defaults + repo-path) → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmakedecl` | FetchContent/ExternalProject/CPM declare grammar in CMake source (pure: stdlib + hashes only) | scalibr, modes, CLI, encoding |
+| `arduino` | `library.properties` (vendored lib metadata) + `sketch.yaml` profile pins → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
@@ -257,6 +258,17 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   `cmake` on essentially every C++ repo; that is harmless — no declares, no
   components. Known gap: the hash-parser dispatch is exact-filename, so
   URL_HASH mining runs for `CMakeLists.txt` but not `*.cmake` modules.
+
+- **Arduino** (`internal/arduino/`): two component sources. Each vendored
+  library's `library.properties` describes the library it sits in (name +
+  version, .gemspec-style installed state) → one `pkg:generic` component.
+  arduino-cli's `sketch.yaml`/`sketch.yml` profiles pin libraries and platform
+  cores in the `Name (version)` form → `pkg:generic` per pin; the platform
+  core (`vendor:arch`, colon kept verbatim in the purl name) is a real
+  dependency — the vendor's framework compiled into the firmware. A library's
+  `depends=` field is deliberately not emitted: those transitive declarations
+  usually duplicate libraries vendored (and surfaced) right next to it,
+  without pins of their own.
 
 ## Things we deliberately did NOT build
 
