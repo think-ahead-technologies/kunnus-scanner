@@ -58,6 +58,7 @@ encoder; the scanner library does the extraction work.
 | `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -211,6 +212,20 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   paths and `${...}` interpolations are dropped (interpolation would need
   configparser semantics for marginal gain). Duplicate declarations across
   `[env:*]` sections collapse in the SBOM dedup stage.
+
+- **ESP-IDF** (`internal/espidf/`): two component-manager files, lock
+  preferred. `dependencies.lock` pins exact versions for the whole project
+  (direct + transitive, including the `idf` framework pseudo-component) →
+  `pkg:generic/<namespace>/<name>@<version>`; when a manifest
+  (`idf_component.yml`) sits under a locked project (checked by walking up to
+  the scan root), it is skipped entirely — emitting its ranges alongside the
+  lock's pins would duplicate every component under two purls. Manifest-only
+  projects fall back to declared constraints verbatim (`*` → versionless, bare
+  names get the `espressif/` registry namespace, `path:` components dropped,
+  `git:` sources classified by host). The lock's SHA-256 `component_hash`
+  rides the standard `HashParsers` → `hashes.Map` path (the entry lives in
+  `internal/ecosystem/espidf.go`), keyed by the same purls the extractor
+  emits.
 
 ## Things we deliberately did NOT build
 

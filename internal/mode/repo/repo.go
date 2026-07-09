@@ -15,6 +15,7 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
+	"github.com/think-ahead/kunnus-scanner/internal/espidf"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
 	"github.com/think-ahead/kunnus-scanner/internal/gitsubmodule"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
@@ -143,6 +144,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "platformio") {
 		out = append(out, platformio.New())
+	}
+	if slices.Contains(ecosystems, "espidf") {
+		out = append(out, espidf.New())
 	}
 	return out
 }
