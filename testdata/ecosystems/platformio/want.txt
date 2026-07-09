@@ -1,0 +1,7 @@
+# platformio — sourced from platformio.ini lib_deps (both env sections, both
+# the multi-line and single-line forms). Registry specs keep their declared
+# version verbatim; the github VCS URL pins a tag.
+purl pkg:generic/bblanchon/ArduinoJson@6.21.5
+purl pkg:generic/knolleary/PubSubClient@2.8
+purl pkg:github/me-no-dev/AsyncTCP@v1.1.1
+purl pkg:generic/fabiobatsilva/ArduinoFake@0.4.0
