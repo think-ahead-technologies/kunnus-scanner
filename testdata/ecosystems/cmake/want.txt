@@ -1,0 +1,7 @@
+# cmake — sourced from FetchContent declares in CMakeLists.txt (a git tag pin
+# and a tarball URL whose version is read from the filename; its SHA-256
+# URL_HASH rides the hashes.Map path, asserted by the ecosystem parser tests)
+# plus a CPM shorthand in cmake/deps.cmake.
+purl pkg:github/fmtlib/fmt@10.2.1
+purl pkg:generic/zlib@1.3.1
+purl pkg:github/nlohmann/json@3.11.3
