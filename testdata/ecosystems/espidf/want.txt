@@ -1,0 +1,7 @@
+# espidf — sourced from dependencies.lock (exact resolved versions; the
+# main/idf_component.yml manifest is present but skipped because the lock
+# covers it). The lock's SHA-256 component_hash values ride the hashes.Map
+# path and are asserted by the ecosystem package's parser tests.
+purl pkg:generic/espressif/led_strip@2.5.5
+purl pkg:generic/espressif/mdns@1.8.2
+purl pkg:generic/idf@5.3.1
