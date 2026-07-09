@@ -59,6 +59,7 @@ encoder; the scanner library does the extraction work.
 | `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `zephyr` | `west.yml` manifest resolution (remotes + defaults + repo-path) → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -226,6 +227,18 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   rides the standard `HashParsers` → `hashes.Map` path (the entry lives in
   `internal/ecosystem/espidf.go`), keyed by the same purls the extractor
   emits.
+
+- **Zephyr / west** (`internal/zephyr/`): parses `west.yml` (also `west.yaml`)
+  and resolves each `manifest.projects[]` entry per west's rules — explicit
+  `url` wins, else the project's remote (falling back to `defaults.remote`, or
+  the sole remote when only one exists) contributes `url-base` joined with
+  `repo-path` or the name; `revision` falls back to `defaults.revision`, else
+  versionless (west's own fallback is a moving branch head — not a pin worth
+  recording). github.com → `pkg:github/<owner>/<repo>@<revision>` (revision
+  verbatim: tags and SHAs both appear), else `pkg:generic/<project-name>`.
+  `manifest.self` is the scanned tree itself, never a component. Manifest
+  `import:` resolution (pulling further manifests from other repos) needs
+  those repos on disk and is deliberately out of scope.
 
 ## Things we deliberately did NOT build
 

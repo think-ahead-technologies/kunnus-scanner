@@ -110,6 +110,7 @@ var all = []Ecosystem{
 	ruby,
 	swift,
 	vcpkg,
+	zephyr,
 }
 
 // All returns the registered ecosystems.
