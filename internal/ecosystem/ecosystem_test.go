@@ -174,6 +174,8 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"vcpkg-lock.json":    "",             // only the manifest marks the ecosystem
 		".gitmodules":        "gitsubmodule", // git submodule manifest
 		".gitmodules.bak":    "",             // exact name only
+		"platformio.ini":     "platformio",   // PlatformIO project config
+		"PLATFORMIO.INI":     "platformio",   // case-insensitive
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -223,6 +225,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"cpp conanfile.txt only", []string{"conanfile.txt"}, []string{"cpp"}},
 		{"vcpkg manifest project", []string{"vcpkg.json"}, []string{"vcpkg"}},
 		{"git submodule project", []string{".gitmodules"}, []string{"gitsubmodule"}},
+		{"platformio project", []string{"platformio.ini"}, []string{"platformio"}},
 		{
 			name: "mixed monorepo",
 			files: []string{

@@ -19,6 +19,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/gitsubmodule"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
+	"github.com/think-ahead/kunnus-scanner/internal/platformio"
 	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 )
@@ -139,6 +140,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "gitsubmodule") {
 		out = append(out, gitsubmodule.New())
+	}
+	if slices.Contains(ecosystems, "platformio") {
+		out = append(out, platformio.New())
 	}
 	return out
 }

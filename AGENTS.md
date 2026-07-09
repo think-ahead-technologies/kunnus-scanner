@@ -57,6 +57,7 @@ encoder; the scanner library does the extraction work.
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -199,6 +200,17 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   the scanned repo itself as a package, its GitHub names drop the owner
   namespace (`pkg:github/fmt`, not `pkg:github/fmtlib/fmt`), and it yields
   nothing on an exported tree with no `.git`.
+
+- **PlatformIO** (`internal/platformio/`): parses `lib_deps` options across
+  every section of `platformio.ini` (single-line and indented-continuation
+  forms). Registry specs (`name`, `owner/name`, optionally `@ <version>` with
+  spaces allowed) become `pkg:generic` with the version or range kept verbatim
+  (the modustoolbox rule: a declared range is the truth; resolving it needs
+  PlatformIO's registry, i.e. network). Source URLs with `#<ref>` become
+  `pkg:github` for github.com, `pkg:generic` otherwise; `file://`/`symlink://`
+  paths and `${...}` interpolations are dropped (interpolation would need
+  configparser semantics for marginal gain). Duplicate declarations across
+  `[env:*]` sections collapse in the SBOM dedup stage.
 
 ## Things we deliberately did NOT build
 
