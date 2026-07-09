@@ -183,6 +183,9 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"CMakeLists.txt":     "cmake",        // CMake build file (FetchContent/CPM declares)
 		"cmakelists.txt":     "cmake",        // case-insensitive
 		"Dependencies.cmake": "cmake",        // CPM convention module (suffix match)
+		"library.properties": "arduino",      // Arduino library metadata
+		"sketch.yaml":        "arduino",      // arduino-cli sketch profiles
+		"sketch.yml":         "arduino",      // alternate spelling
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -236,6 +239,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"esp-idf project", []string{"main/idf_component.yml", "dependencies.lock"}, []string{"espidf"}},
 		{"zephyr west workspace", []string{"west.yml"}, []string{"zephyr"}},
 		{"cmake project", []string{"CMakeLists.txt", "cmake/deps.cmake"}, []string{"cmake"}},
+		{"arduino sketch with vendored lib", []string{"sketch.yaml", "libraries/Foo/library.properties"}, []string{"arduino"}},
 		{
 			name: "mixed monorepo",
 			files: []string{
