@@ -186,6 +186,9 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"library.properties": "arduino",      // Arduino library metadata
 		"sketch.yaml":        "arduino",      // arduino-cli sketch profiles
 		"sketch.yml":         "arduino",      // alternate spelling
+		"app.csolution.yml":  "cmsis",        // CMSIS-Solution file (suffix match)
+		"App.CSOLUTION.YAML": "cmsis",        // case-insensitive suffix
+		"app.cproject.yml":   "",             // projects carry no packs; only the solution marks the ecosystem
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -240,6 +243,7 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"zephyr west workspace", []string{"west.yml"}, []string{"zephyr"}},
 		{"cmake project", []string{"CMakeLists.txt", "cmake/deps.cmake"}, []string{"cmake"}},
 		{"arduino sketch with vendored lib", []string{"sketch.yaml", "libraries/Foo/library.properties"}, []string{"arduino"}},
+		{"cmsis solution workspace", []string{"app.csolution.yml"}, []string{"cmsis"}},
 		{
 			name: "mixed monorepo",
 			files: []string{
