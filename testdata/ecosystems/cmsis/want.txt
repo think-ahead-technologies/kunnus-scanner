@@ -1,0 +1,6 @@
+# cmsis — sourced from the solution.packs list of app.csolution.yml. Each
+# Vendor::Pack spec becomes a vendor-namespaced generic purl at the exact
+# declared version.
+purl pkg:generic/ARM/CMSIS@5.9.0
+purl pkg:generic/Keil/STM32F4xx_DFP@2.17.1
+purl pkg:generic/ARM/CMSIS-FreeRTOS@11.1.0

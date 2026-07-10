@@ -62,6 +62,7 @@ encoder; the scanner library does the extraction work.
 | `zephyr` | `west.yml` manifest resolution (remotes + defaults + repo-path) → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmakedecl` | FetchContent/ExternalProject/CPM declare grammar in CMake source (pure: stdlib + hashes only) | scalibr, modes, CLI, encoding |
 | `arduino` | `library.properties` (vendored lib metadata) + `sketch.yaml` profile pins → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `cmsis` | `*.csolution.yml` `solution.packs` specs → vendor-namespaced `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
@@ -269,6 +270,15 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   `depends=` field is deliberately not emitted: those transitive declarations
   usually duplicate libraries vendored (and surfaced) right next to it,
   without pins of their own.
+
+- **CMSIS-Solution** (`internal/cmsis/`): parses `solution.packs` from
+  `*.csolution.yml`/`.yaml` (Open-CMSIS-Pack / Keil MDK / vendor toolchains).
+  Each `Vendor::Pack[@constraint]` spec → `pkg:generic/<Vendor>/<Pack>` with
+  the constraint verbatim (exact, `^range`, `>=floor` — resolving needs the
+  pack index, i.e. network). Local `path:` packs are in-development code and
+  wildcard selections (`NXP::*`) name no single component; both dropped.
+  `*.cproject.yml`/`*.clayer.yml` are not markers: packs are solution-level in
+  the csolution spec.
 
 ## Things we deliberately did NOT build
 
