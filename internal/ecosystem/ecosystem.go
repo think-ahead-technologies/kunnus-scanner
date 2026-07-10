@@ -94,6 +94,7 @@ var all = []Ecosystem{
 	arduino,
 	cargo,
 	cmake,
+	cmsis,
 	composer,
 	cpp,
 	dotnet,
