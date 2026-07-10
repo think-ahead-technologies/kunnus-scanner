@@ -16,6 +16,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/arduino"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/cmake"
+	"github.com/think-ahead/kunnus-scanner/internal/cmsis"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
 	"github.com/think-ahead/kunnus-scanner/internal/espidf"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
@@ -159,6 +160,9 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	}
 	if slices.Contains(ecosystems, "arduino") {
 		out = append(out, arduino.New())
+	}
+	if slices.Contains(ecosystems, "cmsis") {
+		out = append(out, cmsis.New())
 	}
 	return out
 }
