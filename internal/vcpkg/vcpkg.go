@@ -1,5 +1,5 @@
 // ABOUTME: vcpkg extractor — surfaces C/C++ dependencies declared in a manifest-mode vcpkg.json.
-// ABOUTME: A kunnus filesystem.Extractor (no scalibr plugin exists for vcpkg): each dependency -> a pkg:generic package, versioned from overrides or "version>=" floors.
+// ABOUTME: A kunnus filesystem.Extractor (no scalibr plugin exists for vcpkg): each dependency -> a pkg:vcpkg package, versioned from overrides or "version>=" floors.
 package vcpkg
 
 import (
@@ -57,9 +57,11 @@ func (*Extractor) FileRequired(api filesystem.FileAPI) bool {
 	return strings.EqualFold(path.Base(api.Path()), manifestName)
 }
 
-// Extract parses the manifest and emits one pkg:generic package per declared
-// dependency. A malformed manifest yields no packages (and no error): a single
-// bad vcpkg.json must not fail the scan.
+// Extract parses the manifest and emits one pkg:vcpkg package per declared
+// dependency (the spec's port_version/repository_url/triplet qualifiers are
+// not emitted: scalibr's purl conversion for types it has no special handling
+// for carries only type, name and version). A malformed manifest yields no
+// packages (and no error): a single bad vcpkg.json must not fail the scan.
 func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inventory.Inventory, error) {
 	deps := parseManifest(input.Reader)
 	if len(deps) == 0 {
@@ -70,7 +72,7 @@ func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inven
 		pkgs = append(pkgs, &extractor.Package{
 			Name:     d.name,
 			Version:  d.version,
-			PURLType: "generic",
+			PURLType: "vcpkg",
 			Location: extractor.LocationFromPath(input.Path),
 		})
 	}

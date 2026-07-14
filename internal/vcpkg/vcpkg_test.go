@@ -38,7 +38,7 @@ const fixtureManifest = `{
 }`
 
 // TestExtract runs the extractor through scalibr's real filesystem walk,
-// asserting each dependency surfaces as a pkg:generic package with the resolved
+// asserting each dependency surfaces as a pkg:vcpkg package with the resolved
 // version. Decoys prove the FileRequired gate: vcpkg-configuration.json and a
 // non-vcpkg *.json must not be parsed.
 func TestExtract(t *testing.T) {
@@ -65,8 +65,8 @@ func TestExtract(t *testing.T) {
 		if p.Name == "should-not-appear" {
 			t.Errorf("decoy package.json was parsed: %+v", p)
 		}
-		if p.PURLType != "generic" {
-			t.Errorf("package %q has PURLType %q, want generic", p.Name, p.PURLType)
+		if p.PURLType != "vcpkg" {
+			t.Errorf("package %q has PURLType %q, want vcpkg", p.Name, p.PURLType)
 		}
 		got[p.Name] = p.Version
 	}

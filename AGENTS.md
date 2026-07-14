@@ -55,7 +55,7 @@ encoder; the scanner library does the extraction work.
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
-| `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:vcpkg` components | modes, CLI, encoding, ecosystem registry |
 | `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
 | `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
@@ -182,8 +182,11 @@ extractors (the modustoolbox pattern: `NativeExtractor` registry entry +
 nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
 
 - **vcpkg** (`internal/vcpkg/`): parses manifest-mode `vcpkg.json`. Each
-  `dependencies[]` entry (bare string or object) becomes a `pkg:generic`
-  component. Version resolution is the best offline data, in order: an
+  `dependencies[]` entry (bare string or object) becomes a `pkg:vcpkg`
+  component (the purl spec has a vcpkg type; its `port_version` /
+  `repository_url` / `triplet` qualifiers are not emitted — scalibr's generic
+  purl conversion carries only type, name and version). Version resolution is
+  the best offline data, in order: an
   `overrides[]` pin, else the dep's own `version>=` floor (with the `#N`
   port-version suffix stripped — that's vcpkg packaging metadata), else
   versionless. `builtin-baseline` is deliberately ignored: resolving the
