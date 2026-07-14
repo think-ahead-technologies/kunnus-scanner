@@ -2,6 +2,10 @@
 # the multi-line and single-line forms). Registry specs keep their declared
 # version verbatim; the github VCS URL pins a tag.
 purl pkg:generic/bblanchon/ArduinoJson@6.21.5
+cpe  cpe:2.3:a:arduinojson:arduinojson:6.21.5:*:*:*:*:*:*:*
 purl pkg:generic/knolleary/PubSubClient@2.8
+cpe  cpe:2.3:a:pubsubclient:pubsubclient:2.8:*:*:*:*:*:*:*
 purl pkg:github/me-no-dev/AsyncTCP@v1.1.1
+cpe  cpe:2.3:a:asynctcp:asynctcp:v1.1.1:*:*:*:*:*:*:*
 purl pkg:generic/fabiobatsilva/ArduinoFake@0.4.0
+cpe  cpe:2.3:a:arduinofake:arduinofake:0.4.0:*:*:*:*:*:*:*

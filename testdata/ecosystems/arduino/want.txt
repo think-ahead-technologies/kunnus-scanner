@@ -2,6 +2,10 @@
 # core, whose vendor:arch name keeps its colon) and a vendored library's
 # library.properties.
 purl pkg:generic/ArduinoJson@7.0.4
+cpe  cpe:2.3:a:arduinojson:arduinojson:7.0.4:*:*:*:*:*:*:*
 purl pkg:generic/ArduinoIoTCloud@1.12.0
+cpe  cpe:2.3:a:arduinoiotcloud:arduinoiotcloud:1.12.0:*:*:*:*:*:*:*
 purl pkg:generic/WiFiNINA@1.8.14
+cpe  cpe:2.3:a:wifinina:wifinina:1.8.14:*:*:*:*:*:*:*
 purl pkg:generic/arduino:mbed_nano@4.0.2
+cpe  cpe:2.3:a:arduino\:mbed_nano:arduino\:mbed_nano:4.0.2:*:*:*:*:*:*:*
