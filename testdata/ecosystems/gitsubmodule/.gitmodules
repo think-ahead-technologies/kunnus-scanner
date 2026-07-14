@@ -1,0 +1,10 @@
+[submodule "libs/fmt"]
+	path = libs/fmt
+	url = https://github.com/fmtlib/fmt.git
+[submodule "libs/freertos"]
+	path = libs/freertos
+	url = git@github.com:FreeRTOS/FreeRTOS-Kernel.git
+	branch = main
+[submodule "libs/internal-sdk"]
+	path = libs/internal-sdk
+	url = https://gitlab.example.com/firmware/internal-sdk.git

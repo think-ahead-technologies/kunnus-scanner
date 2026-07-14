@@ -1,0 +1,11 @@
+# zephyr — sourced from west.yml. Remotes resolve url-base + repo-path (or the
+# project name); defaults fill in the remote and revision for hal_nordic; the
+# self project (the scanned tree itself) is not a component.
+purl pkg:github/zephyrproject-rtos/zephyr@v3.7.0
+cpe  cpe:2.3:a:zephyr:zephyr:v3.7.0:*:*:*:*:*:*:*
+purl pkg:github/zephyrproject-rtos/cmsis_5@4b96cbb174678dcd3ca86e11e1f24bc5f8726da0
+cpe  cpe:2.3:a:cmsis_5:cmsis_5:4b96cbb174678dcd3ca86e11e1f24bc5f8726da0:*:*:*:*:*:*:*
+purl pkg:github/zephyrproject-rtos/hal_nordic@v3.7.0
+cpe  cpe:2.3:a:hal_nordic:hal_nordic:v3.7.0:*:*:*:*:*:*:*
+purl pkg:generic/mylib@v1.2.3
+cpe  cpe:2.3:a:mylib:mylib:v1.2.3:*:*:*:*:*:*:*

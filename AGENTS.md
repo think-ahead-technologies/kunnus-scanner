@@ -55,6 +55,15 @@ encoder; the scanner library does the extraction work.
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `vcpkg` | `vcpkg.json` manifest parsing (dependencies + overrides + `version>=` floors) → `pkg:vcpkg` components | modes, CLI, encoding, ecosystem registry |
+| `gitsubmodule` | `.gitmodules` stanza parsing + `.git/index` gitlink SHAs → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `platformio` | `platformio.ini` `lib_deps` parsing (registry specs + VCS URLs) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `espidf` | `dependencies.lock` + `idf_component.yml` parsing (lock preferred) → `pkg:generic`/`pkg:github` components | modes, CLI, encoding, ecosystem registry |
+| `zephyr` | `west.yml` manifest resolution (remotes + defaults + repo-path) → `pkg:github`/`pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `cmakedecl` | FetchContent/ExternalProject/CPM declare grammar in CMake source (pure: stdlib + hashes only) | scalibr, modes, CLI, encoding |
+| `arduino` | `library.properties` (vendored lib metadata) + `sketch.yaml` profile pins → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `cmsis` | `*.csolution.yml` `solution.packs` specs → vendor-namespaced `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
+| `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
@@ -163,6 +172,116 @@ No hashes or licences: a `.mtb` pins a git tag, not a commit SHA or checksum, an
 carries no licence data; resolving either needs network access the scanner
 forbids. The cross-project duplication (the same lib pinned by three
 sub-projects) collapses in the sbom dedup stage.
+
+## Embedded C/C++ ecosystems (native extractors, no scalibr plugins)
+
+CRA pushes SBOM coverage into embedded firmware, so kunnus carries native
+extractors (the modustoolbox pattern: `NativeExtractor` registry entry +
+`internal/<name>/` extractor + a branch in `mode/repo`'s
+`nativeExtractorsFor`) for ecosystems scalibr does not cover. Conan needs
+nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
+
+- **vcpkg** (`internal/vcpkg/`): parses manifest-mode `vcpkg.json`. Each
+  `dependencies[]` entry (bare string or object) becomes a `pkg:vcpkg`
+  component (the purl spec has a vcpkg type; its `port_version` /
+  `repository_url` / `triplet` qualifiers are not emitted — scalibr's generic
+  purl conversion carries only type, name and version). Version resolution is
+  the best offline data, in order: an
+  `overrides[]` pin, else the dep's own `version>=` floor (with the `#N`
+  port-version suffix stripped — that's vcpkg packaging metadata), else
+  versionless. `builtin-baseline` is deliberately ignored: resolving the
+  baseline commit to concrete port versions requires the vcpkg registry, i.e.
+  network access the scanner forbids. Feature-conditional dependencies
+  (`features.<x>.dependencies`) are not walked — whether a feature is enabled
+  is unknowable from the manifest alone.
+
+- **git submodules** (`internal/gitsubmodule/`): parses `.gitmodules` stanzas
+  (via go-git's config decoder) for each submodule's path and remote URL —
+  github.com remotes (https/ssh/scp-like) become `pkg:github/<owner>/<repo>`,
+  everything else `pkg:generic/<last-path-segment>`. The pinned commit is not
+  in the manifest: it is the gitlink entry in the superproject's `.git/index`,
+  which the extractor decodes (go-git's index format reader) through the scan
+  FS — no submodule checkout and no `git` subprocess needed. An exported tree
+  without `.git` yields versionless components. scalibr's `misc/gitrepo` does
+  walk submodules too, but was rejected deliberately: it triggers on `.git`
+  directories (which `fswalk` skips on every kunnus walk) and needs
+  `DirectFS`/`ExtractFromDirs` capabilities repo mode doesn't grant, it emits
+  the scanned repo itself as a package, its GitHub names drop the owner
+  namespace (`pkg:github/fmt`, not `pkg:github/fmtlib/fmt`), and it yields
+  nothing on an exported tree with no `.git`.
+
+- **PlatformIO** (`internal/platformio/`): parses `lib_deps` options across
+  every section of `platformio.ini` (single-line and indented-continuation
+  forms). Registry specs (`name`, `owner/name`, optionally `@ <version>` with
+  spaces allowed) become `pkg:generic` with the version or range kept verbatim
+  (the modustoolbox rule: a declared range is the truth; resolving it needs
+  PlatformIO's registry, i.e. network). Source URLs with `#<ref>` become
+  `pkg:github` for github.com, `pkg:generic` otherwise; `file://`/`symlink://`
+  paths and `${...}` interpolations are dropped (interpolation would need
+  configparser semantics for marginal gain). Duplicate declarations across
+  `[env:*]` sections collapse in the SBOM dedup stage.
+
+- **ESP-IDF** (`internal/espidf/`): two component-manager files, lock
+  preferred. `dependencies.lock` pins exact versions for the whole project
+  (direct + transitive, including the `idf` framework pseudo-component) →
+  `pkg:generic/<namespace>/<name>@<version>`; when a manifest
+  (`idf_component.yml`) sits under a locked project (checked by walking up to
+  the scan root), it is skipped entirely — emitting its ranges alongside the
+  lock's pins would duplicate every component under two purls. Manifest-only
+  projects fall back to declared constraints verbatim (`*` → versionless, bare
+  names get the `espressif/` registry namespace, `path:` components dropped,
+  `git:` sources classified by host). The lock's SHA-256 `component_hash`
+  rides the standard `HashParsers` → `hashes.Map` path (the entry lives in
+  `internal/ecosystem/espidf.go`), keyed by the same purls the extractor
+  emits.
+
+- **Zephyr / west** (`internal/zephyr/`): parses `west.yml` (also `west.yaml`)
+  and resolves each `manifest.projects[]` entry per west's rules — explicit
+  `url` wins, else the project's remote (falling back to `defaults.remote`, or
+  the sole remote when only one exists) contributes `url-base` joined with
+  `repo-path` or the name; `revision` falls back to `defaults.revision`, else
+  versionless (west's own fallback is a moving branch head — not a pin worth
+  recording). github.com → `pkg:github/<owner>/<repo>@<revision>` (revision
+  verbatim: tags and SHAs both appear), else `pkg:generic/<project-name>`.
+  `manifest.self` is the scanned tree itself, never a component. Manifest
+  `import:` resolution (pulling further manifests from other repos) needs
+  those repos on disk and is deliberately out of scope.
+
+- **CMake declares** (`internal/cmake/` + `internal/cmakedecl/`): surfaces
+  dependencies pinned directly in CMake source — `FetchContent_Declare` /
+  `ExternalProject_Add` (git URL + `GIT_TAG`, or tarball `URL` + `URL_HASH`)
+  and CPM.cmake (`CPMAddPackage`/`CPMFindPackage`, shorthand and keyword
+  forms). This is **not** a CMake interpreter: a command-invocation scanner
+  reads literal arguments, and any identity field containing `${...}` drops
+  the declare — the correctness rule (we cannot evaluate variables) doubles as
+  the false-positive control. The vendored `CPM.cmake` script is rejected by
+  filename. The grammar lives in `internal/cmakedecl` (scalibr-free) because
+  two consumers must derive identical purls: the `internal/cmake` extractor
+  and the ecosystem registry's `URL_HASH` HashParser (SHA-256/512/SHA-1/MD5
+  digests on tarball declares → the standard hashes.Map path). Detection flags
+  `cmake` on essentially every C++ repo; that is harmless — no declares, no
+  components. Known gap: the hash-parser dispatch is exact-filename, so
+  URL_HASH mining runs for `CMakeLists.txt` but not `*.cmake` modules.
+
+- **Arduino** (`internal/arduino/`): two component sources. Each vendored
+  library's `library.properties` describes the library it sits in (name +
+  version, .gemspec-style installed state) → one `pkg:generic` component.
+  arduino-cli's `sketch.yaml`/`sketch.yml` profiles pin libraries and platform
+  cores in the `Name (version)` form → `pkg:generic` per pin; the platform
+  core (`vendor:arch`, colon kept verbatim in the purl name) is a real
+  dependency — the vendor's framework compiled into the firmware. A library's
+  `depends=` field is deliberately not emitted: those transitive declarations
+  usually duplicate libraries vendored (and surfaced) right next to it,
+  without pins of their own.
+
+- **CMSIS-Solution** (`internal/cmsis/`): parses `solution.packs` from
+  `*.csolution.yml`/`.yaml` (Open-CMSIS-Pack / Keil MDK / vendor toolchains).
+  Each `Vendor::Pack[@constraint]` spec → `pkg:generic/<Vendor>/<Pack>` with
+  the constraint verbatim (exact, `^range`, `>=floor` — resolving needs the
+  pack index, i.e. network). Local `path:` packs are in-development code and
+  wildcard selections (`NXP::*`) name no single component; both dropped.
+  `*.cproject.yml`/`*.clayer.yml` are not markers: packs are solution-level in
+  the csolution spec.
 
 ## Things we deliberately did NOT build
 

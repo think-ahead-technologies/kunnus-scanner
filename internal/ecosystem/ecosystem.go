@@ -91,10 +91,15 @@ type Parser struct {
 // plus one file declaring the aggregate — there is no other registration
 // site to keep in sync.
 var all = []Ecosystem{
+	arduino,
 	cargo,
+	cmake,
+	cmsis,
 	composer,
 	cpp,
 	dotnet,
+	espidf,
+	gitsubmodule,
 	golang,
 	gradle,
 	haskell,
@@ -102,10 +107,13 @@ var all = []Ecosystem{
 	maven,
 	modustoolbox,
 	npm,
+	platformio,
 	python,
 	r,
 	ruby,
 	swift,
+	vcpkg,
+	zephyr,
 }
 
 // All returns the registered ecosystems.
