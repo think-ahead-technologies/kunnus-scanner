@@ -69,11 +69,15 @@ compliance: build
 
 # Run every fuzz target for FUZZTIME each. `-run='^$$'` skips the unit tests so
 # only fuzzing runs; the seed corpus still executes as part of each fuzz target.
+# `-fuzzminimizetime=1x` bounds input minimization to one run: minimization only
+# shrinks inputs for human readability, and left at its 60s default it can
+# straddle the -fuzztime deadline, failing the target with a spurious
+# "context deadline exceeded" (golang/go#48157).
 fuzz:
 	@for target in $(FUZZ_TARGETS); do \
 		pkg=$${target%%:*}; name=$${target##*:}; \
 		echo "== fuzzing $$name in $$pkg for $(FUZZTIME) =="; \
-		go test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) $$pkg || exit 1; \
+		go test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) -fuzzminimizetime=1x $$pkg || exit 1; \
 	done
 
 lint:

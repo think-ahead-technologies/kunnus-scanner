@@ -13,10 +13,8 @@ updates:
     directory: "/"
     schedule:
       interval: "weekly"
-    # Wait at least 24h (1 day, the minimum granularity) after a release before
-    # opening an update for it — lets brand-new releases settle / get yanked.
     cooldown:
-      default-days: 1
+      default-days: 7
     groups:
       go-modules:
         patterns:
@@ -34,7 +32,7 @@ updates:
     schedule:
       interval: "weekly"
     cooldown:
-      default-days: 1
+      default-days: 7
     groups:
       github-actions:
         patterns:

@@ -15,6 +15,33 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
+// maxFuzzInputLen bounds the bytes a fuzz exec hands to a parser, keeping
+// per-exec cost small enough that no single input can straddle the -fuzztime
+// deadline (an exec still running at the deadline fails the whole target with
+// "context deadline exceeded", golang/go#48157). Real lockfiles these parsers
+// see are human-scale; 16KiB leaves plenty of structure to fuzz.
+const maxFuzzInputLen = 16 << 10
+
+// withinFuzzSizeCap reports whether a fuzz input is small enough to parse; the
+// harnesses skip anything larger.
+func withinFuzzSizeCap(data string) bool {
+	return len(data) <= maxFuzzInputLen
+}
+
+// TestWithinFuzzSizeCap pins the boundary of the fuzz input cap: inputs up to
+// maxFuzzInputLen bytes are parsed, anything larger is skipped.
+func TestWithinFuzzSizeCap(t *testing.T) {
+	if !withinFuzzSizeCap("") {
+		t.Error("empty input must be within the cap")
+	}
+	if !withinFuzzSizeCap(strings.Repeat("a", maxFuzzInputLen)) {
+		t.Error("input of exactly maxFuzzInputLen must be within the cap")
+	}
+	if withinFuzzSizeCap(strings.Repeat("a", maxFuzzInputLen+1)) {
+		t.Error("input one byte over maxFuzzInputLen must exceed the cap")
+	}
+}
+
 // fuzzHashParser wires a lockfile hash parser into a fuzz target: seed it, then
 // feed arbitrary bytes and assert every hash it emits is well-formed. Each
 // hash parser has the same io.Reader → (hashes.Map, error) shape.
@@ -24,6 +51,9 @@ func fuzzHashParser(f *testing.F, seeds []string, parse func(io.Reader) (hashes.
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, data string) {
+		if !withinFuzzSizeCap(data) {
+			t.Skip("input exceeds maxFuzzInputLen")
+		}
 		m, err := parse(bytes.NewReader([]byte(data)))
 		if err != nil {
 			return
