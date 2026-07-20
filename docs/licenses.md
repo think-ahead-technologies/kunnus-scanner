@@ -70,6 +70,7 @@ the scan stays fully offline unless `--online-licenses` is passed.
 | R | — | — | only a lockfile extractor; no `DESCRIPTION` extractor |
 | Swift | — | — | `Package.resolved` carries no licence; not on deps.dev |
 | C/C++ (conan, vendored) | — | — | no licence in the scanned inputs |
+| Embedded (vcpkg, CMake declares, git submodules, PlatformIO, ESP-IDF, Zephyr, Arduino, CMSIS, ModusToolbox) | — | — | manifests pin refs/versions only; none carries licence data |
 
 ## Real-world validation
 
