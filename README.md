@@ -9,8 +9,11 @@ kunnus-scanner generates that SBOM. No installer, no cloud connection, no accoun
 ## Quick start
 
 ```shell
-# Install (macOS / Linux)
+# Install (macOS)
 brew install think-ahead-technologies/tap/kunnus
+
+# Install (Linux) — .deb/.rpm packages on the releases page
+sudo dpkg -i kunnus_*.deb    # or: sudo rpm -i kunnus_*.rpm
 
 # Scan a source-code repository
 kunnus sbom repo
@@ -19,7 +22,7 @@ kunnus sbom repo
 kunnus sbom os --output machine.cdx.json
 ```
 
-That's it. Your first SBOM in under three minutes. Also available as a [Docker image](https://github.com/think-ahead-technologies/kunnus-scanner/pkgs/container/kunnus-scanner), via [Scoop on Windows](https://github.com/think-ahead-technologies/scoop-bucket), or as a [prebuilt binary](https://github.com/think-ahead-technologies/kunnus-scanner/releases).
+That's it. Your first SBOM in under three minutes. Also available as a [Docker image](https://github.com/think-ahead-technologies/kunnus-scanner/pkgs/container/kunnus-scanner), via [Scoop on Windows](https://github.com/think-ahead-technologies/scoop-bucket), or as a [prebuilt binary or .deb/.rpm package](https://github.com/think-ahead-technologies/kunnus-scanner/releases).
 
 ## Use cases
 
