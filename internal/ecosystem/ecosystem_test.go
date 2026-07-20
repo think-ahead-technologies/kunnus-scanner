@@ -169,6 +169,26 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"cmsis.mtb":          "modustoolbox", // ModusToolbox dependency manifest (suffix match)
 		"freertos.MTB":       "modustoolbox", // case-insensitive suffix
 		".mtbqueryapi":       "",             // longer suffix must not match .mtb
+		"vcpkg.json":         "vcpkg",        // vcpkg manifest
+		"VCPKG.JSON":         "vcpkg",        // case-insensitive
+		"vcpkg-lock.json":    "",             // only the manifest marks the ecosystem
+		".gitmodules":        "gitsubmodule", // git submodule manifest
+		".gitmodules.bak":    "",             // exact name only
+		"platformio.ini":     "platformio",   // PlatformIO project config
+		"PLATFORMIO.INI":     "platformio",   // case-insensitive
+		"idf_component.yml":  "espidf",       // ESP-IDF component manifest
+		"dependencies.lock":  "espidf",       // ESP-IDF resolved lockfile
+		"west.yml":           "zephyr",       // Zephyr west manifest
+		"west.yaml":          "zephyr",       // alternate spelling
+		"CMakeLists.txt":     "cmake",        // CMake build file (FetchContent/CPM declares)
+		"cmakelists.txt":     "cmake",        // case-insensitive
+		"Dependencies.cmake": "cmake",        // CPM convention module (suffix match)
+		"library.properties": "arduino",      // Arduino library metadata
+		"sketch.yaml":        "arduino",      // arduino-cli sketch profiles
+		"sketch.yml":         "arduino",      // alternate spelling
+		"app.csolution.yml":  "cmsis",        // CMSIS-Solution file (suffix match)
+		"App.CSOLUTION.YAML": "cmsis",        // case-insensitive suffix
+		"app.cproject.yml":   "",             // projects carry no packs; only the solution marks the ecosystem
 	}
 	for name, want := range tests {
 		if got := ForFile(name); got != want {
@@ -216,6 +236,14 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 		{"python uv-only project", []string{"uv.lock"}, []string{"python"}},
 		{"cpp conan project", []string{"conanfile.py", "conan.lock"}, []string{"cpp"}},
 		{"cpp conanfile.txt only", []string{"conanfile.txt"}, []string{"cpp"}},
+		{"vcpkg manifest project", []string{"vcpkg.json"}, []string{"vcpkg"}},
+		{"git submodule project", []string{".gitmodules"}, []string{"gitsubmodule"}},
+		{"platformio project", []string{"platformio.ini"}, []string{"platformio"}},
+		{"esp-idf project", []string{"main/idf_component.yml", "dependencies.lock"}, []string{"espidf"}},
+		{"zephyr west workspace", []string{"west.yml"}, []string{"zephyr"}},
+		{"cmake project", []string{"CMakeLists.txt", "cmake/deps.cmake"}, []string{"cmake"}},
+		{"arduino sketch with vendored lib", []string{"sketch.yaml", "libraries/Foo/library.properties"}, []string{"arduino"}},
+		{"cmsis solution workspace", []string{"app.csolution.yml"}, []string{"cmsis"}},
 		{
 			name: "mixed monorepo",
 			files: []string{

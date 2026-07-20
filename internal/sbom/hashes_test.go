@@ -94,3 +94,31 @@ func TestInjectHashesCDX_OmitsComponentWhenAllHashesUnknown(t *testing.T) {
 		t.Errorf("externalReferences should be nil/empty, got %+v", *c.ExternalReferences)
 	}
 }
+
+func TestInjectHashesCDX_MatchesNamespacedPURLBeforeNormalization(t *testing.T) {
+	// injectHashesCDX runs before normalizePURLsCDX, so a namespaced package
+	// (ESP-IDF's "espressif/led_strip") still carries the scalibr-encoded purl
+	// ("...espressif%2Fled_strip...") when hashes are joined. The hash map is
+	// keyed by the conventional decoded form — the injector must match it the
+	// way the licence stage does, via normalizePURL.
+	bom := &cyclonedx.BOM{
+		Components: &[]cyclonedx.Component{
+			{BOMRef: "x", PackageURL: "pkg:generic/espressif%2Fled_strip@2.5.5"},
+		},
+	}
+	digest := "384db8dd8f4d4d0dd5d941358588c4455bb783e6588e04fbcfdc27eab6d199a8"
+	hashMap := hashes.Map{
+		"pkg:generic/espressif/led_strip@2.5.5": []hashes.Hash{
+			{Algorithm: hashes.AlgSHA256, Hex: digest},
+		},
+	}
+	injectHashesCDX(bom, hashMap)
+
+	c := (*bom.Components)[0]
+	if c.Hashes == nil || len(*c.Hashes) != 1 {
+		t.Fatalf("namespaced component got no hashes: %+v", c.Hashes)
+	}
+	if h := (*c.Hashes)[0]; h.Algorithm != cyclonedx.HashAlgoSHA256 || h.Value != digest {
+		t.Errorf("hash = %s:%s, want SHA-256:%s", h.Algorithm, h.Value, digest)
+	}
+}

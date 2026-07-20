@@ -13,12 +13,20 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 	pl "github.com/google/osv-scalibr/plugin/list"
 
+	"github.com/think-ahead/kunnus-scanner/internal/arduino"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/cmake"
+	"github.com/think-ahead/kunnus-scanner/internal/cmsis"
 	"github.com/think-ahead/kunnus-scanner/internal/ecosystem"
+	"github.com/think-ahead/kunnus-scanner/internal/espidf"
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
+	"github.com/think-ahead/kunnus-scanner/internal/gitsubmodule"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
+	"github.com/think-ahead/kunnus-scanner/internal/platformio"
+	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
+	"github.com/think-ahead/kunnus-scanner/internal/zephyr"
 )
 
 // Mode implements mode.Mode for source-code scans.
@@ -131,6 +139,30 @@ func nativeExtractorsFor(ecosystems []string) []plugin.Plugin {
 	var out []plugin.Plugin
 	if slices.Contains(ecosystems, "modustoolbox") {
 		out = append(out, modustoolbox.New())
+	}
+	if slices.Contains(ecosystems, "vcpkg") {
+		out = append(out, vcpkg.New())
+	}
+	if slices.Contains(ecosystems, "gitsubmodule") {
+		out = append(out, gitsubmodule.New())
+	}
+	if slices.Contains(ecosystems, "platformio") {
+		out = append(out, platformio.New())
+	}
+	if slices.Contains(ecosystems, "espidf") {
+		out = append(out, espidf.New())
+	}
+	if slices.Contains(ecosystems, "zephyr") {
+		out = append(out, zephyr.New())
+	}
+	if slices.Contains(ecosystems, "cmake") {
+		out = append(out, cmake.New())
+	}
+	if slices.Contains(ecosystems, "arduino") {
+		out = append(out, arduino.New())
+	}
+	if slices.Contains(ecosystems, "cmsis") {
+		out = append(out, cmsis.New())
 	}
 	return out
 }

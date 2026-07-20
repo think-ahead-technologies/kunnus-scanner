@@ -1,0 +1,23 @@
+manifest:
+  defaults:
+    remote: upstream
+    revision: v3.7.0
+  remotes:
+    - name: upstream
+      url-base: https://github.com/zephyrproject-rtos
+  projects:
+    - name: zephyr
+      remote: upstream
+      revision: v3.7.0
+      import: true
+    - name: cmsis
+      remote: upstream
+      repo-path: cmsis_5
+      revision: 4b96cbb174678dcd3ca86e11e1f24bc5f8726da0
+      path: modules/hal/cmsis
+    - name: mylib
+      url: https://gitlab.example.com/team/mylib
+      revision: v1.2.3
+    - name: hal_nordic
+  self:
+    path: application
