@@ -90,7 +90,7 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 - **`kunnus sbom container <image|tarball>`** — scan a container image (registry pull, OCI/docker-save tarball, or local docker daemon) with per-layer attribution.
 - **`kunnus upload <file>`** — push an SBOM to `app.kunnus.tech`.
 
-Override flags (`--target-os`, `--ecosystem`, `--source`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only feature that uses the network; off by default).
+Override flags (`--target-os`, `--ecosystem`, `--source`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only scan feature that uses the network; off by default).
 
 ### Supported ecosystems
 
@@ -138,7 +138,7 @@ package is the only one that touches `urfave/cli`.
 
 ```
 make build         # produces ./bin/kunnus
-make test          # go test ./...
+make test          # go test -race -count=1 ./...
 make lint          # golangci-lint run ./...
 make fmt           # gofmt -s -w .
 ```

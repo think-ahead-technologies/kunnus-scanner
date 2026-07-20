@@ -6,8 +6,11 @@ full flag reference see [cli.md](cli.md).
 ## Install
 
 ```shell
-# macOS / Linux
+# macOS (Homebrew cask)
 brew install think-ahead-technologies/tap/kunnus
+
+# Linux — grab a prebuilt binary from the releases page (below),
+# or use the Docker image
 
 # Windows
 scoop bucket add think-ahead https://github.com/think-ahead-technologies/scoop-bucket
