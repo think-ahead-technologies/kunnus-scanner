@@ -152,4 +152,6 @@ Contributions are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the dev
 setup and conventions, and [docs/adding-an-ecosystem.md](docs/adding-an-ecosystem.md)
 walks through adding support for a new ecosystem. Vulnerabilities go through
 the private channel described in [SECURITY.md](SECURITY.md), not the issue
-tracker.
+tracker. Release artifacts ship with SLSA Build L3 provenance and signed
+container images — [SECURITY.md](SECURITY.md#verifying-release-artifacts)
+shows how to verify them.

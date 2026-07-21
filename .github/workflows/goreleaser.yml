@@ -13,6 +13,8 @@ jobs:
   goreleaser:
     outputs:
       hashes: ${{ steps.hash.outputs.hashes }}
+      image: ${{ steps.image.outputs.name }}
+      digest: ${{ steps.image.outputs.digest }}
     permissions:
       contents: write # for goreleaser/goreleaser-action to create a GitHub release
       packages: write # for goreleaser/goreleaser-action to publish docker images
@@ -93,6 +95,19 @@ jobs:
           set -euo pipefail
           checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
           echo "hashes=$(cat $checksum_file | base64 -w0)" >> "$GITHUB_OUTPUT"
+      - name: Extract container image digest
+        id: image
+        # All pushed tags of the multi-platform image share one manifest-list
+        # digest, so `unique` collapses them to a single subject for the
+        # container provenance job below.
+        env:
+          ARTIFACTS: "${{ steps.run-goreleaser.outputs.artifacts }}"
+        run: |
+          set -euo pipefail
+          name=$(echo "$ARTIFACTS" | jq -re '[.[] | select(.type=="Docker Image") | .name | split(":")[0]] | unique | .[0]')
+          digest=$(echo "$ARTIFACTS" | jq -re '[.[] | select(.type=="Docker Image") | .extra.Digest] | unique | .[0]')
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
   provenance:
     needs: [goreleaser]
     permissions:
@@ -105,3 +120,17 @@ jobs:
       base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
       upload-assets: true # upload to a new release
       draft-release: true # upload to a new draft release
+  container-provenance:
+    needs: [goreleaser]
+    permissions:
+      actions: read # To read the workflow path.
+      id-token: write # To sign the provenance.
+      packages: write # To push the provenance attestation to ghcr.io.
+    # This must be a tag, not a hash: https://github.com/slsa-framework/slsa-github-generator/blob/main/README.md#referencing-slsa-builders-and-generators
+    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
+    with:
+      image: ${{ needs.goreleaser.outputs.image }}
+      digest: ${{ needs.goreleaser.outputs.digest }}
+      registry-username: ${{ github.actor }}
+    secrets:
+      registry-password: ${{ secrets.GITHUB_TOKEN }}
