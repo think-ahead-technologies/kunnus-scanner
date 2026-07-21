@@ -1,5 +1,12 @@
 # kunnus-scanner
 
+[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13467/badge)](https://www.bestpractices.dev/projects/13467)
+[![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/think-ahead-technologies/kunnus-scanner/badge)](https://scorecard.dev/viewer/?uri=github.com/think-ahead-technologies/kunnus-scanner)
+[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+[![CI](https://github.com/think-ahead-technologies/kunnus-scanner/actions/workflows/checks.yml/badge.svg)](https://github.com/think-ahead-technologies/kunnus-scanner/actions/workflows/checks.yml)
+[![Release](https://img.shields.io/github/v/release/think-ahead-technologies/kunnus-scanner)](https://github.com/think-ahead-technologies/kunnus-scanner/releases/latest)
+[![License](https://img.shields.io/github/license/think-ahead-technologies/kunnus-scanner)](LICENSE)
+
 **Open-source SBOM generation for manufacturers who need to know what software runs on their machines.**
 
 Starting December 11, 2027, the [EU Cyber Resilience Act (CRA)](https://digital-strategy.ec.europa.eu/en/policies/cyber-resilience-act) requires manufacturers of products with digital elements to provide a Software Bill of Materials (SBOM) — a complete, machine-readable inventory of all software components in the product. This applies to every product newly placed on the market after that date: CNC machines with embedded IPCs, IoT gateways, AGVs, packaging lines with web dashboards — if it contains software, you need an SBOM.
