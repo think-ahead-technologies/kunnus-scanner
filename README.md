@@ -88,12 +88,23 @@ The [kunnus platform](https://kunnus.tech) handles that. Upload your SBOMs and m
 
 ## What it does
 
-- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems (npm, Go, Cargo, NuGet, Maven, Python, Infineon ModusToolbox embedded firmware, …), emit CycloneDX 1.6.
+- **`kunnus sbom repo [path]`** — scan a source-code tree, auto-detect ecosystems, emit CycloneDX 1.6.
 - **`kunnus sbom os [path]`** — scan an OS or firmware filesystem (auto-detects Linux distro family or Windows registry).
 - **`kunnus sbom container <image|tarball>`** — scan a container image (registry pull, OCI/docker-save tarball, or local docker daemon) with per-layer attribution.
 - **`kunnus upload <file>`** — push an SBOM to `app.kunnus.tech`.
 
-Override flags (`--target-os`, `--ecosystem`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only feature that uses the network; off by default).
+Override flags (`--target-os`, `--ecosystem`, `--source`, `--enable`, `--disable`) let you bypass auto-detection. `--online-licenses` opts into deps.dev licence lookup (the only scan feature that uses the network; off by default).
+
+### Supported ecosystems
+
+- **Language ecosystems** (via osv-scalibr): npm/pnpm/yarn/bun, Python (requirements, poetry, pdm, Pipfile, uv), Go, Rust (Cargo), Java (Maven, Gradle), .NET (NuGet), PHP (Composer), Ruby (Bundler), Swift, Haskell (Stack/Cabal), Lua (LuaRocks), R (renv), C/C++ (Conan).
+- **Embedded & C/C++ manifests** (kunnus-native extractors): vcpkg, CMake `FetchContent`/`ExternalProject`/CPM declares, git submodules, PlatformIO, ESP-IDF, Zephyr (west), Arduino, CMSIS-Solution, Infineon ModusToolbox.
+- **OS packages**: Debian/Ubuntu, RHEL, SUSE, Alpine, Arch, Gentoo, Nix, Container-Optimized OS, Flatpak, Snap; Windows via registry.
+- **Non-packaged binaries**: a syft-derived classifier surfaces bare ELF executables (hand-built memcached, python, …) that no package manager tracks, with OS-package overlap suppression so nothing appears twice.
+
+New here? The [getting-started guide](docs/getting-started.md) walks through
+install, all three scan modes (including how to mount a firmware image), and
+CI integration; [docs/cli.md](docs/cli.md) is the full flag reference.
 
 The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
 [docs/sbom-properties.md](docs/sbom-properties.md) for the full reference, and
@@ -105,11 +116,19 @@ The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
 cmd/kunnus/        # binary entry point
 internal/
   command/         # urfave/cli subcommand wiring
-  mode/            # repo + os scan-flavour implementations
-  detect/          # pure host/filesystem introspection (no scalibr imports)
-  scan/            # thin scalibr.Scan() wrapper
-  sbom/            # inventory -> CycloneDX encoder
+  mode/            # repo, os + container scan-flavour implementations
+  detect/          # pure host introspection (no scalibr imports)
+  ecosystem/       # language-ecosystem registry: markers, hash + licence parsers, plugin names
+  osfamily/        # Linux distro fingerprints + per-family scalibr plugins
+  scan/            # thin scalibr Scan()/ScanContainer() wrapper
+  sbom/            # inventory -> CycloneDX encoder (dedup, CPEs, licences, layers)
   hashes/          # native component-content hashes from lockfiles (BSI TR-03183-2)
+  license/         # licence normalization + classification (SPDX)
+  binclass/        # non-packaged ELF binary classifier (syft-derived catalog)
+  ownership/       # dpkg/apk/rpm file-ownership DBs for overlap suppression
+  arduino/ cmake/ cmakedecl/ cmsis/ espidf/ gitsubmodule/
+  modustoolbox/ platformio/ vcpkg/ zephyr/
+                   # native extractors for ecosystems scalibr does not cover
   upload/          # multipart POST to the platform
   version/
 ```
@@ -122,7 +141,15 @@ package is the only one that touches `urfave/cli`.
 
 ```
 make build         # produces ./bin/kunnus
-make test          # go test ./...
+make test          # go test -race -count=1 ./...
 make lint          # golangci-lint run ./...
 make fmt           # gofmt -s -w .
 ```
+
+## Contributing & security
+
+Contributions are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the dev
+setup and conventions, and [docs/adding-an-ecosystem.md](docs/adding-an-ecosystem.md)
+walks through adding support for a new ecosystem. Vulnerabilities go through
+the private channel described in [SECURITY.md](SECURITY.md), not the issue
+tracker.
