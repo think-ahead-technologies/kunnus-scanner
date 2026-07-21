@@ -67,6 +67,23 @@ homebrew_casks:
     homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
     description: "SBOM-generation CLI for the kunnus platform"
 
+# Native Linux packages, attached to the GitHub release. The Homebrew cask
+# above is macOS-only (casks don't work on Homebrew-on-Linux), so Linux
+# gets .deb/.rpm instead.
+nfpms:
+  - id: kunnus
+    ids:
+      - kunnus
+    package_name: kunnus
+    formats:
+      - deb
+      - rpm
+    vendor: "Think Ahead Technologies"
+    maintainer: "Think Ahead Technologies <waldemar.kindler@think-ahead.tech>"
+    homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
+    description: "SBOM-generation CLI for the kunnus platform"
+    license: "Apache-2.0"
+
 scoops:
   - name: kunnus
     ids:
