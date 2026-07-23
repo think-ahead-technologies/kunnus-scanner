@@ -66,8 +66,10 @@ kunnus sbom os /path/to/rootfs --target-os linux --output rootfs.cdx.json
 
 On Linux targets kunnus fingerprints the distro family (Debian, RHEL, SUSE,
 Alpine, Arch, Gentoo, Nix, …) and reads its package database; on Windows it
-reads the registry. It also surfaces non-packaged binaries — software
-compiled straight onto the image that no package manager knows about.
+reads the registry plus Chocolatey and winget state; on macOS it reads
+Homebrew, MacPorts, and installed `.app` bundles. It also surfaces
+non-packaged binaries — software compiled straight onto the image that no
+package manager knows about.
 
 #### Mounting a firmware image
 
