@@ -10,6 +10,8 @@ import (
 	modulemeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module/metadata"
 	vmlinuzmeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz/metadata"
 	"github.com/google/osv-scalibr/inventory"
+
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 )
 
 func TestCPEFromPURL(t *testing.T) {
@@ -180,6 +182,152 @@ func TestCPEFromPURL(t *testing.T) {
 				t.Errorf("cpeFromPURL(%q) = %q, which fails CPE 2.3 grammar", tc.purl, got)
 			}
 		})
+	}
+}
+
+func TestRenderCPETemplate(t *testing.T) {
+	tests := []struct {
+		name, tmpl, version, want string
+	}{
+		{
+			name:    "plain version",
+			tmpl:    "cpe:2.3:a:memcached:memcached:*:*:*:*:*:*:*:*",
+			version: "1.6.42",
+			want:    "cpe:2.3:a:memcached:memcached:1.6.42:*:*:*:*:*:*:*",
+		},
+		{
+			// '+' is forbidden unquoted in a CPE field and must be escaped.
+			name:    "version with plus is escaped",
+			tmpl:    "cpe:2.3:a:python_software_foundation:python:*:*:*:*:*:*:*:*",
+			version: "3.14.5+build2",
+			want:    `cpe:2.3:a:python_software_foundation:python:3.14.5\+build2:*:*:*:*:*:*:*`,
+		},
+		{
+			name:    "version is lowercased per CPE convention",
+			tmpl:    "cpe:2.3:a:getcomposer:composer:*:*:*:*:*:*:*:*",
+			version: "2.7.0RC1",
+			want:    "cpe:2.3:a:getcomposer:composer:2.7.0rc1:*:*:*:*:*:*:*",
+		},
+		{
+			// The erlang templates carry an escaped '/' in the product field; it
+			// must survive rendering intact.
+			name:    "escaped slash in product survives",
+			tmpl:    `cpe:2.3:a:erlang:erlang\/otp:*:*:*:*:*:*:*:*`,
+			version: "26.1",
+			want:    `cpe:2.3:a:erlang:erlang\/otp:26.1:*:*:*:*:*:*:*`,
+		},
+		{
+			name:    "empty version keeps the ANY wildcard",
+			tmpl:    "cpe:2.3:a:memcached:memcached:*:*:*:*:*:*:*:*",
+			version: "",
+			want:    "cpe:2.3:a:memcached:memcached:*:*:*:*:*:*:*:*",
+		},
+		{
+			name:    "malformed template (12 fields) is dropped",
+			tmpl:    "cpe:2.3:a:helm:helm:*:*:*:*:*:*:*",
+			version: "3.14.0",
+			want:    "",
+		},
+		{
+			// A template whose version slot is not the "*" placeholder is not
+			// ours to fill in; drop it rather than clobber a concrete value.
+			name:    "concrete version slot is dropped",
+			tmpl:    "cpe:2.3:a:vendor:product:9.9.9:*:*:*:*:*:*:*",
+			version: "1.0.0",
+			want:    "",
+		},
+		{
+			name:    "garbage is dropped",
+			tmpl:    "not-a-cpe",
+			version: "1.0.0",
+			want:    "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			got := renderCPETemplate(tc.tmpl, tc.version)
+			if got != tc.want {
+				t.Errorf("renderCPETemplate(%q, %q)\n  got:  %q\n  want: %q", tc.tmpl, tc.version, got, tc.want)
+			}
+			if got != "" && !isValidCPE23(got) {
+				t.Errorf("renderCPETemplate(%q, %q) = %q, which fails CPE 2.3 grammar", tc.tmpl, tc.version, got)
+			}
+		})
+	}
+}
+
+// TestInjectCPEsCDXClassifierTemplates covers the binary-classifier path of
+// injectCPEsCDX: a component whose inventory package carries binclass CPE
+// templates gets the first rendered template as its CPE (not the PURL
+// heuristic) and every further template as a kunnus:cpe property; components
+// without templates keep the heuristic, and a pre-set CPE is never touched.
+func TestInjectCPEsCDXClassifierTemplates(t *testing.T) {
+	pythonPkg := &extractor.Package{
+		Name:     "python",
+		Version:  "3.14.5",
+		PURLType: "generic",
+		Metadata: &binclass.Metadata{CPEs: []string{
+			"cpe:2.3:a:python_software_foundation:python:*:*:*:*:*:*:*:*",
+			"cpe:2.3:a:python:python:*:*:*:*:*:*:*:*",
+		}},
+	}
+	// Templates present but every one malformed: the heuristic must kick in.
+	brokenPkg := &extractor.Package{
+		Name:     "broken",
+		Version:  "1.0.0",
+		PURLType: "generic",
+		Metadata: &binclass.Metadata{CPEs: []string{"cpe:2.3:a:oops"}},
+	}
+	// Classifier package with an empty template list (e.g. pypy): heuristic.
+	pypyPkg := &extractor.Package{
+		Name:     "pypy",
+		Version:  "7.3.15",
+		PURLType: "generic",
+		Metadata: &binclass.Metadata{},
+	}
+	plainPkg := &extractor.Package{
+		Name:     "lodash",
+		Version:  "4.17.21",
+		PURLType: "npm",
+	}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pythonPkg, brokenPkg, pypyPkg, plainPkg}}
+
+	components := []cyclonedx.Component{
+		{Name: "python", Version: "3.14.5", PackageURL: "pkg:generic/python@3.14.5"},
+		{Name: "broken", Version: "1.0.0", PackageURL: "pkg:generic/broken@1.0.0"},
+		{Name: "pypy", Version: "7.3.15", PackageURL: "pkg:generic/pypy@7.3.15"},
+		{Name: "lodash", Version: "4.17.21", PackageURL: "pkg:npm/lodash@4.17.21"},
+		{Name: "preset", Version: "1.0", PackageURL: "pkg:generic/python@3.14.5", CPE: "cpe:2.3:a:pre:set:1.0:*:*:*:*:*:*:*"},
+	}
+	bom := &cyclonedx.BOM{Components: &components}
+
+	injectCPEsCDX(bom, inv)
+
+	got := *bom.Components
+	if want := "cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*"; got[0].CPE != want {
+		t.Errorf("python CPE = %q, want %q", got[0].CPE, want)
+	}
+	if got[0].Properties == nil || len(*got[0].Properties) != 1 {
+		t.Fatalf("python properties = %+v, want exactly one kunnus:cpe alias", got[0].Properties)
+	}
+	if p := (*got[0].Properties)[0]; p.Name != "kunnus:cpe" || p.Value != "cpe:2.3:a:python:python:3.14.5:*:*:*:*:*:*:*" {
+		t.Errorf("python alias property = %+v, want kunnus:cpe with the second rendered template", p)
+	}
+	if want := "cpe:2.3:a:broken:broken:1.0.0:*:*:*:*:*:*:*"; got[1].CPE != want {
+		t.Errorf("broken-template CPE = %q, want heuristic %q", got[1].CPE, want)
+	}
+	if want := "cpe:2.3:a:pypy:pypy:7.3.15:*:*:*:*:*:*:*"; got[2].CPE != want {
+		t.Errorf("pypy CPE = %q, want heuristic %q", got[2].CPE, want)
+	}
+	if want := "cpe:2.3:a:lodash:lodash:4.17.21:*:*:*:*:*:*:*"; got[3].CPE != want {
+		t.Errorf("lodash CPE = %q, want heuristic %q", got[3].CPE, want)
+	}
+	if want := "cpe:2.3:a:pre:set:1.0:*:*:*:*:*:*:*"; got[4].CPE != want {
+		t.Errorf("pre-set CPE = %q, want untouched %q", got[4].CPE, want)
+	}
+	if got[1].Properties != nil || got[2].Properties != nil || got[3].Properties != nil {
+		t.Errorf("heuristic components must gain no alias properties; got %+v / %+v / %+v",
+			got[1].Properties, got[2].Properties, got[3].Properties)
 	}
 }
 

@@ -7,3 +7,10 @@ cpe  cpe:2.3:o:alpine:busybox:1.36.1-r5:*:*:*:*:*:*:*
 # Licenses come from the apk db L: field, normalized to SPDX ids.
 license MIT
 license GPL-2.0-only
+# usr/local/lib/libpython3.14.so is the binclass fixture (real python:latest
+# bytes): no apk package owns it, so it must surface as a non-packaged binary
+# with the classifier catalog's curated CPE — the python_software_foundation
+# vendor proves the template path, since the PURL heuristic would say
+# a:python:python.
+purl pkg:generic/python@3.14.5
+cpe  cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*

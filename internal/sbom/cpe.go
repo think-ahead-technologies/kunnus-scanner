@@ -8,13 +8,19 @@ import (
 	"strings"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/osv-scalibr/extractor"
 	vmlinuzmeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz/metadata"
 	"github.com/google/osv-scalibr/inventory"
+
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 )
 
 // injectCPEsCDX fills in Component.CPE for any component that has a PURL but
-// no CPE yet. Scalibr only emits CPEs for packages that came from a parsed
-// SBOM input; for everything else we synthesise one.
+// no CPE yet. Components surfaced by the binary classifier carry curated CPE
+// templates (ported from syft's catalog) in their package metadata; those are
+// authoritative, so the detected version is rendered into them first. For
+// everything else — scalibr only emits CPEs for packages that came from a
+// parsed SBOM input — we synthesise one from the PURL.
 //
 // Kernel image components (scalibr's os/kernel/vmlinuz) are the one purl-less
 // case that still has a CPE identity: NVD keys kernel CVEs on
@@ -25,6 +31,7 @@ import (
 // its own — its CVEs are filed against the kernel.
 func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
 	kernels := kernelImageVersions(inv)
+	byPURL := indexInventoryByPURL(inv)
 	forEachComponent(bom, func(c *cyclonedx.Component) {
 		if c.CPE != "" {
 			return
@@ -35,6 +42,9 @@ func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
 					c.CPE = cpe
 				}
 			}
+			return
+		}
+		if applyClassifierCPEs(c, byPURL[c.PackageURL]) {
 			return
 		}
 		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
@@ -73,6 +83,76 @@ func kernelCPE(version string) string {
 		return ""
 	}
 	out := formatCPE23("o", "linux", "linux_kernel", upstream)
+	if !isValidCPE23(out) {
+		return ""
+	}
+	return out
+}
+
+// applyClassifierCPEs renders the binary classifier's CPE templates for the
+// first matching package that carries any, setting the first rendered CPE on
+// the component and recording the rest as kunnus:cpe alias properties (CDX has
+// a single cpe field, but the catalog deliberately lists NVD vendor aliases —
+// e.g. redislabs and redis). Returns false — caller falls back to the PURL
+// heuristic — when no package carries templates or every template is
+// malformed.
+func applyClassifierCPEs(c *cyclonedx.Component, pkgs []*extractor.Package) bool {
+	for _, p := range pkgs {
+		md, ok := p.Metadata.(*binclass.Metadata)
+		if !ok || len(md.CPEs) == 0 {
+			continue
+		}
+		var rendered []string
+		for _, tmpl := range md.CPEs {
+			if cpe := renderCPETemplate(tmpl, p.Version); cpe != "" {
+				rendered = append(rendered, cpe)
+			}
+		}
+		if len(rendered) == 0 {
+			return false
+		}
+		c.CPE = rendered[0]
+		appendCPEAliasProperties(c, rendered[1:])
+		return true
+	}
+	return false
+}
+
+// appendCPEAliasProperties records each CPE as a repeated kunnus:cpe property.
+// applyBSIProps is not reused here: it takes a map, and alias properties share
+// one name. A no-op when cpes is empty.
+func appendCPEAliasProperties(c *cyclonedx.Component, cpes []string) {
+	if len(cpes) == 0 {
+		return
+	}
+	additions := make([]cyclonedx.Property, 0, len(cpes))
+	for _, cpe := range cpes {
+		additions = append(additions, cyclonedx.Property{Name: cpePropAlias, Value: cpe})
+	}
+	if c.Properties == nil {
+		c.Properties = &additions
+		return
+	}
+	combined := append(*c.Properties, additions...)
+	c.Properties = &combined
+}
+
+// renderCPETemplate renders a detected version into a catalog CPE 2.3
+// template. A template is a full formatted string whose version slot (field 5)
+// is the "*" placeholder; the version is escaped and lowercased like every
+// other field we emit, and an empty version keeps the wildcard. Anything that
+// is not a well-formed template — wrong field count, a concrete version slot
+// that is not ours to clobber, or a render that fails the CPE 2.3 grammar —
+// yields "" so the caller can fall back to the PURL heuristic.
+func renderCPETemplate(tmpl, version string) string {
+	fields := splitCPEFields(tmpl)
+	if len(fields) != 13 || fields[5] != "*" {
+		return ""
+	}
+	if version != "" {
+		fields[5] = cpeField(version)
+	}
+	out := strings.Join(fields, ":")
 	if !isValidCPE23(out) {
 		return ""
 	}

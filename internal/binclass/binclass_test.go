@@ -123,6 +123,21 @@ func TestCatalogInvariants(t *testing.T) {
 		for _, cp := range c.cpes {
 			if !strings.HasPrefix(cp, "cpe:2.3:") {
 				t.Errorf("%s: malformed CPE %q", c.purl, cp)
+				continue
+			}
+			// A CPE 2.3 formatted string has exactly 13 colon-separated fields
+			// (cpe, 2.3, part, then 10 components); the version slot (field 5)
+			// must be the "*" placeholder the sbom stage renders the detected
+			// version into. Split on unescaped colons only — templates may
+			// carry escaped ones (e.g. erlang's "erlang\/otp" has none, but the
+			// grammar allows "\:").
+			fields := splitCPETemplateFields(cp)
+			if len(fields) != 13 {
+				t.Errorf("%s: CPE template %q has %d fields, want 13", c.purl, cp, len(fields))
+				continue
+			}
+			if fields[5] != "*" {
+				t.Errorf("%s: CPE template %q version slot = %q, want \"*\"", c.purl, cp, fields[5])
 			}
 		}
 	}
@@ -152,6 +167,33 @@ func TestGlobMatch(t *testing.T) {
 			t.Errorf("globMatch(%q, %q) = %v, want %v", tc.glob, tc.path, got, tc.want)
 		}
 	}
+}
+
+// splitCPETemplateFields splits a CPE 2.3 string on unescaped ":" boundaries,
+// treating "\:" (and any other backslash pair) as literal field content. A
+// test-local twin of the sbom package's splitter, kept here so the drift guard
+// needs no sbom import.
+func splitCPETemplateFields(s string) []string {
+	var out []string
+	var cur strings.Builder
+	escape := false
+	for _, r := range s {
+		switch {
+		case escape:
+			cur.WriteRune('\\')
+			cur.WriteRune(r)
+			escape = false
+		case r == '\\':
+			escape = true
+		case r == ':':
+			out = append(out, cur.String())
+			cur.Reset()
+		default:
+			cur.WriteRune(r)
+		}
+	}
+	out = append(out, cur.String())
+	return out
 }
 
 func readFixture(t *testing.T, name string) []byte {

@@ -92,9 +92,9 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 	}}}, nil
 }
 
-// Metadata carries the classifier-supplied CPE templates so a downstream CPE
-// stage can attach them. (The catalog ships CPEs per syft; emitting them into
-// the SBOM is wired separately from this prototype.)
+// Metadata carries the classifier-supplied CPE templates (full CPE 2.3
+// strings with "*" in the version slot, per syft's catalog). The sbom
+// package's CPE stage renders the detected version into them.
 type Metadata struct {
 	CPEs []string
 }
