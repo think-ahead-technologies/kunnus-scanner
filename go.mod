@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-containerregistry v0.21.6
 	github.com/google/licensecheck v0.3.1
-	github.com/google/osv-scalibr v0.4.6-0.20260720070628-e2fc55043924
+	github.com/google/osv-scalibr v0.4.6-0.20260727075515-eb1ca153f805
 	github.com/google/uuid v1.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/tidwall/jsonc v0.3.3
@@ -29,7 +29,6 @@ require (
 	deps.dev/util/pypi v0.0.0-20260422013440-90c27f84dd6f // indirect
 	deps.dev/util/resolve v0.0.0-20260422013440-90c27f84dd6f // indirect
 	deps.dev/util/semver v0.0.0-20260529052642-cf1e78d92744 // indirect
-	github.com/Azure/go-ansiterm v0.0.0-20250102033503-faa5f7b0171c // indirect
 	github.com/GehirnInc/crypt v0.0.0-20230320061759-8cc1b52080c5 // indirect
 	github.com/Microsoft/go-winio v0.6.2 // indirect
 	github.com/ProtonMail/go-crypto v1.3.0 // indirect
@@ -53,7 +52,6 @@ require (
 	github.com/distribution/reference v0.6.0 // indirect
 	github.com/djherbis/times v1.6.0 // indirect
 	github.com/docker/cli v29.5.3+incompatible // indirect
-	github.com/docker/docker v28.5.2+incompatible // indirect
 	github.com/docker/docker-credential-helpers v0.9.8 // indirect
 	github.com/docker/go-connections v0.7.0 // indirect
 	github.com/docker/go-units v0.5.0 // indirect
@@ -87,7 +85,8 @@ require (
 	github.com/micromdm/plist v0.2.2 // indirect
 	github.com/moby/buildkit v0.31.1 // indirect
 	github.com/moby/docker-image-spec v1.3.1 // indirect
-	github.com/moby/sys/atomicwriter v0.1.0 // indirect
+	github.com/moby/moby/api v1.55.0 // indirect
+	github.com/moby/moby/client v0.5.0 // indirect
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/ossf/osv-schema/bindings/go v0.0.0-20260424063704-83285ce2a866 // indirect
