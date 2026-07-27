@@ -190,6 +190,107 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Container_Chiselled(t *testing.T) {
+	// A chiselled Ubuntu image has no dpkg status file: its package record is
+	// the chisel manifest. Build a single-layer image from the real
+	// chiselled-noble fixture (manifest + os-release + openssl's DEP-5
+	// copyright) and assert the chisel extractor, the manifest sha256 digest
+	// recovery (container mode's PostScanHashes) and the debiancopyright
+	// enricher all work through the real binary.
+	fixture := filepath.Join(moduleRoot(t), "testdata", "osfamilies", "chisel")
+	manifest, err := os.ReadFile(filepath.Join(fixture, "var", "lib", "chisel", "manifest.wall"))
+	if err != nil {
+		t.Fatalf("read chisel manifest fixture: %v", err)
+	}
+	osRelease, err := os.ReadFile(filepath.Join(fixture, "etc", "os-release"))
+	if err != nil {
+		t.Fatalf("read os-release fixture: %v", err)
+	}
+	copyright, err := os.ReadFile(filepath.Join(fixture, "usr", "share", "doc", "openssl", "copyright"))
+	if err != nil {
+		t.Fatalf("read copyright fixture: %v", err)
+	}
+	layer := layerFromFiles(t, map[string]string{
+		"etc/os-release":                  string(osRelease),
+		"var/lib/chisel/manifest.wall":    string(manifest),
+		"usr/share/doc/openssl/copyright": string(copyright),
+	})
+	tarPath := writeImageTarball(t, layer)
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "container", "--source", "tarball", "--output", outPath, tarPath)
+	if err != nil {
+		t.Fatalf("sbom container failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read SBOM: %v", err)
+	}
+	var doc struct {
+		Components []struct {
+			PURL   string `json:"purl"`
+			Hashes []struct {
+				Alg     string `json:"alg"`
+				Content string `json:"content"`
+			} `json:"hashes"`
+			Licenses []struct {
+				License struct {
+					ID string `json:"id"`
+				} `json:"license"`
+			} `json:"licenses"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("parse SBOM: %v", err)
+	}
+
+	// Every package in the fixture manifest must surface as a deb component.
+	for _, p := range []string{
+		"pkg:deb/ubuntu/base-files@13ubuntu10.2?arch=amd64&distro=noble",
+		"pkg:deb/ubuntu/libc6@2.39-0ubuntu8.4?arch=amd64&distro=noble",
+		"pkg:deb/ubuntu/libssl3t64@3.0.13-0ubuntu3.5?arch=amd64&distro=noble",
+		"pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.5?arch=amd64&distro=noble",
+	} {
+		found := false
+		for _, c := range doc.Components {
+			if c.PURL == p {
+				found = true
+			}
+		}
+		if !found {
+			t.Errorf("expected purl %q missing from chiselled-container SBOM", p)
+		}
+	}
+
+	// The manifest's per-package sha256 is recovered post-scan and attached to
+	// the component; the DEP-5 copyright yields the licence.
+	const opensslSHA256 = "00f9b292ff5636d49832e493789ec91e21cfd4e98ccc9fd23497e92a2cc9c76a"
+	hashed, licensed := false, false
+	for _, c := range doc.Components {
+		if !contains(c.PURL, "pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.5") {
+			continue
+		}
+		for _, h := range c.Hashes {
+			if h.Alg == "SHA-256" && h.Content == opensslSHA256 {
+				hashed = true
+			}
+		}
+		for _, l := range c.Licenses {
+			if l.License.ID == "Apache-2.0" {
+				licensed = true
+			}
+		}
+	}
+	if !hashed {
+		t.Errorf("openssl component missing recovered SHA-256 %s in chiselled-container SBOM", opensslSHA256)
+	}
+	if !licensed {
+		t.Errorf("openssl component missing Apache-2.0 licence from its DEP-5 copyright file")
+	}
+}
+
 func TestCLI_SBOM_Container_EmbeddedSBOM(t *testing.T) {
 	// Some images ship their own SBOM (e.g. Talos at /usr/share/spdx/*.spdx.json).
 	// The embedded-SBOM extractor must ingest it, so vendor-declared components

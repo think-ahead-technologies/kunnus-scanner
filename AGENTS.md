@@ -64,7 +64,7 @@ encoder; the scanner library does the extraction work.
 | `arduino` | `library.properties` (vendored lib metadata) + `sketch.yaml` profile pins → `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmsis` | `*.csolution.yml` `solution.packs` specs → vendor-namespaced `pkg:generic` components | modes, CLI, encoding, ecosystem registry |
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
-| `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
+| `ownership` | dpkg/apk/rpm/chisel database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
@@ -129,8 +129,9 @@ and once as `pkg:generic/...`. The stage drops the `pkg:generic` twin when
 either signal fires:
 
 - **File ownership (primary).** `internal/ownership/` reads the dpkg
-  (`var/lib/dpkg/info/*.list`), apk (`lib/apk/db/installed`) and rpm
-  (`var/lib/rpm/rpmdb.sqlite` etc., via go-rpmdb) databases at the scan root into
+  (`var/lib/dpkg/info/*.list`), apk (`lib/apk/db/installed`), rpm
+  (`var/lib/rpm/rpmdb.sqlite` etc., via go-rpmdb) and chisel
+  (`var/lib/chisel/manifest.wall`, a zstd jsonwall) databases at the scan root into
   a set of owned paths, carried on `Plan.OwnedFiles` (built by `mode/os` and
   `mode/container`, which have the root/image FS) and passed into `sbom.Encode`.
   A generic component is dropped when one of its evidence locations is an owned
@@ -501,7 +502,7 @@ withholds data, so a marker always means unknown, never redacted.
   covers python); not ported are syft's resolver-based shared-library lookup and
   the Java JDK/JRE branching set.
   Overlap suppression is path-based via `internal/ownership/` (with a
-  name+version fallback) across dpkg, apk and rpm, so it correctly collapses
+  name+version fallback) across dpkg, apk, rpm and chisel, so it correctly collapses
   packages whose name differs from the binary's (`xz-utils`, `postgresql-18`,
   `curl-minimal`).
 
