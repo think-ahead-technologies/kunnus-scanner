@@ -283,6 +283,35 @@ nothing here — the `cpp` ecosystem already runs scalibr's `cpp/conanlock`.
   `*.cproject.yml`/`*.clayer.yml` are not markers: packs are solution-level in
   the csolution spec.
 
+## Linux kernel (host-only, fallback-only OS family)
+
+For `sbom os` over a full host, VM image, or extracted firmware root, the
+kernel itself is CRA-relevant software. The `kernel` entry in
+`internal/osfamily/` wires scalibr's `os/kernel/module` (every `*.ko`, version
+from the ELF `.modinfo` section) and `os/kernel/vmlinuz` (`boot/vmlinuz*`
+images) with two deliberate restrictions:
+
+- **Fallback-only** (no detection fingerprint): the extractors run when no
+  distro is detected at the scan root — the extracted-firmware case, where a
+  kernel is present but no package database is. On a *detected* distro they are
+  opt-in via `--enable-plugins os/kernel/module,os/kernel/vmlinuz`, because a
+  full host yields one component per module (hundreds) and that is not the
+  default SBOM character for "scan this Ubuntu root".
+- **Host-only** (`LinuxFamily.HostOnly`): container images have no kernel, so
+  `mode/container` builds its union from `osfamily.ContainerLinuxPlugins()`,
+  which excludes host-only families; `AllLinuxPlugins()` (the host-scan
+  fallback) keeps them.
+
+Known wart: scalibr's kernel extractors set no `PURLType`, so their packages
+carry no purl (and get no cpe) — they land in the SBOM as name/version-only
+components (`intel_oaktrail@0.4ac1`, `Linux Kernel@6.8.0-49-generic`). The
+purl-keyed sbom stages (dedup, hash/licence injection, supplier) skip them by
+design. If upstream adds a purl type, the fixtures' `want.txt` should switch
+from `pkg` lines back to `purl` lines.
+
+`os/spack` (HPC package manager) was also audited and deliberately skipped —
+supercomputing installs are out of target profile (#68).
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.
@@ -338,8 +367,11 @@ the fast/narrow ones:
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`
   and `testdata/osfamilies/<name>/` each hold a real manifest/lockfile (or
   package DB + `etc/os-release`) plus a `want.txt` listing the exact `purl` and
-  `cpe` the scanner must emit. Both the scan-seam tier and the binary e2e tier
-  read this one corpus.
+  `cpe` the scanner must emit (or `pkg <name>@<version>` for packages that
+  carry no purl, like the kernel extractors' output). Both the scan-seam tier
+  and the binary e2e tier read this one corpus. The `kernel` fixture is real
+  binaries from scalibr's own testdata (Apache-2.0): a full `.ko` and a 32 KiB
+  slice of a vmlinuz image, exercising the no-distro fallback path.
 - **Scan-seam integration** (`internal/scan/*_integration_test.go`). For each
   registered ecosystem / Linux OS family, plan via `mode/repo` or `mode/os`,
   run real scalibr, and assert the exact purls appear in the inventory. The
