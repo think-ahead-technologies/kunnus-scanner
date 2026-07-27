@@ -1,7 +1,7 @@
 name: SBOM Compare
 
 # Benchmarks kunnus' container SBOMs against trivy and syft across a spread of
-# representative images (apk / deb / rpm / pypi / go / java / embedded SBOM).
+# representative images (apk / deb / chisel / rpm / pypi / go / java / embedded SBOM).
 # Informational only — it never fails the build; results land in the job
 # summary and the SBOMs are uploaded as artifacts. Run on demand or weekly.
 on:
@@ -31,6 +31,7 @@ jobs:
         image:
           - alpine:3.19 # apk
           - python:3.12-slim # deb + pypi
+          - ubuntu/dotnet-deps:8.0-24.04_stable # chiselled ubuntu (chisel manifest, no dpkg DB)
           - rockylinux:9 # rpm (epoch handling)
           - cgr.dev/chainguard/cosign:latest # distroless, go binary
           - cgr.dev/chainguard/gradle:latest # java / jars
