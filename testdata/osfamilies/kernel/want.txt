@@ -10,7 +10,12 @@
 #     slice; the bzImage header magic and version string sit in the first pages)
 #
 # scalibr's kernel extractors set no PURLType, so these packages carry no purl
-# (and therefore no cpe) — the SBOM records them as name/version components.
-# Asserted via "pkg <name>@<version>" instead of "purl".
+# — the SBOM records them as name/version components, asserted via
+# "pkg <name>@<version>" instead of "purl". The kernel image still gets a CPE:
+# the encoder synthesises the NVD dictionary form from the vmlinuz metadata,
+# truncating the distro-suffixed version to its upstream release (NVD keys
+# kernel CVEs on "6.8.0", not "6.8.0-49-generic"). Modules get no CPE — an
+# in-tree module has no NVD identity; its CVEs are filed against the kernel.
 pkg intel_oaktrail@0.4ac1
 pkg Linux Kernel@6.8.0-49-generic
+cpe cpe:2.3:o:linux:linux_kernel:6.8.0:*:*:*:*:*:*:*

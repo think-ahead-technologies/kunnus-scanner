@@ -303,11 +303,21 @@ images) with two deliberate restrictions:
   fallback) keeps them.
 
 Known wart: scalibr's kernel extractors set no `PURLType`, so their packages
-carry no purl (and get no cpe) — they land in the SBOM as name/version-only
-components (`intel_oaktrail@0.4ac1`, `Linux Kernel@6.8.0-49-generic`). The
-purl-keyed sbom stages (dedup, hash/licence injection, supplier) skip them by
-design. If upstream adds a purl type, the fixtures' `want.txt` should switch
-from `pkg` lines back to `purl` lines.
+carry no purl — they land in the SBOM as name/version components
+(`intel_oaktrail@0.4ac1`, `Linux Kernel@6.8.0-49-generic`). The purl-keyed
+sbom stages (dedup, hash/licence injection, supplier) skip them by design. If
+upstream adds a purl type, the fixtures' `want.txt` should switch from `pkg`
+lines back to `purl` lines. The kernel *image* does get a CPE despite the
+missing purl: `injectCPEsCDX` recognises the vmlinuz metadata and synthesises
+the NVD dictionary form `cpe:2.3:o:linux:linux_kernel:<upstream release>`,
+truncating a distro suffix ("6.8.0-49-generic" → "6.8.0") because NVD keys
+kernel CVEs on the upstream release (verified: 5,779 CVEs against 6.8.0).
+Modules get no CPE — an in-tree module has no NVD identity of its own. Note
+the distro caveat: a heavily-backported distro kernel matched against upstream
+ranges over-reports; the honest match for those is the distro ecosystem via
+the dpkg-provided `linux-image-*` package, which a full-host scan surfaces
+anyway. The upstream CPE is exactly right for the family's main case, vanilla
+BSP/firmware kernels.
 
 `os/spack` (HPC package manager) was also audited and deliberately skipped —
 supercomputing installs are out of target profile (#68).

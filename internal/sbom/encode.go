@@ -72,7 +72,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	enrichCDXMetadata(cdxBom)
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
-	injectCPEsCDX(cdxBom)
+	injectCPEsCDX(cdxBom, result.Inventory)
 	// [enforced] Extras must be appended before injectHashesCDX so the hash
 	// injector sees them in its PURL index, and before injectDepGraphCDX so their
 	// BOMRefs participate in the dep graph.

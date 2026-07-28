@@ -1,4 +1,4 @@
-// ABOUTME: Stage: synthesises CPE 2.3 strings from PURLs for components scalibr left without one.
+// ABOUTME: Stage: synthesises CPE 2.3 strings from PURLs (or kernel-image metadata) for components scalibr left without one.
 // ABOUTME: Bridges the gap between our PURL-first SBOMs and legacy CPE-only vuln matchers.
 package sbom
 
@@ -8,20 +8,75 @@ import (
 	"strings"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	vmlinuzmeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz/metadata"
+	"github.com/google/osv-scalibr/inventory"
 )
 
 // injectCPEsCDX fills in Component.CPE for any component that has a PURL but
 // no CPE yet. Scalibr only emits CPEs for packages that came from a parsed
 // SBOM input; for everything else we synthesise one.
-func injectCPEsCDX(bom *cyclonedx.BOM) {
+//
+// Kernel image components (scalibr's os/kernel/vmlinuz) are the one purl-less
+// case that still has a CPE identity: NVD keys kernel CVEs on
+// cpe:2.3:o:linux:linux_kernel:<upstream release>. They are recognised by
+// their vmlinuz metadata in the inventory (joined back to the component by
+// name+version, the same identity the converter copied). Kernel modules
+// (os/kernel/module) get nothing: an in-tree module has no NVD identity of
+// its own — its CVEs are filed against the kernel.
+func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
+	kernels := kernelImageVersions(inv)
 	forEachComponent(bom, func(c *cyclonedx.Component) {
-		if c.CPE != "" || c.PackageURL == "" {
+		if c.CPE != "" {
+			return
+		}
+		if c.PackageURL == "" {
+			if kernels[c.Name+"@"+c.Version] {
+				if cpe := kernelCPE(c.Version); cpe != "" {
+					c.CPE = cpe
+				}
+			}
 			return
 		}
 		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
 			c.CPE = cpe
 		}
 	})
+}
+
+// kernelImageVersions indexes the packages the vmlinuz extractor produced by
+// "name@version", the identity available on a purl-less CDX component.
+func kernelImageVersions(inv inventory.Inventory) map[string]bool {
+	set := make(map[string]bool)
+	for _, p := range inv.Packages {
+		if p == nil {
+			continue
+		}
+		if _, ok := p.Metadata.(*vmlinuzmeta.Metadata); ok {
+			set[p.Name+"@"+p.Version] = true
+		}
+	}
+	return set
+}
+
+// kernelUpstreamRe matches the leading dotted-numeric release of a kernel
+// version string ("6.8.0" in "6.8.0-49-generic").
+var kernelUpstreamRe = regexp.MustCompile(`^[0-9]+(\.[0-9]+)*`)
+
+// kernelCPE returns the NVD dictionary form for a kernel image version. NVD
+// keys kernel CVEs on the upstream release, so a distro-suffixed version is
+// truncated to its leading numeric release (the full version stays on the
+// component). No numeric release means no CPE — a wildcard-version kernel CPE
+// would match every kernel CVE ever filed.
+func kernelCPE(version string) string {
+	upstream := kernelUpstreamRe.FindString(version)
+	if upstream == "" {
+		return ""
+	}
+	out := formatCPE23("o", "linux", "linux_kernel", upstream)
+	if !isValidCPE23(out) {
+		return ""
+	}
+	return out
 }
 
 // cpeFromPURL returns a CPE 2.3 string derived from a PURL, or "" if the PURL

@@ -5,7 +5,10 @@ package sbom
 import (
 	"testing"
 
+	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
+	modulemeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module/metadata"
+	vmlinuzmeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz/metadata"
 	"github.com/google/osv-scalibr/inventory"
 )
 
@@ -271,4 +274,66 @@ func TestRealScanProducesValidCPEs(t *testing.T) {
 	// encoder accepts — guards against a future refactor breaking this test
 	// silently if Encode stops walking the inventory.
 	_ = inventory.Inventory{Packages: pkgs}
+}
+
+func TestInjectCPEsCDX_KernelImage(t *testing.T) {
+	// scalibr's os/kernel/vmlinuz sets no PURLType, so the kernel image
+	// component carries no purl for cpeFromPURL to work from. The stage instead
+	// recognises the package by its vmlinuz metadata (joined back to the CDX
+	// component by name+version) and synthesises the NVD dictionary form
+	// cpe:2.3:o:linux:linux_kernel:<upstream>. NVD keys kernel CVEs on the
+	// upstream release, so a distro-suffixed version is truncated to its
+	// leading numeric release; a vanilla version passes through whole.
+	tests := []struct {
+		name    string
+		version string
+		want    string
+	}{
+		{
+			name:    "distro-suffixed version truncates to upstream release",
+			version: "6.8.0-49-generic",
+			want:    "cpe:2.3:o:linux:linux_kernel:6.8.0:*:*:*:*:*:*:*",
+		},
+		{
+			name:    "vanilla firmware kernel version passes through",
+			version: "5.10.120",
+			want:    "cpe:2.3:o:linux:linux_kernel:5.10.120:*:*:*:*:*:*:*",
+		},
+		{
+			name:    "no numeric release yields no CPE (wildcard would match every kernel CVE)",
+			version: "",
+			want:    "",
+		},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			inv := inventory.Inventory{Packages: []*extractor.Package{{
+				Name:     "Linux Kernel",
+				Version:  tc.version,
+				Metadata: &vmlinuzmeta.Metadata{Name: "Linux Kernel", Version: tc.version},
+			}}}
+			b := cyclonedx.NewBOM()
+			b.Components = &[]cyclonedx.Component{{Name: "Linux Kernel", Version: tc.version}}
+			injectCPEsCDX(b, inv)
+			if got := (*b.Components)[0].CPE; got != tc.want {
+				t.Errorf("kernel image CPE = %q, want %q", got, tc.want)
+			}
+		})
+	}
+}
+
+func TestInjectCPEsCDX_PurllessNonKernelUntouched(t *testing.T) {
+	// Kernel modules (os/kernel/module) and any other purl-less package have no
+	// NVD identity of their own — the stage must not invent one.
+	inv := inventory.Inventory{Packages: []*extractor.Package{{
+		Name:     "intel_oaktrail",
+		Version:  "0.4ac1",
+		Metadata: &modulemeta.Metadata{PackageName: "intel_oaktrail", PackageVersion: "0.4ac1"},
+	}}}
+	b := cyclonedx.NewBOM()
+	b.Components = &[]cyclonedx.Component{{Name: "intel_oaktrail", Version: "0.4ac1"}}
+	injectCPEsCDX(b, inv)
+	if got := (*b.Components)[0].CPE; got != "" {
+		t.Errorf("purl-less module component got CPE %q, want none", got)
+	}
 }
