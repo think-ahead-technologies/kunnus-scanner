@@ -100,6 +100,13 @@ func distinctSortedIndices(layers []*extractor.LayerMetadata) []int {
 	return out
 }
 
+// cpePropAlias carries the binary classifier's additional CPE aliases: CDX
+// has a single cpe field per component, but the classifier catalog lists
+// every NVD vendor spelling for a product (e.g. redislabs and redis). The
+// preferred CPE goes in Component.CPE; each further alias repeats this
+// property.
+const cpePropAlias = "kunnus:cpe"
+
 // BSI property keys. Values are the JSON strings "true" or "false" — they're
 // treated as text by both CDX and the sbomqs evaluator, so we encode them as
 // strings rather than booleans.

@@ -1,5 +1,5 @@
 // ABOUTME: Guards for sbom.Encode's stage ordering plus the output invariants those stages produce.
-// ABOUTME: The two *_Ordering_* tests are verified by mutation testing to fail when their stage is reordered; the rest pin output shape.
+// ABOUTME: The *_Ordering_* tests were verified by mutation testing to fail when their stage is reordered; the rest pin output shape.
 package sbom
 
 import (
@@ -11,6 +11,7 @@ import (
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
@@ -22,8 +23,10 @@ import (
 // must run last; extras must be appended before the stages that index or
 // reference them.
 //
-// The two TestEncode_Ordering_* tests below were validated by mutation testing:
-// each fails when its stage is moved out of order. The remaining tests pin the
+// The TestEncode_Ordering_* tests below were validated by mutation testing at
+// the time they were written: each failed when its stage was moved out of
+// order (see the licence test's note on how scalibr's newer purl rendering has
+// since degraded one of them to defensive). The remaining tests pin the
 // output invariants those stages produce (useful regression coverage) but do
 // NOT, on their own, prove a particular stage order — see the note on
 // TestEncode_DedupCollapsesSharedPURL for why the dedup/enrich and
@@ -41,8 +44,13 @@ import (
 // PURL. If normalization ran first, the licence-join key would no longer match
 // the rewritten component PURL and the licence would be dropped.
 //
-// Mutation-verified: moving normalizePURLsCDX ahead of injectLicensesCDX makes
-// this test fail (the ISC licence disappears).
+// Mutation-verified against the scalibr that escaped the scope separator
+// ("pkg:npm/%40scope%2Fname"): moving normalizePURLsCDX ahead of
+// injectLicensesCDX made this test fail (the ISC licence disappeared).
+// Current scalibr emits the namespace as its own segment with no "%2F", so
+// normalizePURLsCDX is a no-op on this purl, the "%2F" check below is
+// trivially satisfied, and the ordering has degraded to defensive — the
+// mutation no longer fails until an escaped purl shape returns.
 //
 // Two post-conditions, neither able to false-fail:
 //   - the emitted PURL no longer contains the "%2F" separator (normalize ran);
@@ -50,8 +58,7 @@ import (
 //     pre-normalization key).
 //
 // The "%40" scope marker is intentionally left encoded by normalizePURL, so we
-// do not assert on it. If a future scalibr emits already-unescaped PURLs, the
-// "%2F" check is trivially satisfied and the test still holds.
+// do not assert on it.
 func TestEncode_Ordering_LicenseJoinBeforePURLNormalize(t *testing.T) {
 	pkg := &extractor.Package{
 		Name:     "@isaacs/cliui",
@@ -78,6 +85,45 @@ func TestEncode_Ordering_LicenseJoinBeforePURLNormalize(t *testing.T) {
 	}
 	if !ordHasLicenseID(c, "ISC") {
 		t.Errorf("scoped component lost its ISC licence — the licence join ran after PURL normalization broke its key")
+	}
+}
+
+// TestEncode_ClassifierCPETemplatesSurviveEncode pins the classifier-CPE
+// output through the full Encode pipeline: a package carrying binclass CPE
+// templates comes out with the first curated CPE (version rendered in, not
+// the PURL heuristic's vendor) and each further template as a kunnus:cpe
+// alias property.
+//
+// NOTE: like the licence join, the CPE join indexes the inventory by raw PURL
+// and so belongs before normalizePURLsCDX (constraint #4), but that ordering
+// is defensive rather than output-observable today — normalizePURLsCDX is a
+// no-op on every purl current scalibr emits (see the constraint comment in
+// encode.go).
+func TestEncode_ClassifierCPETemplatesSurviveEncode(t *testing.T) {
+	pkg := &extractor.Package{
+		Name:     "python",
+		Version:  "3.14.5",
+		PURLType: "generic",
+		Location: extractor.LocationFromPath("usr/local/lib/libpython3.14.so"),
+		Plugins:  []string{"kunnus/binclass"},
+		Metadata: &binclass.Metadata{CPEs: []string{
+			"cpe:2.3:a:python_software_foundation:python:*:*:*:*:*:*:*:*",
+			"cpe:2.3:a:python:python:*:*:*:*:*:*:*:*",
+		}},
+	}
+	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{pkg}}}
+
+	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
+
+	c := ordFindComponent(doc, func(c map[string]any) bool { return c["name"] == "python" })
+	if c == nil {
+		t.Fatalf("python component not found in output")
+	}
+	if cpe, _ := c["cpe"].(string); cpe != "cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*" {
+		t.Errorf("cpe = %q, want the curated python_software_foundation template, not the PURL heuristic", cpe)
+	}
+	if !ordHasPropertyValue(c, "kunnus:cpe", "cpe:2.3:a:python:python:3.14.5:*:*:*:*:*:*:*") {
+		t.Errorf("second catalog template missing from kunnus:cpe alias properties; component=%v", c)
 	}
 }
 
@@ -242,6 +288,17 @@ func ordHasProperty(c map[string]any, name string) bool {
 	for _, pi := range props {
 		p, _ := pi.(map[string]any)
 		if p["name"] == name {
+			return true
+		}
+	}
+	return false
+}
+
+func ordHasPropertyValue(c map[string]any, name, value string) bool {
+	props, _ := c["properties"].([]any)
+	for _, pi := range props {
+		p, _ := pi.(map[string]any)
+		if p["name"] == name && p["value"] == value {
 			return true
 		}
 	}

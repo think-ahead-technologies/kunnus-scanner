@@ -66,7 +66,7 @@ encoder; the scanner library does the extraction work.
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name) | modes, CLI, scanning |
+| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
@@ -106,7 +106,10 @@ this is how python is caught (the `libpython*.so*` and `python*` globs, version
 read from the NUL-delimited bytes). The catalog (`catalog.go`) is ported from
 anchore/syft's binary cataloger (Apache-2.0); `doc.go` records what was left out
 — syft's resolver-based shared-library lookup and its Java JDK/JRE branching set.
-CPE templates are carried on each classifier as data but not yet emitted.
+CPE templates are carried on each classifier as data; the `sbom` CPE stage
+renders the detected version into them (first template → the component's `cpe`,
+further vendor aliases → repeated `kunnus:cpe` properties) in preference to its
+PURL heuristic.
 
 It is a kunnus extractor, not a scalibr-registry plugin, so `mode/os` and
 `mode/container` append `binclass.New()` directly to their plugin lists (it is
@@ -347,9 +350,8 @@ supercomputing installs are out of target profile (#68).
 - **Binary classifier is a simplified syft port.** `internal/binclass/` carries
   syft's direct file-contents regexes plus a filename-template matcher (which
   covers python); not ported are syft's resolver-based shared-library lookup and
-  the Java JDK/JRE branching set. CPE templates ship in the catalog but are not
-  yet emitted into the
-  SBOM. Overlap suppression is path-based via `internal/ownership/` (with a
+  the Java JDK/JRE branching set.
+  Overlap suppression is path-based via `internal/ownership/` (with a
   name+version fallback) across dpkg, apk and rpm, so it correctly collapses
   packages whose name differs from the binary's (`xz-utils`, `postgresql-18`,
   `curl-minimal`).

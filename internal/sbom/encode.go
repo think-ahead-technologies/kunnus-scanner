@@ -57,12 +57,18 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	//   3. injectDepGraphCDX LAST among the joining stages: it iterates every
 	//      component's BOMRef, so any mutation that adds or renames components
 	//      must precede it. (See the [enforced] extras-before-depgraph case below.)
-	//   4. [enforced] injectLicensesCDX after dedup (so it sees one component per
-	//      PURL) and before normalizePURLsCDX: it indexes the inventory by the
-	//      original PURL strings, like the enrichment stages.
-	//   5. [enforced] normalizePURLsCDX after all PURL-keyed joins: it rewrites the
-	//      emitted PURL strings, so it must run once every stage that matches on
-	//      the original strings is done.
+	//   4. [defensive] injectLicensesCDX and injectCPEsCDX after dedup (so they
+	//      see one component per PURL) and before normalizePURLsCDX: both index
+	//      the inventory by the original PURL strings, like the enrichment
+	//      stages (the CPE stage joins on it to reach the binary classifier's
+	//      CPE templates). Mutation testing once enforced this via the licence
+	//      join on scalibr's %2F-escaped npm purls; current scalibr emits
+	//      unescaped separators, so normalizePURLsCDX is a no-op on every purl
+	//      it produces and the order is not output-observable until an escaped
+	//      shape returns.
+	//   5. [defensive, same reason as #4] normalizePURLsCDX after all PURL-keyed
+	//      joins: it rewrites the emitted PURL strings, so it must run once every
+	//      stage that matches on the original strings is done.
 	dedupCDXComponents(cdxBom)
 	// After dedup (so OS and binary-classifier components are each collapsed
 	// within their own PURL) and before every later stage: drop binary-classifier

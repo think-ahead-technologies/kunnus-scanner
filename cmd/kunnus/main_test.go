@@ -400,6 +400,95 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 	}
 }
 
+// TestCLI_SBOM_OS_NonPackagedBinary is the binary e2e for the binclass path:
+// an OS scan over a root holding a real non-packaged binary (the libpython
+// fixture — actual python:latest bytes) must surface it as pkg:generic with
+// the classifier catalog's curated CPE and the second catalog template as a
+// kunnus:cpe alias property. The python_software_foundation vendor proves the
+// template path end to end: the PURL heuristic would say a:python:python.
+//
+// The root is assembled in a temp dir from the alpine fixture (os-release +
+// apk db, so this is a realistic OS scan whose apk packages own nothing under
+// usr/local — overlap suppression must keep the binary) plus the libpython
+// fixture. It is deliberately NOT part of testdata/osfamilies/alpine: the BSI
+// conformance gate scores that tree, and a non-packaged binary carries no
+// licence, which would drag the required-elements score below the threshold.
+func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
+	root := t.TempDir()
+	alpine := filepath.Join(moduleRoot(t), "testdata", "osfamilies", "alpine")
+	binclassFixtures := filepath.Join(moduleRoot(t), "internal", "binclass", "testdata")
+	copyFixture(t, filepath.Join(alpine, "etc", "os-release"), filepath.Join(root, "etc", "os-release"))
+	copyFixture(t, filepath.Join(alpine, "lib", "apk", "db", "installed"), filepath.Join(root, "lib", "apk", "db", "installed"))
+	copyFixture(t, filepath.Join(binclassFixtures, "libpython3.14.so"), filepath.Join(root, "usr", "local", "lib", "libpython3.14.so"))
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "os", "--target-os", "linux", "--output", outPath, root)
+	if err != nil {
+		t.Fatalf("sbom os failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc struct {
+		Components []struct {
+			PURL       string `json:"purl"`
+			CPE        string `json:"cpe"`
+			Properties []struct {
+				Name  string `json:"name"`
+				Value string `json:"value"`
+			} `json:"properties"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+
+	const wantPURL = "pkg:generic/python@3.14.5"
+	const wantCPE = "cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*"
+	const wantAlias = "cpe:2.3:a:python:python:3.14.5:*:*:*:*:*:*:*"
+	found := false
+	for _, c := range doc.Components {
+		if c.PURL != wantPURL {
+			continue
+		}
+		found = true
+		if c.CPE != wantCPE {
+			t.Errorf("python cpe = %q, want curated %q", c.CPE, wantCPE)
+		}
+		hasAlias := false
+		for _, p := range c.Properties {
+			if p.Name == "kunnus:cpe" && p.Value == wantAlias {
+				hasAlias = true
+			}
+		}
+		if !hasAlias {
+			t.Errorf("python component lacks kunnus:cpe alias %q; properties=%+v", wantAlias, c.Properties)
+		}
+	}
+	if !found {
+		t.Errorf("component %q missing from SBOM", wantPURL)
+	}
+}
+
+// copyFixture copies a fixture file into a scan-root under construction,
+// creating parent directories.
+func copyFixture(t *testing.T, src, dst string) {
+	t.Helper()
+	data, err := os.ReadFile(src)
+	if err != nil {
+		t.Fatalf("read fixture %s: %v", src, err)
+	}
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(dst, data, 0o644); err != nil {
+		t.Fatal(err)
+	}
+}
+
 // TestCLI_SBOM_Repo_OnlineLicenses exercises the real deps.dev licence
 // enrichment over the ecosystem corpus. Offline, a repo scan yields no licences
 // for these language ecosystems; with --online-licenses, deps.dev must populate

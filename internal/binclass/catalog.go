@@ -95,7 +95,7 @@ func defaultCatalog() []classifier {
 			`(?m)go(?P<version>[0-9]+\.[0-9]+(\.[0-9]+|beta[0-9]+|alpha[0-9]+|rc[0-9]+)?)\x00`),
 		mc("pkg:generic/julia@version", list("**/libjulia-internal.so"), list("cpe:2.3:a:julialang:julia:*:*:*:*:*:*:*:*"),
 			`(?m)__init__\x00(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\x00verify`),
-		mc("pkg:golang/helm.sh/helm@version", list("**/helm"), list("cpe:2.3:a:helm:helm:*:*:*:*:*:*:*"),
+		mc("pkg:golang/helm.sh/helm@version", list("**/helm"), list("cpe:2.3:a:helm:helm:*:*:*:*:*:*:*:*"),
 			`(?m)\x00v(?P<version>[0-9]+\.[0-9]+\.[0-9]+)\x00`),
 		mc("pkg:generic/redis@version", list("**/redis-server"), list("cpe:2.3:a:redislabs:redis:*:*:*:*:*:*:*:*", "cpe:2.3:a:redis:redis:*:*:*:*:*:*:*:*"),
 			`[^\d](?P<version>\d+.\d+\.\d+)buildkitsandbox-\d+`,

@@ -36,7 +36,8 @@
 // fallback (which starts from the binary and resolves its imports) is unnecessary
 // for the common --enable-shared and static builds.
 //
-// CPE templates are retained on each classifier but not yet emitted into the
-// SBOM; wiring them through the encode pipeline's CPE stage is the remaining
-// step to reach parity with syft's output for these packages.
+// CPE templates are retained on each classifier and ride to the encoder on
+// Metadata; the encode pipeline's CPE stage (sbom.injectCPEsCDX) renders the
+// detected version into them, preferring the curated CPE over its PURL
+// heuristic — matching syft's output for these packages.
 package binclass
