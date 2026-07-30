@@ -31,6 +31,16 @@ import (
 // so the CLI exits non-zero. Callers that only care about partial success can
 // inspect this via errors.As(err, &partialScanError{}).
 func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, ov mode.Overrides) error {
+	// Validate the serial override up front: a malformed --serial-number must
+	// fail before the (potentially expensive) scan, not after.
+	serial := cmd.String("serial-number")
+	if serial != "" {
+		var err error
+		if serial, err = sbom.NormalizeSerial(serial); err != nil {
+			return fmt.Errorf("--serial-number: %w", err)
+		}
+	}
+
 	plan, err := m.Plan(ctx, target, ov)
 	if err != nil {
 		return fmt.Errorf("plan %s scan: %w", m.Name(), err)
@@ -49,7 +59,25 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		hashMap = mergeHashMaps(hashMap, plan.PostScanHashes(result.Inventory))
 	}
 
-	return encodeResult(cmd, result, plan.Component, hashMap, plan.Licenses, plan.ExtraComponents, plan.OwnedFiles)
+	// Flags refine the mode's component identity: an explicit --component-id /
+	// --component-version wins over anything the planner derived from the
+	// target. The series key is built from the final values so the serial
+	// derivation and the SBOM's root component can never disagree.
+	component := plan.Component
+	if id := cmd.String("component-id"); id != "" {
+		component.ID = id
+	}
+	if v := cmd.String("component-version"); v != "" {
+		component.Version = v
+	}
+	series := bom.Series{
+		Mode:    m.Name(),
+		ID:      component.ID,
+		Version: component.Version,
+		Serial:  serial,
+	}
+
+	return encodeResult(cmd, result, component, series, hashMap, plan.Licenses, plan.ExtraComponents, plan.OwnedFiles)
 }
 
 // runPlan dispatches to the matching scalibr scan: a container scan when the
@@ -79,7 +107,7 @@ func mergeHashMaps(base, extra hashes.Map) hashes.Map {
 // returns a non-nil error naming any failed plugins so the CLI exits non-zero.
 // Shared by every scan flavour: the steps after a scan completes are identical
 // whether the result came from scan.Run or scan.RunContainer.
-func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, h hashes.Map, lic license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, series bom.Series, h hashes.Map, lic license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	sink, err := openOutput(cmd.String("output"))
 	if err != nil {
 		return fmt.Errorf("open output: %w", err)
@@ -91,7 +119,7 @@ func encodeResult(cmd *cli.Command, result *scan.Result, component bom.Component
 		}
 	}()
 
-	if err := sbom.Encode(sink.w, result, component, h, lic, extras, owned); err != nil {
+	if err := sbom.Encode(sink.w, result, component, series, h, lic, extras, owned); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	if err := sink.commit(); err != nil {

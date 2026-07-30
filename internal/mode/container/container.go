@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/google/go-containerregistry/pkg/name"
 	"github.com/google/go-containerregistry/pkg/v1/remote"
 	scalibr "github.com/google/osv-scalibr"
 	scalibrimage "github.com/google/osv-scalibr/artifact/image/layerscanning/image"
@@ -74,7 +75,8 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 		return nil, fmt.Errorf("a container image reference or tarball path is required")
 	}
 
-	img, err := openImage(ctx, target, resolveSource(target, sourceFromOverrides(ov)))
+	src := resolveSource(target, sourceFromOverrides(ov))
+	img, err := openImage(ctx, target, src)
 	if err != nil {
 		return nil, fmt.Errorf("open image: %w", err)
 	}
@@ -84,12 +86,15 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 		return nil, err
 	}
 
+	id, imgVersion := seriesIdentity(target, src)
 	return &mode.Plan{
 		Config: cfg,
 		Image:  img,
 		Component: bom.ComponentInfo{
-			Name: target,
-			Type: bom.ComponentTypeContainer,
+			Name:    target,
+			Version: imgVersion,
+			ID:      id,
+			Type:    bom.ComponentTypeContainer,
 		},
 		ExtraComponents: osComponent(img),
 		// Read the image's dpkg/apk file ownership so the encoder can drop binary
@@ -103,6 +108,27 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 			return apkchecksum.Mine(inv, img.FS())
 		},
 	}, nil
+}
+
+// seriesIdentity derives the stable component identity for an image reference:
+// the repository path without tag or digest, so successive builds of one image
+// stay in one serial-number series, with the tag as the version when the
+// reference carries one. A digest pins a single build — using it as the
+// version would make every document a series of one, so digest references get
+// no version. Tarball paths are local files, not stable identities.
+func seriesIdentity(target string, src Source) (id, version string) {
+	if src == SourceTarball {
+		return "", ""
+	}
+	ref, err := name.ParseReference(target)
+	if err != nil {
+		return "", ""
+	}
+	id = ref.Context().Name()
+	if tag, ok := ref.(name.Tag); ok {
+		version = tag.TagStr()
+	}
+	return id, version
 }
 
 // sourceFromOverrides maps the user-facing Source override to a Source, treating

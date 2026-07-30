@@ -325,6 +325,24 @@ BSP/firmware kernels.
 `os/spack` (HPC package manager) was also audited and deliberately skipped —
 supercomputing installs are out of target profile (#68).
 
+## Serial numbers & document series
+
+`internal/sbom/serial.go` (user docs: `docs/serial-numbers.md`). Rescans of
+one component share a deterministic `serialNumber` — UUIDv8 =
+SHA-256(namespace, `"v1"␟mode␟id␟version`), namespace = UUIDv5(DNS,
+kunnus.tech), pinned by test — with the document `version` set to the
+generation timestamp in epoch seconds so series members stay strictly ordered
+without scanner state (the platform owns pretty revision numbers, at ingest).
+The identity is never invented: `--component-id`/`--component-version` flags
+(`bom.Series`, built in `command/runScan` from the *final* component values so
+key and root component can't disagree), or container mode's mode-native
+identity (registry repo path + tag via `seriesIdentity`; tarballs get none).
+No identity → random serial, version 1, honest series-of-one. `--serial-number`
+overrides derivation entirely and is validated (`sbom.NormalizeSerial`) before
+the scan runs. Mode is part of the key: repo and os SBOMs of one component are
+different series. The scheme prefix, separator, and namespace must never
+change — each would silently split (or merge) every existing series.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.

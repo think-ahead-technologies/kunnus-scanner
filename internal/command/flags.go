@@ -25,5 +25,20 @@ func commonSBOMFlags() []cli.Flag {
 			Name:  "online-licenses",
 			Usage: "look up component licences via deps.dev (requires network; off by default)",
 		},
+		&cli.StringFlag{
+			Name:    "component-id",
+			Sources: cli.EnvVars("KUNNUS_COMPONENT_ID"),
+			Usage:   "stable component identity; scans sharing an id and version reuse one SBOM serialNumber (a document series)",
+		},
+		&cli.StringFlag{
+			Name:    "component-version",
+			Sources: cli.EnvVars("KUNNUS_COMPONENT_VERSION"),
+			Usage:   "component version for the SBOM root component and the serial-number series",
+		},
+		&cli.StringFlag{
+			Name:    "serial-number",
+			Sources: cli.EnvVars("KUNNUS_SERIAL_NUMBER"),
+			Usage:   "explicit SBOM serialNumber (UUID, bare or urn:uuid form); overrides derivation from --component-id",
+		},
 	}
 }
