@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"sort"
+	"strings"
 	"testing"
 
 	"github.com/google/go-containerregistry/pkg/name"
@@ -79,6 +80,10 @@ func TestCLI_SBOM_Container(t *testing.T) {
 	}
 	if doc.Metadata.Component.Type != "container" {
 		t.Errorf("root component type = %q, want container", doc.Metadata.Component.Type)
+	}
+	// Container scans analyse a built image, so the generation context is post-build.
+	if !strings.Contains(string(data), `"phase": "post-build"`) {
+		t.Error("SBOM missing post-build lifecycle phase (metadata.lifecycles)")
 	}
 
 	// layerIndexByPURLSubstr maps each expected component to the layer index its

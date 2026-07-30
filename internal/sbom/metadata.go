@@ -27,9 +27,11 @@ const (
 //     serial.go), random otherwise
 //   - version — for series members, the generation timestamp in epoch seconds,
 //     so successive documents sharing a serial stay strictly ordered
+//   - lifecycles — the generation context the mode declared (CISA minimum
+//     element): pre-build for source scans, post-build for artifact scans
 //   - structured authors with email/URL — closes BSI sbom_creator (required)
 //   - a kunnus tool entry next to SCALIBR — additional creator signal
-func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series) error {
+func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.Lifecycle) error {
 	if cdxBom == nil {
 		return nil
 	}
@@ -49,6 +51,12 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series) error {
 	}
 	if cdxBom.Metadata == nil {
 		cdxBom.Metadata = &cyclonedx.Metadata{}
+	}
+
+	if lifecycle != "" {
+		cdxBom.Metadata.Lifecycles = &[]cyclonedx.Lifecycle{{
+			Phase: cyclonedx.LifecyclePhase(lifecycle),
+		}}
 	}
 
 	authors := []cyclonedx.OrganizationalContact{{

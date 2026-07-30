@@ -144,7 +144,10 @@ conformant with BSI TR-03183-2. Each component carries a purl, cpes where
 derivable, licences where the package data provides them
 ([licenses.md](licenses.md)), content hashes where the lockfile provides them,
 and `bsi:*`/`kunnus:*` properties documented in
-[sbom-properties.md](sbom-properties.md).
+[sbom-properties.md](sbom-properties.md). The document also records its
+generation context (`metadata.lifecycles`, a CISA minimum element): `pre-build`
+for repo scans (source analysis) and `post-build` for os and container scans
+(built-artifact analysis).
 
 Three behaviours worth knowing:
 

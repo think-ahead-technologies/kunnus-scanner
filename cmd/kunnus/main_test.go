@@ -152,6 +152,11 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	if !strings.Contains(string(data), "testify") {
 		t.Error("SBOM missing testify dependency")
 	}
+
+	// Repo scans read source code, so the CISA generation context is pre-build.
+	if !strings.Contains(string(data), `"phase": "pre-build"`) {
+		t.Error("SBOM missing pre-build lifecycle phase (metadata.lifecycles)")
+	}
 }
 
 func TestCLI_SBOM_Repo_SerialNumberSeries(t *testing.T) {

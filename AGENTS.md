@@ -343,6 +343,13 @@ the scan runs. Mode is part of the key: repo and os SBOMs of one component are
 different series. The scheme prefix, separator, and namespace must never
 change — each would silently split (or merge) every existing series.
 
+## Generation context (CycloneDX lifecycles)
+
+Each mode declares its CISA generation context on `Plan.Lifecycle`
+(`bom.Lifecycle`): repo → `pre-build` (reads source), os and container →
+`post-build` (analyse built artifacts). `sbom` writes it to
+`metadata.lifecycles` verbatim and stays mode-agnostic; empty omits the field.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.

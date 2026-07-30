@@ -11,6 +11,7 @@ import (
 
 	"github.com/google/osv-scalibr/plugin"
 
+	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 )
 
@@ -38,6 +39,10 @@ func TestPlan_LinuxWithDpkgFixture(t *testing.T) {
 	}
 	if plan.Hashes != nil {
 		t.Errorf("OS-mode Plan.Hashes should be nil, got %v", plan.Hashes)
+	}
+	// An OS scan analyses built artifacts, so its generation context is post-build.
+	if plan.Lifecycle != bom.LifecyclePostBuild {
+		t.Errorf("Plan.Lifecycle = %q, want %q", plan.Lifecycle, bom.LifecyclePostBuild)
 	}
 }
 
