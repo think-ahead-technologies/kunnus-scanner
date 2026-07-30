@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/opencontainers/go-digest"
@@ -90,6 +91,41 @@ func TestEncode_CycloneDX(t *testing.T) {
 	if !strings.Contains(buf.String(), "testify") {
 		t.Error("CycloneDX output missing testify")
 	}
+}
+
+func TestBackfillScalibrToolVersion(t *testing.T) {
+	// scalibr's converter emits its SCALIBR tool entry without a version; the
+	// metadata stage backfills it so the SBOM records exactly which extractor
+	// library produced it. (The end-to-end proof against a real `go build`
+	// binary — the only place dependency build info exists — lives in
+	// cmd/kunnus; this covers the backfill mechanics.)
+	mkBOM := func(name, ver string) *cyclonedx.BOM {
+		return &cyclonedx.BOM{Metadata: &cyclonedx.Metadata{
+			Tools: &cyclonedx.ToolsChoice{Components: &[]cyclonedx.Component{{Name: name, Version: ver}}},
+		}}
+	}
+
+	b := mkBOM("SCALIBR", "")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "v0.4.5" {
+		t.Errorf("SCALIBR version = %q, want v0.4.5", got)
+	}
+
+	// An already-set version is never overwritten.
+	b = mkBOM("SCALIBR", "v9.9.9")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "v9.9.9" {
+		t.Errorf("SCALIBR version overwritten to %q, want v9.9.9 kept", got)
+	}
+
+	// Other tools are left alone; empty version and nil metadata are no-ops.
+	b = mkBOM("othertool", "")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "" {
+		t.Errorf("othertool version = %q, want empty", got)
+	}
+	backfillScalibrToolVersion(mkBOM("SCALIBR", ""), "")
+	backfillScalibrToolVersion(&cyclonedx.BOM{}, "v0.4.5")
 }
 
 func TestEncode_GenerationContextLifecycle(t *testing.T) {
