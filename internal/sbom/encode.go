@@ -10,6 +10,7 @@ import (
 	"github.com/google/osv-scalibr/converter"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/ownership"
@@ -34,7 +35,9 @@ import (
 // post-build); empty omits metadata.lifecycles.
 // author is the entity operating the scanner (CISA's SBOM Author element);
 // the zero value falls back to the kunnus creator identity.
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+// graphMap is an optional map of purl → dependsOn purls mined offline from
+// lockfiles (Cargo.lock, composer.lock); pass nil if unavailable.
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, hashMap hashes.Map, licenseMap license.Map, graphMap graph.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -96,7 +99,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// digests) and before normalizePURLsCDX (it joins on the original purl
 	// strings, like every inventory-keyed stage).
 	injectClassifierHashesCDX(cdxBom, result.Inventory)
-	injectDepGraphCDX(cdxBom)
+	injectDepGraphCDX(cdxBom, graphMap)
 	normalizePURLsCDX(cdxBom)
 	// [enforced] Last: CISA's "explicitly identify unknown information" sweep
 	// judges the final state of every component, so every stage that can still

@@ -10,6 +10,7 @@ import (
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
 
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 )
@@ -23,6 +24,9 @@ var composer = Ecosystem{
 	},
 	LicenseParsers: []LicenseParser{
 		{Name: "composer", Filenames: []string{"composer.lock"}, Parse: parseComposerLock},
+	},
+	GraphParsers: []GraphParser{
+		{Name: "composer", Filenames: []string{"composer.lock"}, Parse: parseComposerLockGraph},
 	},
 }
 
@@ -136,4 +140,51 @@ func parseComposerLock(r io.Reader) (license.Map, error) {
 		}
 	}
 	return out, nil
+}
+
+// parseComposerLockGraph mines composer.lock's per-package require maps into
+// purl edges. A require key resolves only against the lock's own packages, so
+// platform requirements (php, ext-*, composer-plugin-api) drop out naturally
+// — they are not packages the lock pins.
+func parseComposerLockGraph(r io.Reader) (graph.Map, error) {
+	var lock composerGraphLock
+	if err := json.NewDecoder(r).Decode(&lock); err != nil {
+		return nil, fmt.Errorf("parse composer.lock: %w", err)
+	}
+	pkgs := append(lock.Packages, lock.PackagesDev...)
+
+	versionByName := make(map[string]string, len(pkgs))
+	for _, p := range pkgs {
+		if p.Name != "" && p.Version != "" {
+			versionByName[p.Name] = p.Version
+		}
+	}
+
+	out := make(graph.Map)
+	for _, p := range pkgs {
+		if p.Name == "" || p.Version == "" {
+			continue
+		}
+		for dep := range p.Require {
+			v, ok := versionByName[dep]
+			if !ok {
+				continue
+			}
+			out.Add(composerPURL(p.Name, p.Version), composerPURL(dep, v))
+		}
+	}
+	return out, nil
+}
+
+// composerGraphLock is the composer.lock shape the graph parser reads — name,
+// version, and the require map of each package.
+type composerGraphLock struct {
+	Packages    []composerGraphPackage `json:"packages"`
+	PackagesDev []composerGraphPackage `json:"packages-dev"`
+}
+
+type composerGraphPackage struct {
+	Name    string            `json:"name"`
+	Version string            `json:"version"`
+	Require map[string]string `json:"require"`
 }

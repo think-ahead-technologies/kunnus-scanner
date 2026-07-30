@@ -250,7 +250,7 @@ func TestEncode_RootDependsOnAllComponents(t *testing.T) {
 func ordEncodeDoc(t *testing.T, result *scan.Result, comp bom.ComponentInfo, h hashes.Map, extras []bom.ExtraComponent) map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, comp, bom.Series{}, "", bom.Author{}, h, nil, extras, nil); err != nil {
+	if err := Encode(&buf, result, comp, bom.Series{}, "", bom.Author{}, h, nil, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc map[string]any

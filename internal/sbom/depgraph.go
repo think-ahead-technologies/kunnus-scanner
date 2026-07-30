@@ -4,6 +4,8 @@ package sbom
 
 import (
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 )
 
 // injectDepGraphCDX backfills the BOM's `dependencies[]` array and adds a
@@ -11,13 +13,18 @@ import (
 //
 //   - every component must appear in `dependencies[]`, even those
 //     with no known transitive edges (with `dependsOn` empty/omitted).
+//   - components whose purl appears in edges (lockfile-mined, keyed by
+//     conventional purl on both ends — the CISA Component Dependency
+//     Relationship element) get their real dependsOn list; an edge whose
+//     target purl matches no component is dropped, never invented.
 //   - completeness of the dependency graph must be declared via
 //     `compositions[].aggregate` — we say "incomplete" because our scan
-//     observes presence-of-component, not transitive edges between them.
+//     observes presence-of-component, and real edges exist only for the
+//     lockfile formats kunnus mines (Cargo.lock, composer.lock today).
 //
 // Existing entries are preserved (defensive against future scalibr versions
 // emitting real edges); missing entries are added with empty dependsOn.
-func injectDepGraphCDX(bom *cyclonedx.BOM) {
+func injectDepGraphCDX(bom *cyclonedx.BOM, edges graph.Map) {
 	if bom == nil {
 		return
 	}
@@ -59,13 +66,43 @@ func injectDepGraphCDX(bom *cyclonedx.BOM) {
 		have[rootRef] = true
 	}
 
-	// Every non-root component must have an entry; dependsOn stays empty
-	// because we don't observe transitive edges.
+	// Components whose purl has lockfile-mined edges get their real dependsOn
+	// list. The join uses the conventional purl form on both sides: this stage
+	// runs before normalizePURLsCDX, so a namespaced component still carries
+	// scalibr's %2F-escaped purl while edge maps use the decoded form.
+	refByPURL := make(map[string]string)
+	if bom.Components != nil {
+		for _, c := range *bom.Components {
+			if c.BOMRef != "" && c.PackageURL != "" {
+				refByPURL[normalizePURL(c.PackageURL)] = c.BOMRef
+			}
+		}
+	}
+	dependsOn := make(map[string][]string)
+	if bom.Components != nil {
+		for _, c := range *bom.Components {
+			if c.BOMRef == "" || c.PackageURL == "" {
+				continue
+			}
+			for _, target := range edges[normalizePURL(c.PackageURL)] {
+				if ref, ok := refByPURL[target]; ok && ref != c.BOMRef {
+					dependsOn[c.BOMRef] = append(dependsOn[c.BOMRef], ref)
+				}
+			}
+		}
+	}
+
+	// Every non-root component must have an entry; dependsOn stays empty for
+	// components with no mined edges.
 	for _, ref := range allRefs {
 		if have[ref] {
 			continue
 		}
-		existing = append(existing, cyclonedx.Dependency{Ref: ref})
+		entry := cyclonedx.Dependency{Ref: ref}
+		if targets := dependsOn[ref]; len(targets) > 0 {
+			entry.Dependencies = &targets
+		}
+		existing = append(existing, entry)
 		have[ref] = true
 	}
 

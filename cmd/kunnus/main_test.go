@@ -510,6 +510,45 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 			}
 		}
 	}
+
+	// Real dependency edges mined from Cargo.lock (CISA Component Dependency
+	// Relationship): the fixture workspace package must depend on libc in
+	// dependencies[], resolved through the components' bom-refs.
+	var depDoc struct {
+		Components []struct {
+			BOMRef string `json:"bom-ref"`
+			PURL   string `json:"purl"`
+		} `json:"components"`
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(data, &depDoc); err != nil {
+		t.Fatalf("unmarshal dependencies: %v", err)
+	}
+	refByPURL := map[string]string{}
+	for _, c := range depDoc.Components {
+		refByPURL[c.PURL] = c.BOMRef
+	}
+	fixtureRef, libcRef := refByPURL["pkg:cargo/fixture@0.1.0"], refByPURL["pkg:cargo/libc@0.2.147"]
+	if fixtureRef == "" || libcRef == "" {
+		t.Fatal("cargo fixture components missing bom-refs")
+	}
+	edgeFound := false
+	for _, d := range depDoc.Dependencies {
+		if d.Ref != fixtureRef {
+			continue
+		}
+		for _, ref := range d.DependsOn {
+			if ref == libcRef {
+				edgeFound = true
+			}
+		}
+	}
+	if !edgeFound {
+		t.Error("dependencies[] missing the Cargo.lock-mined edge fixture → libc")
+	}
 }
 
 func TestCLI_SBOM_OS_Linux(t *testing.T) {
