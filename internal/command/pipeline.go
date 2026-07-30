@@ -5,6 +5,7 @@ package command
 import (
 	"context"
 	"fmt"
+	"log/slog"
 
 	"github.com/urfave/cli/v3"
 
@@ -39,6 +40,18 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		if serial, err = sbom.NormalizeSerial(serial); err != nil {
 			return fmt.Errorf("--serial-number: %w", err)
 		}
+	}
+
+	// Same rule for --author: a malformed value must fail before the scan.
+	author, err := parseAuthor(cmd.String("author"))
+	if err != nil {
+		return fmt.Errorf("--author: %w", err)
+	}
+	// The CLI cannot know who operates it: unset, the document falls back to
+	// the kunnus creator identity — correct when think-ahead runs the scan,
+	// a placeholder for everyone else. Say so instead of guessing.
+	if author.IsZero() {
+		slog.Warn("no --author given; recording Kunnus as SBOM author — pass --author \"Name <email>\" to name your organization")
 	}
 
 	plan, err := m.Plan(ctx, target, ov)
@@ -77,7 +90,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		Serial:  serial,
 	}
 
-	return encodeResult(cmd, result, component, series, plan.Lifecycle, hashMap, plan.Licenses, plan.ExtraComponents, plan.OwnedFiles)
+	return encodeResult(cmd, result, component, series, plan.Lifecycle, author, hashMap, plan.Licenses, plan.ExtraComponents, plan.OwnedFiles)
 }
 
 // runPlan dispatches to the matching scalibr scan: a container scan when the
@@ -107,7 +120,7 @@ func mergeHashMaps(base, extra hashes.Map) hashes.Map {
 // returns a non-nil error naming any failed plugins so the CLI exits non-zero.
 // Shared by every scan flavour: the steps after a scan completes are identical
 // whether the result came from scan.Run or scan.RunContainer.
-func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, h hashes.Map, lic license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+func encodeResult(cmd *cli.Command, result *scan.Result, component bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, h hashes.Map, lic license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	sink, err := openOutput(cmd.String("output"))
 	if err != nil {
 		return fmt.Errorf("open output: %w", err)
@@ -119,7 +132,7 @@ func encodeResult(cmd *cli.Command, result *scan.Result, component bom.Component
 		}
 	}()
 
-	if err := sbom.Encode(sink.w, result, component, series, lifecycle, h, lic, extras, owned); err != nil {
+	if err := sbom.Encode(sink.w, result, component, series, lifecycle, author, h, lic, extras, owned); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	if err := sink.commit(); err != nil {

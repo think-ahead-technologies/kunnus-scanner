@@ -30,8 +30,10 @@ const (
 //   - lifecycles — the generation context the mode declared (CISA minimum
 //     element): pre-build for source scans, post-build for artifact scans
 //   - structured authors with email/URL — closes BSI sbom_creator (required)
+//     and CISA's SBOM Author element: the operating entity when one was given
+//     on the command line, the kunnus identity otherwise
 //   - a kunnus tool entry next to SCALIBR — additional creator signal
-func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.Lifecycle) error {
+func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.Lifecycle, author bom.Author) error {
 	if cdxBom == nil {
 		return nil
 	}
@@ -59,18 +61,28 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 		}}
 	}
 
+	// CISA's SBOM Author is the entity operating the tool, not the tool: an
+	// explicit author replaces the kunnus identity in authors and manufacturer
+	// (the organization that created the BOM). Kunnus itself always stays
+	// recorded under metadata.tools below.
+	authorName, authorEmail := creatorName, creatorEmail
+	authorURLs := &[]string{creatorURL}
+	if !author.IsZero() {
+		authorName, authorEmail = author.Name, author.Email
+		authorURLs = nil
+	}
 	authors := []cyclonedx.OrganizationalContact{{
-		Name:  creatorName,
-		Email: creatorEmail,
+		Name:  authorName,
+		Email: authorEmail,
 	}}
 	cdxBom.Metadata.Authors = &authors
 
 	cdxBom.Metadata.Manufacturer = &cyclonedx.OrganizationalEntity{
-		Name: creatorName,
-		URL:  &[]string{creatorURL},
+		Name: authorName,
+		URL:  authorURLs,
 		Contact: &[]cyclonedx.OrganizationalContact{{
-			Name:  creatorName,
-			Email: creatorEmail,
+			Name:  authorName,
+			Email: authorEmail,
 		}},
 	}
 

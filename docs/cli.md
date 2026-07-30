@@ -34,12 +34,16 @@ Accepted by all three `sbom` subcommands:
 | `--online-licenses` | | off | Look up component licences via deps.dev — the only scan feature that uses the network |
 | `--component-id` | `KUNNUS_COMPONENT_ID` | | Stable component identity; scans sharing an id + version reuse one `serialNumber` (a document series — see [serial-numbers.md](serial-numbers.md)) |
 | `--component-version` | `KUNNUS_COMPONENT_VERSION` | | Component version, for the SBOM root component and the serial-number series |
+| `--author` | `KUNNUS_AUTHOR` | Kunnus, with a warning | SBOM author — the entity running the scan, as `"Name"` or `"Name <email>"`; lands in `metadata.authors` and `metadata.manufacturer` |
 | `--serial-number` | `KUNNUS_SERIAL_NUMBER` | derived | Explicit `serialNumber` (UUID, bare or `urn:uuid:` form); overrides derivation from `--component-id` |
 
 Output format is always CycloneDX 1.6 (BSI TR-03183-2 conformant). Every SBOM
 records its generation context in `metadata.lifecycles`: `pre-build` for
 `repo` (source analysis), `post-build` for `os` and `container`
-(built-artifact analysis). Without
+(built-artifact analysis). Pass `--author` to record your organization as the
+SBOM author (CISA's SBOM Author element is the entity *operating* the tool);
+unset, the document carries the Kunnus identity and the CLI warns that you are
+shipping a placeholder author. Without
 identity flags each run gets a fresh random `serialNumber`; supply
 `--component-id` (or scan a container registry reference, which carries its
 own identity) to make rescans form a stable document series —

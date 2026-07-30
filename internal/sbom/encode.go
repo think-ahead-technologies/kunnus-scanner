@@ -32,7 +32,9 @@ import (
 // zero value yields a random serial per run (see bom.Series).
 // lifecycle is the generation context the mode declared (pre-build /
 // post-build); empty omits metadata.lifecycles.
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+// author is the entity operating the scanner (CISA's SBOM Author element);
+// the zero value falls back to the kunnus creator identity.
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -79,7 +81,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
-	if err := enrichCDXMetadata(cdxBom, series, lifecycle); err != nil {
+	if err := enrichCDXMetadata(cdxBom, series, lifecycle, author); err != nil {
 		return fmt.Errorf("failed to derive serial number: %w", err)
 	}
 	enrichCDXComponents(cdxBom, result.Inventory)

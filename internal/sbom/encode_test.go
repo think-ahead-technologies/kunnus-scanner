@@ -34,7 +34,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -59,7 +59,7 @@ func TestEncode_CycloneDX(t *testing.T) {
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, bom.Series{}, "", nil, nil, nil, nil)
+	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	// scans, post-build for built-artifact scans) and Encode records it.
 	var buf bytes.Buffer
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, bom.LifecyclePreBuild, nil, nil, nil, nil); err != nil {
+		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -155,7 +155,7 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	if strings.Contains(buf.String(), "lifecycles") {
@@ -195,7 +195,7 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -261,7 +261,7 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", hashMap, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -311,5 +311,77 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 	if fileProps != 2 {
 		t.Errorf("kunnus:vendored:file properties = %d, want 2 (one per source file)", fileProps)
+	}
+}
+
+func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
+	// No --author given: the document keeps the kunnus identity as SBOM
+	// author (BSI sbom_creator stays satisfied out of the box).
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct{ Name string }
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "Kunnus" {
+		t.Errorf("metadata.authors = %+v, want the Kunnus default", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "Kunnus" {
+		t.Errorf("metadata.manufacturer.name = %q, want Kunnus", doc.Metadata.Manufacturer.Name)
+	}
+}
+
+func TestEncode_AuthorOverride(t *testing.T) {
+	// CISA's SBOM Author element names the entity *operating* the tool, not
+	// the tool itself. An explicit author replaces the kunnus identity in
+	// metadata.authors and metadata.manufacturer (the org that created the
+	// BOM); kunnus remains listed under metadata.tools only.
+	var buf bytes.Buffer
+	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", author, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct {
+				Name    string
+				Contact []struct{ Name, Email string }
+			}
+			Tools struct {
+				Components []struct{ Name string }
+			}
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "ACME GmbH" || doc.Metadata.Authors[0].Email != "psirt@acme.example" {
+		t.Errorf("metadata.authors = %+v, want ACME GmbH <psirt@acme.example>", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
+		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
+	}
+	var toolNames []string
+	for _, c := range doc.Metadata.Tools.Components {
+		toolNames = append(toolNames, c.Name)
+	}
+	found := false
+	for _, n := range toolNames {
+		if n == "kunnus" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("metadata.tools.components = %v, want kunnus listed", toolNames)
 	}
 }
