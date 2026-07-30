@@ -217,10 +217,13 @@ func TestRenderCPETemplate(t *testing.T) {
 			want:    `cpe:2.3:a:erlang:erlang\/otp:26.1:*:*:*:*:*:*:*`,
 		},
 		{
-			name:    "empty version keeps the ANY wildcard",
+			// A wildcard-version CPE would match every CVE for the product, so
+			// (like kernelCPE) an empty version yields no CPE at all. binclass
+			// never emits a versionless package, so this guards future callers.
+			name:    "empty version yields no CPE",
 			tmpl:    "cpe:2.3:a:memcached:memcached:*:*:*:*:*:*:*:*",
 			version: "",
-			want:    "cpe:2.3:a:memcached:memcached:*:*:*:*:*:*:*:*",
+			want:    "",
 		},
 		{
 			name:    "malformed template (12 fields) is dropped",
@@ -328,6 +331,29 @@ func TestInjectCPEsCDXClassifierTemplates(t *testing.T) {
 	if got[1].Properties != nil || got[2].Properties != nil || got[3].Properties != nil {
 		t.Errorf("heuristic components must gain no alias properties; got %+v / %+v / %+v",
 			got[1].Properties, got[2].Properties, got[3].Properties)
+	}
+}
+
+// TestAppendCPEAliasPropertiesNoAliasing proves the append never writes into a
+// backing array shared with another slice: a component whose Properties slice
+// has spare capacity must not have that capacity's aliased view mutated.
+func TestAppendCPEAliasPropertiesNoAliasing(t *testing.T) {
+	backing := make([]cyclonedx.Property, 1, 4)
+	backing[0] = cyclonedx.Property{Name: "existing", Value: "kept"}
+	aliased := backing[:1] // second view of the same backing array
+	props := backing[:1]
+	c := &cyclonedx.Component{Properties: &props}
+
+	appendCPEAliasProperties(c, []string{"cpe:2.3:a:v:p:1.0:*:*:*:*:*:*:*"})
+
+	if len(*c.Properties) != 2 {
+		t.Fatalf("component properties = %+v, want existing + one alias", *c.Properties)
+	}
+	extended := aliased[:cap(aliased)]
+	for i := 1; i < len(extended); i++ {
+		if extended[i].Name != "" || extended[i].Value != "" {
+			t.Errorf("shared backing array was mutated at index %d: %+v", i, extended[i])
+		}
 	}
 }
 

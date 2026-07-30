@@ -95,7 +95,9 @@ func kernelCPE(version string) string {
 // a single cpe field, but the catalog deliberately lists NVD vendor aliases —
 // e.g. redislabs and redis). Returns false — caller falls back to the PURL
 // heuristic — when no package carries templates or every template is
-// malformed.
+// malformed. When several packages share the PURL, "first" is inventory order;
+// that is fine because same-PURL binclass packages carry the same name and
+// version by construction, so they render identical CPEs.
 func applyClassifierCPEs(c *cyclonedx.Component, pkgs []*extractor.Package) bool {
 	for _, p := range pkgs {
 		md, ok := p.Metadata.(*binclass.Metadata)
@@ -133,25 +135,33 @@ func appendCPEAliasProperties(c *cyclonedx.Component, cpes []string) {
 		c.Properties = &additions
 		return
 	}
-	combined := append(*c.Properties, additions...)
+	// Copy rather than append in place: appending into spare capacity of the
+	// existing slice would silently mutate any other slice sharing its backing
+	// array.
+	combined := make([]cyclonedx.Property, 0, len(*c.Properties)+len(additions))
+	combined = append(combined, *c.Properties...)
+	combined = append(combined, additions...)
 	c.Properties = &combined
 }
 
 // renderCPETemplate renders a detected version into a catalog CPE 2.3
 // template. A template is a full formatted string whose version slot (field 5)
 // is the "*" placeholder; the version is escaped and lowercased like every
-// other field we emit, and an empty version keeps the wildcard. Anything that
-// is not a well-formed template — wrong field count, a concrete version slot
-// that is not ours to clobber, or a render that fails the CPE 2.3 grammar —
-// yields "" so the caller can fall back to the PURL heuristic.
+// other field we emit. An empty version yields no CPE — a wildcard-version CPE
+// would match every CVE for the product (binclass never emits a versionless
+// package, so this only guards future callers; kernelCPE makes the same call).
+// Anything that is not a well-formed template — wrong field count, a concrete
+// version slot that is not ours to clobber, or a render that fails the CPE 2.3
+// grammar — also yields "" so the caller can fall back to the PURL heuristic.
 func renderCPETemplate(tmpl, version string) string {
+	if version == "" {
+		return ""
+	}
 	fields := splitCPEFields(tmpl)
 	if len(fields) != 13 || fields[5] != "*" {
 		return ""
 	}
-	if version != "" {
-		fields[5] = cpeField(version)
-	}
+	fields[5] = cpeField(version)
 	out := strings.Join(fields, ":")
 	if !isValidCPE23(out) {
 		return ""
