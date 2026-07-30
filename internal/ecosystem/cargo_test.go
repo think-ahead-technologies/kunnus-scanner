@@ -3,6 +3,7 @@
 package ecosystem
 
 import (
+	"reflect"
 	"testing"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
@@ -109,5 +110,102 @@ func TestParseCargoLock_MalformedTOMLErrors(t *testing.T) {
 	path := fixtureReader(t, "Cargo.lock", `[[package broken`)
 	if _, err := parseCargoLock(path); err == nil {
 		t.Error("want error for malformed TOML")
+	}
+}
+
+func TestParseCargoLockGraph(t *testing.T) {
+	// Cargo.lock dependency entries come in three shapes: bare "name" (version
+	// unambiguous within the lock), "name version" (disambiguating multiple
+	// locked versions), and "name version (source)". All resolve to edges
+	// between locked packages; an entry naming nothing in the lock is dropped
+	// (a parser never invents a purl).
+	path := fixtureReader(t, "Cargo.lock", `
+version = 3
+
+[[package]]
+name = "libc"
+version = "0.2.147"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "`+cargoChecksum+`"
+
+[[package]]
+name = "hashbrown"
+version = "0.14.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "`+cargoChecksum+`"
+
+[[package]]
+name = "hashbrown"
+version = "0.15.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "`+cargoChecksum+`"
+
+[[package]]
+name = "my-app"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "hashbrown 0.15.2",
+ "phantom-dep",
+]
+
+[[package]]
+name = "indexmap"
+version = "2.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "`+cargoChecksum+`"
+dependencies = [
+ "hashbrown 0.14.0 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+`)
+	got, err := parseCargoLockGraph(path)
+	if err != nil {
+		t.Fatalf("parseCargoLockGraph: %v", err)
+	}
+	want := map[string][]string{
+		"pkg:cargo/my-app@0.1.0": {
+			"pkg:cargo/libc@0.2.147",
+			"pkg:cargo/hashbrown@0.15.2",
+		},
+		"pkg:cargo/indexmap@2.0.0": {
+			"pkg:cargo/hashbrown@0.14.0",
+		},
+	}
+	for from, tos := range want {
+		if !reflect.DeepEqual(got[from], tos) {
+			t.Errorf("edges[%q] = %v, want %v", from, got[from], tos)
+		}
+	}
+	if len(got) != len(want) {
+		t.Errorf("graph has %d sources, want %d: %v", len(got), len(want), got)
+	}
+}
+
+func TestParseCargoLockGraph_BareNameAmbiguousDropped(t *testing.T) {
+	// A bare-name dependency entry that matches several locked versions is
+	// unresolvable — cargo itself would have written the version — so the edge
+	// is dropped rather than guessed.
+	path := fixtureReader(t, "Cargo.lock", `
+[[package]]
+name = "hashbrown"
+version = "0.14.0"
+
+[[package]]
+name = "hashbrown"
+version = "0.15.2"
+
+[[package]]
+name = "my-app"
+version = "0.1.0"
+dependencies = [
+ "hashbrown",
+]
+`)
+	got, err := parseCargoLockGraph(path)
+	if err != nil {
+		t.Fatalf("parseCargoLockGraph: %v", err)
+	}
+	if len(got) != 0 {
+		t.Errorf("graph = %v, want empty (ambiguous bare name must not guess)", got)
 	}
 }

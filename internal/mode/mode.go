@@ -11,6 +11,7 @@ import (
 	"github.com/google/osv-scalibr/inventory"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/ownership"
@@ -77,6 +78,12 @@ type Plan struct {
 	// normalizes and merges these with any licences scalibr put in the
 	// inventory. nil for modes/scans with no offline licence source.
 	Licenses license.Map
+
+	// Graph holds component→component dependency edges mined offline from
+	// lockfiles during planning (Cargo.lock, composer.lock), keyed by
+	// conventional purl on both ends. Rides into sbom.Encode like Licenses;
+	// nil for modes with no lockfile walk (os, container).
+	Graph graph.Map
 
 	// OwnedFiles is the set of paths the scan root's OS package manager records
 	// as owned (read from the dpkg/apk databases during planning). The SBOM

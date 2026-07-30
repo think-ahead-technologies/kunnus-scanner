@@ -34,7 +34,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -59,7 +59,7 @@ func TestEncode_CycloneDX(t *testing.T) {
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil)
+	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -134,7 +134,7 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	// scans, post-build for built-artifact scans) and Encode records it.
 	var buf bytes.Buffer
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil); err != nil {
+		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -155,7 +155,7 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	if strings.Contains(buf.String(), "lifecycles") {
@@ -195,7 +195,7 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -261,7 +261,7 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -319,7 +319,7 @@ func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
 	// author (BSI sbom_creator stays satisfied out of the box).
 	var buf bytes.Buffer
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -347,7 +347,7 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -423,7 +423,7 @@ func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 

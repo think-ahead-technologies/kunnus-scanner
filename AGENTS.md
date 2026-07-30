@@ -51,7 +51,7 @@ encoder; the scanner library does the extraction work.
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
-| `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin | scalibr APIs, modes, CLI |
+| `ecosystem` | language markers, lockfile hash + licence + dependency-graph parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
@@ -372,6 +372,22 @@ operates the scan, a placeholder otherwise, so `runScan` warns when the flag
 is missing (making it required is a candidate for the next major version).
 Kunnus and SCALIBR are always recorded in `metadata.tools.components`
 regardless.
+
+## Dependency graph (CISA Component Dependency Relationship)
+
+`sbom.injectDepGraphCDX` emits `dependencies[]` (root → every component as
+the presence claim; every component gets an entry) plus a `compositions[]`
+`aggregate: incomplete` declaration — CycloneDX's native known-unknowns
+statement for graph completeness. Real component→component edges come from
+`graph.Map` (purl → dependsOn purls, both ends conventional form), mined in
+the same `ecosystem.Survey` pass as hashes and licences via the registry's
+`GraphParsers` hook — today Cargo.lock (three dependency-entry shapes; a
+bare name that matches several locked versions is dropped, never guessed)
+and composer.lock (`require` keys resolved against the lock's own packages,
+so platform deps like `php`/`ext-*` drop out naturally). An edge whose
+target purl matches no component is dropped — the parser and the stage never
+invent a ref. Repo-mode only, like every Survey product; the aggregate stays
+`incomplete` because only mined ecosystems have real edges.
 
 ## Unknown-information markers (CISA practice)
 

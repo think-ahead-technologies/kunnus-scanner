@@ -52,8 +52,9 @@
 // (Plan.Licenses) into sbom.Encode. This fits lockfiles, where one file lists many
 // packages and is parsed once; doing that as a per-package enricher would need a
 // parse-once cache for the shared file. It is repo-only because only repo mode
-// walks the tree. license.Map mirrors hashes.Map on purpose: both mine the same
-// lockfiles in the same Survey pass.
+// walks the tree. license.Map mirrors hashes.Map (and graph.Map, which carries
+// dependency edges) on purpose: all three mine the same lockfiles in the same
+// Survey pass.
 //
 // # The merge
 //

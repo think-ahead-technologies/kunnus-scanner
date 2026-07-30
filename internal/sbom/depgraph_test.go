@@ -6,6 +6,8 @@ import (
 	"testing"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 )
 
 func TestInjectDepGraphCDX_PopulatesDependenciesArray(t *testing.T) {
@@ -23,7 +25,7 @@ func TestInjectDepGraphCDX_PopulatesDependenciesArray(t *testing.T) {
 		},
 	}
 
-	injectDepGraphCDX(bom)
+	injectDepGraphCDX(bom, nil)
 
 	if bom.Dependencies == nil {
 		t.Fatal("dependencies array must be present")
@@ -73,7 +75,7 @@ func TestInjectDepGraphCDX_AddsIncompleteComposition(t *testing.T) {
 			{BOMRef: "a"},
 		},
 	}
-	injectDepGraphCDX(bom)
+	injectDepGraphCDX(bom, nil)
 
 	if bom.Compositions == nil || len(*bom.Compositions) == 0 {
 		t.Fatal("compositions[] must be present")
@@ -103,7 +105,7 @@ func TestInjectDepGraphCDX_PreservesExistingDependencies(t *testing.T) {
 			{Ref: "a", Dependencies: &[]string{"b"}},
 		},
 	}
-	injectDepGraphCDX(bom)
+	injectDepGraphCDX(bom, nil)
 
 	deps := *bom.Dependencies
 	var aEntry *cyclonedx.Dependency
@@ -122,9 +124,9 @@ func TestInjectDepGraphCDX_PreservesExistingDependencies(t *testing.T) {
 }
 
 func TestInjectDepGraphCDX_NilSafe(t *testing.T) {
-	injectDepGraphCDX(nil)
-	injectDepGraphCDX(&cyclonedx.BOM{})
-	injectDepGraphCDX(&cyclonedx.BOM{Components: &[]cyclonedx.Component{}})
+	injectDepGraphCDX(nil, nil)
+	injectDepGraphCDX(&cyclonedx.BOM{}, nil)
+	injectDepGraphCDX(&cyclonedx.BOM{Components: &[]cyclonedx.Component{}}, nil)
 }
 
 func TestInjectDepGraphCDX_NoRootIsHandled(t *testing.T) {
@@ -136,8 +138,53 @@ func TestInjectDepGraphCDX_NoRootIsHandled(t *testing.T) {
 			{BOMRef: "b"},
 		},
 	}
-	injectDepGraphCDX(bom)
+	injectDepGraphCDX(bom, nil)
 	if bom.Dependencies == nil || len(*bom.Dependencies) != 2 {
 		t.Errorf("want 2 dependency entries (no root), got %v", bom.Dependencies)
+	}
+}
+
+func TestInjectDepGraphCDX_RealEdgesFromGraphMap(t *testing.T) {
+	// Lockfile-mined edges (graph.Map, purl-keyed on both ends) become each
+	// component's dependsOn list — the CISA Component Dependency Relationship
+	// with real transitive structure, not just the root presence claim. Edges
+	// whose target purl matches no component are dropped (never invent a ref).
+	bomDoc := &cyclonedx.BOM{
+		Metadata: &cyclonedx.Metadata{
+			Component: &cyclonedx.Component{BOMRef: "root-ref", Name: "my-repo"},
+		},
+		Components: &[]cyclonedx.Component{
+			{BOMRef: "ref-app", Name: "my-app", PackageURL: "pkg:cargo/my-app@0.1.0"},
+			{BOMRef: "ref-libc", Name: "libc", PackageURL: "pkg:cargo/libc@0.2.147"},
+			{BOMRef: "ref-log", Name: "psr/log", PackageURL: "pkg:composer/psr%2Flog@3.0.0"},
+		},
+	}
+	edges := graph.Map{
+		"pkg:cargo/my-app@0.1.0": {
+			"pkg:cargo/libc@0.2.147",
+			"pkg:cargo/not-in-bom@9.9.9", // unknown target: dropped
+		},
+		// Keyed by the conventional purl; the component above carries scalibr's
+		// %2F-escaped form, so this proves the normalized-purl join.
+		"pkg:composer/psr/log@3.0.0": {"pkg:cargo/libc@0.2.147"},
+	}
+
+	injectDepGraphCDX(bomDoc, edges)
+
+	byRef := map[string][]string{}
+	for _, d := range *bomDoc.Dependencies {
+		if d.Dependencies != nil {
+			byRef[d.Ref] = *d.Dependencies
+		}
+	}
+	if got := byRef["ref-app"]; len(got) != 1 || got[0] != "ref-libc" {
+		t.Errorf("my-app dependsOn = %v, want [ref-libc]", got)
+	}
+	if got := byRef["ref-log"]; len(got) != 1 || got[0] != "ref-libc" {
+		t.Errorf("psr/log dependsOn = %v, want [ref-libc] (normalized-purl join)", got)
+	}
+	// The root presence claim is unchanged: root depends on every component.
+	if got := byRef["root-ref"]; len(got) != 3 {
+		t.Errorf("root dependsOn = %v, want all 3 components", got)
 	}
 }

@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
@@ -67,6 +68,23 @@ type Ecosystem struct {
 	// surface. nil for ecosystems with no offline licence source. Each Parser's
 	// Filenames must be a subset of the owning Ecosystem.Filenames.
 	LicenseParsers []LicenseParser
+
+	// GraphParsers is the optional set of lockfile parsers kunnus runs to mine
+	// component→component dependency edges (the CISA Component Dependency
+	// Relationship element) — for lockfiles that pin the full resolved graph
+	// (e.g. Cargo.lock, composer.lock). nil for ecosystems whose lockfile
+	// carries no per-package edge data. Each parser's Filenames must be a
+	// subset of the owning Ecosystem.Filenames.
+	GraphParsers []GraphParser
+}
+
+// GraphParser describes one lockfile format kunnus mines for dependency
+// edges. Parse returns a graph.Map keyed by the conventional (normalized)
+// purl form, so the SBOM encoder matches it after purl normalization.
+type GraphParser struct {
+	Name      string
+	Filenames []string
+	Parse     func(r io.Reader) (graph.Map, error)
 }
 
 // LicenseParser describes one lockfile/manifest format kunnus mines for licences
@@ -207,6 +225,18 @@ var parsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(strin
 
 // licenseParsersByFilename is the walker's O(1) dispatch table for offline
 // licence extraction, built once over every LicenseParser in every ecosystem.
+// graphParsersByFilename is the filename → parser dispatch table for offline
+// dependency-edge extraction, built once over every GraphParser in every
+// ecosystem.
+var graphParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *GraphParser)) {
+	for j := range eco.GraphParsers {
+		p := &eco.GraphParsers[j]
+		for _, fn := range p.Filenames {
+			add(fn, p)
+		}
+	}
+})
+
 var licenseParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *LicenseParser)) {
 	for j := range eco.LicenseParsers {
 		p := &eco.LicenseParsers[j]
@@ -225,9 +255,10 @@ var licenseParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add fun
 // Per-parser failures are logged at warn level via slog.Default() but never
 // fail the walk — a single broken lockfile must not block SBOM output.
 // Permission errors on subtrees are skipped, not surfaced.
-func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses license.Map) {
+func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses license.Map, deps graph.Map) {
 	digests = make(hashes.Map)
 	licenses = make(license.Map)
+	deps = make(graph.Map)
 	found := make(map[string]struct{})
 
 	_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
@@ -269,6 +300,17 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses licen
 			}
 			licenses.Merge(m)
 		}
+		if p, ok := graphParsersByFilename[name]; ok {
+			m, perr := parseGraphFile(fsys, path, p)
+			if perr != nil {
+				slog.Warn("dependency-graph parser failed",
+					"ecosystem", p.Name,
+					"path", path,
+					"err", perr,
+				)
+			}
+			deps.Merge(m)
+		}
 		return nil
 	})
 
@@ -277,7 +319,7 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses licen
 		ecosystems = append(ecosystems, e)
 	}
 	slices.Sort(ecosystems)
-	return ecosystems, digests, licenses
+	return ecosystems, digests, licenses, deps
 }
 
 // parseFile opens path within fsys and runs the lockfile parser over its
@@ -296,6 +338,18 @@ func parseFile(fsys fs.FS, path string, p *Parser) (hashes.Map, error) {
 // contents, mirroring parseFile so licence parsers stay pure (io.Reader in,
 // license.Map out) and Survey owns the filesystem access.
 func parseLicenseFile(fsys fs.FS, path string, p *LicenseParser) (license.Map, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	return p.Parse(f)
+}
+
+// parseGraphFile opens path within fsys and runs the dependency-graph parser
+// over its contents, so parsers stay pure (io.Reader in, edges out) and
+// Survey owns the filesystem access.
+func parseGraphFile(fsys fs.FS, path string, p *GraphParser) (graph.Map, error) {
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)

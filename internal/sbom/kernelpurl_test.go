@@ -64,7 +64,7 @@ func TestEncode_KernelModuleGetsPURLNoCPE(t *testing.T) {
 
 	var buf bytes.Buffer
 	if err := Encode(&buf, result, bom.ComponentInfo{Name: "fw", Type: "firmware"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
