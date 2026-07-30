@@ -94,6 +94,10 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	injectHashesCDX(cdxBom, hashMap)
 	injectDepGraphCDX(cdxBom)
 	normalizePURLsCDX(cdxBom)
+	// [enforced] Last: CISA's "explicitly identify unknown information" sweep
+	// judges the final state of every component, so every stage that can still
+	// fill a producer/version/hash/licence must have run.
+	markUnknownInfoCDX(cdxBom)
 
 	// Emit CycloneDX 1.6, not the library's 1.7 default: 1.7 is too new for the
 	// current SBOM consumer toolchain, which rejects it, and we use no 1.7-only
