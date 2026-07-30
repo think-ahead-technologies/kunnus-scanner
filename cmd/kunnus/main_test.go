@@ -4,6 +4,8 @@ package main_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -648,8 +650,12 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 	}
 	var doc struct {
 		Components []struct {
-			PURL       string `json:"purl"`
-			CPE        string `json:"cpe"`
+			PURL   string `json:"purl"`
+			CPE    string `json:"cpe"`
+			Hashes []struct {
+				Alg     string `json:"alg"`
+				Content string `json:"content"`
+			} `json:"hashes"`
 			Properties []struct {
 				Name  string `json:"name"`
 				Value string `json:"value"`
@@ -659,6 +665,14 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("sbom is not valid JSON: %v", err)
 	}
+
+	// The classifier hashes the file it classified (CISA Component Hash).
+	fixtureBytes, err := os.ReadFile(filepath.Join(binclassFixtures, "libpython3.14.so"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	digest := sha256.Sum256(fixtureBytes)
+	wantHash := hex.EncodeToString(digest[:])
 
 	const wantPURL = "pkg:generic/python@3.14.5"
 	const wantCPE = "cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*"
@@ -677,9 +691,15 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 			if p.Name == "kunnus:cpe" && p.Value == wantAlias {
 				hasAlias = true
 			}
+			if p.Name == "kunnus:unknown:hash" {
+				t.Error("python component marked unknown-hash despite classifier digest")
+			}
 		}
 		if !hasAlias {
 			t.Errorf("python component lacks kunnus:cpe alias %q; properties=%+v", wantAlias, c.Properties)
+		}
+		if len(c.Hashes) != 1 || c.Hashes[0].Alg != "SHA-256" || c.Hashes[0].Content != wantHash {
+			t.Errorf("python hashes = %+v, want one SHA-256 %s", c.Hashes, wantHash)
 		}
 	}
 	if !found {

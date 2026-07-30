@@ -4,7 +4,9 @@ package sbom
 
 import (
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/osv-scalibr/inventory"
 
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
@@ -104,4 +106,32 @@ func algorithmToCDX(a hashes.Algorithm) (cyclonedx.HashAlgorithm, bool) {
 		return cyclonedx.HashAlgoMD5, true
 	}
 	return "", false
+}
+
+// injectClassifierHashesCDX surfaces the SHA-256 the binary classifier
+// computed while reading each classified file (binclass.Metadata.SHA256) as a
+// standard component.hashes[] entry — the CISA Component Hash Value/Algorithm
+// elements for exactly the components a recipient most wants to verify:
+// non-packaged binaries. Components that already carry hashes are left alone
+// (the classifier's digest describes the same artifact the earlier source
+// described more authoritatively), as are packages read only partially
+// (empty SHA256 — those keep their explicit unknown-hash marker).
+func injectClassifierHashesCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
+	byPURL := indexInventoryByPURL(inv)
+	forEachComponent(bom, func(c *cyclonedx.Component) {
+		if c.PackageURL == "" || (c.Hashes != nil && len(*c.Hashes) > 0) {
+			return
+		}
+		for _, p := range byPURL[c.PackageURL] {
+			md, ok := p.Metadata.(*binclass.Metadata)
+			if !ok || md.SHA256 == "" {
+				continue
+			}
+			c.Hashes = &[]cyclonedx.Hash{{
+				Algorithm: cyclonedx.HashAlgoSHA256,
+				Value:     md.SHA256,
+			}}
+			return
+		}
+	})
 }

@@ -109,7 +109,12 @@ anchore/syft's binary cataloger (Apache-2.0); `doc.go` records what was left out
 CPE templates are carried on each classifier as data; the `sbom` CPE stage
 renders the detected version into them (first template → the component's `cpe`,
 further vendor aliases → repeated `kunnus:cpe` properties) in preference to its
-PURL heuristic.
+PURL heuristic. The classifier also records the SHA-256 of each classified
+file (the bytes are in memory anyway) on `binclass.Metadata`;
+`sbom.injectClassifierHashesCDX` surfaces it as `component.hashes[]` — the
+CISA Component Hash for exactly the binaries no package manager vouches for.
+A file that hit the `maxScanBytes` cap gets no digest (hashing a prefix would
+be wrong) and keeps its explicit unknown-hash marker.
 
 It is a kunnus extractor, not a scalibr-registry plugin, so `mode/os` and
 `mode/container` append `binclass.New()` directly to their plugin lists (it is
