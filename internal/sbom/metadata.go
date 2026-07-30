@@ -74,6 +74,11 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 		}},
 	}
 
+	// scalibr's converter emits its SCALIBR tool entry without a version;
+	// backfill it from build info so the SBOM names the exact extractor
+	// library release that produced it.
+	backfillScalibrToolVersion(cdxBom, version.Scalibr())
+
 	kunnusTool := cyclonedx.Component{
 		Type:    cyclonedx.ComponentTypeApplication,
 		Name:    "kunnus",
@@ -94,6 +99,22 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 
 	enrichRootComponent(cdxBom.Metadata.Component)
 	return nil
+}
+
+// backfillScalibrToolVersion sets the given version on the SCALIBR entry in
+// metadata.tools.components when the converter left it empty. A no-op for an
+// empty version (dependency build info is absent in go-test binaries) or when
+// scalibr ever starts stamping its own version.
+func backfillScalibrToolVersion(cdxBom *cyclonedx.BOM, sv string) {
+	if sv == "" || cdxBom.Metadata == nil || cdxBom.Metadata.Tools == nil || cdxBom.Metadata.Tools.Components == nil {
+		return
+	}
+	comps := *cdxBom.Metadata.Tools.Components
+	for i := range comps {
+		if comps[i].Name == "SCALIBR" && comps[i].Version == "" {
+			comps[i].Version = sv
+		}
+	}
 }
 
 // enrichRootComponent backfills the BSI-required fields on the SBOM's root
