@@ -277,6 +277,95 @@ func TestCLI_SBOM_Repo_InvalidSerialFailsBeforeScan(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Repo_AuthorFlag(t *testing.T) {
+	// --author records the entity operating the scanner as the SBOM author
+	// (CISA's SBOM Author element); kunnus itself stays in metadata.tools.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "repo",
+		"--author", "ACME GmbH <psirt@acme.example>",
+		root,
+	)
+	if err != nil {
+		t.Fatalf("sbom repo --author failed: %v\nstderr:\n%s", err, stderr)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct{ Name string }
+			Tools        struct {
+				Components []struct{ Name string }
+			}
+		}
+	}
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "ACME GmbH" || doc.Metadata.Authors[0].Email != "psirt@acme.example" {
+		t.Errorf("metadata.authors = %+v, want ACME GmbH <psirt@acme.example>", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
+		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
+	}
+	kunnusListed := false
+	for _, c := range doc.Metadata.Tools.Components {
+		if c.Name == "kunnus" {
+			kunnusListed = true
+		}
+	}
+	if !kunnusListed {
+		t.Errorf("metadata.tools.components = %+v, want kunnus listed", doc.Metadata.Tools.Components)
+	}
+	// An explicit author is what the operator intended — no warning.
+	if strings.Contains(stderr, "--author") {
+		t.Errorf("unexpected author warning with --author set:\n%s", stderr)
+	}
+}
+
+func TestCLI_SBOM_Repo_AuthorDefaultWarns(t *testing.T) {
+	// Without --author the document records the kunnus identity as SBOM
+	// author — correct only when think-ahead itself operates the scan. Warn
+	// so other operators know they are shipping a placeholder author.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	stdout, stderr, err := runKunnus(t, "sbom", "repo", root)
+	if err != nil {
+		t.Fatalf("sbom repo failed: %v\nstderr:\n%s", err, stderr)
+	}
+	if !strings.Contains(stderr, "--author") {
+		t.Errorf("stderr missing the default-author warning:\n%s", stderr)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors []struct{ Name string }
+		}
+	}
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "Kunnus" {
+		t.Errorf("metadata.authors = %+v, want the Kunnus default", doc.Metadata.Authors)
+	}
+}
+
+func TestCLI_SBOM_Repo_InvalidAuthorFailsBeforeScan(t *testing.T) {
+	// Like --serial-number: a malformed --author must fail fast, before the
+	// (potentially expensive) scan runs.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	_, stderr, err := runKunnus(t, "sbom", "repo", "--author", "<psirt@acme.example>", root)
+	if err == nil {
+		t.Fatal("want error for invalid --author")
+	}
+	if !strings.Contains(stderr, "author") {
+		t.Errorf("stderr missing author error: %s", stderr)
+	}
+}
+
 func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
 	// A vendored-only C/C++ repo (no Conan lockfile, no other manifest) must
 	// produce a valid SBOM containing the vendored library as a component.

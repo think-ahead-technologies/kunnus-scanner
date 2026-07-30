@@ -149,8 +149,13 @@ generation context (`metadata.lifecycles`, a CISA minimum element): `pre-build`
 for repo scans (source analysis) and `post-build` for os and container scans
 (built-artifact analysis).
 
-Three behaviours worth knowing:
+Four behaviours worth knowing:
 
+- **Name your organization as the SBOM author.** CISA's minimum elements
+  define the SBOM author as the entity *operating* the scanner. Pass
+  `--author "ACME GmbH <psirt@acme.example>"` (or set `KUNNUS_AUTHOR`);
+  without it the document carries the Kunnus identity as a placeholder and
+  the CLI warns.
 - **Serial numbers form a series only when you supply an identity.** Without
   flags, every run gets a fresh random `serialNumber` — honest, but no lineage.
   Pass `--component-id` (and ideally `--component-version`) to make rescans of
@@ -189,9 +194,11 @@ All flags are also readable from env vars (`KUNNUS_API_KEY`,
     # serial-numbers.md). Without it every run gets a random serial.
     KUNNUS_COMPONENT_ID: ${{ vars.KUNNUS_COMPONENT_ID }}
     KUNNUS_COMPONENT_VERSION: ${{ github.ref_name }}
+    # Records your organization as the SBOM author (CISA minimum element).
+    KUNNUS_AUTHOR: ${{ vars.KUNNUS_AUTHOR }}
   run: |
     docker run --rm -v ${{ github.workspace }}:/src \
-      -e KUNNUS_COMPONENT_ID -e KUNNUS_COMPONENT_VERSION \
+      -e KUNNUS_COMPONENT_ID -e KUNNUS_COMPONENT_VERSION -e KUNNUS_AUTHOR \
       ghcr.io/think-ahead-technologies/kunnus-scanner:latest \
       sbom repo /src --output /src/sbom.cdx.json
 

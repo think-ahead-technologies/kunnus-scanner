@@ -28,6 +28,18 @@ const (
 	LifecyclePostBuild Lifecycle = "post-build"
 )
 
+// Author identifies the entity that authored the SBOM document: per CISA's
+// minimum elements, the entity *operating* the scanner, not the tool itself.
+// The zero value means "not specified" — the encoder falls back to the kunnus
+// creator identity so the document always carries an author.
+type Author struct {
+	Name  string
+	Email string // optional
+}
+
+// IsZero reports whether no author was specified.
+func (a Author) IsZero() bool { return a.Name == "" && a.Email == "" }
+
 // ComponentInfo describes the root component of the resulting SBOM.
 // CycloneDX puts this in metadata.component.
 type ComponentInfo struct {

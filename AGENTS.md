@@ -350,6 +350,20 @@ Each mode declares its CISA generation context on `Plan.Lifecycle`
 `post-build` (analyse built artifacts). `sbom` writes it to
 `metadata.lifecycles` verbatim and stays mode-agnostic; empty omits the field.
 
+## SBOM author (CISA SBOM Author element)
+
+The author is the entity *operating* the scanner, not the tool (CISA is
+explicit about the distinction). `--author "Name <email>"` / `KUNNUS_AUTHOR`
+(parsed by `command.parseAuthor`, validated before the scan) rides through
+`bom.Author` into `sbom.enrichCDXMetadata`, which writes it to
+`metadata.authors` and `metadata.manufacturer` (CycloneDX 1.6: the org that
+created the BOM). Unset, both keep the kunnus creator identity so BSI
+`sbom_creator` stays satisfied out of the box — correct when think-ahead
+operates the scan, a placeholder otherwise, so `runScan` warns when the flag
+is missing (making it required is a candidate for the next major version).
+Kunnus and SCALIBR are always recorded in `metadata.tools.components`
+regardless.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.
