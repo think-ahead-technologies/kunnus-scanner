@@ -55,6 +55,11 @@ type Plan struct {
 	Hashes          hashes.Map
 	ExtraComponents []bom.ExtraComponent
 
+	// Lifecycle is the SBOM's generation context (CycloneDX
+	// metadata.lifecycles phase), declared by the mode: pre-build for source
+	// analysis (repo), post-build for built-artifact analysis (os, container).
+	Lifecycle bom.Lifecycle
+
 	// Image is the opened container image to scan. Non-nil selects a container
 	// scan (scalibr ScanContainer over the image's layers); nil selects a
 	// filesystem scan over Config.ScanRoots. Only the container mode sets it.

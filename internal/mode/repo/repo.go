@@ -119,6 +119,9 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 
 	return &mode.Plan{
 		Config: cfg,
+		// A repo scan reads source (manifests, lockfiles), so its generation
+		// context is pre-build.
+		Lifecycle: bom.LifecyclePreBuild,
 		Component: bom.ComponentInfo{
 			Name:    filepath.Base(abs),
 			Version: "",

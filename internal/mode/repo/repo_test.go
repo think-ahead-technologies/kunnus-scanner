@@ -48,6 +48,10 @@ func TestPlan_DetectsGoEcosystem(t *testing.T) {
 	if plan.Component.Name == "" {
 		t.Error("ComponentInfo.Name should default to the directory basename")
 	}
+	// A repo scan reads source, so its CISA generation context is pre-build.
+	if plan.Lifecycle != bom.LifecyclePreBuild {
+		t.Errorf("Plan.Lifecycle = %q, want %q", plan.Lifecycle, bom.LifecyclePreBuild)
+	}
 }
 
 func TestPlan_EmptyTreeFailsExplicitly(t *testing.T) {

@@ -33,7 +33,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -58,7 +58,7 @@ func TestEncode_CycloneDX(t *testing.T) {
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, bom.Series{}, nil, nil, nil, nil)
+	}, bom.Series{}, "", nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -89,6 +89,41 @@ func TestEncode_CycloneDX(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "testify") {
 		t.Error("CycloneDX output missing testify")
+	}
+}
+
+func TestEncode_GenerationContextLifecycle(t *testing.T) {
+	// CISA's "generation context" minimum element rides on CycloneDX
+	// metadata.lifecycles: the mode declares the phase (pre-build for source
+	// scans, post-build for built-artifact scans) and Encode records it.
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, bom.LifecyclePreBuild, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Lifecycles []struct {
+				Phase string `json:"phase"`
+			} `json:"lifecycles"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Lifecycles) != 1 || doc.Metadata.Lifecycles[0].Phase != "pre-build" {
+		t.Errorf("metadata.lifecycles = %+v, want one pre-build phase", doc.Metadata.Lifecycles)
+	}
+}
+
+func TestEncode_NoLifecycleOmitsField(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if strings.Contains(buf.String(), "lifecycles") {
+		t.Error("empty lifecycle must not emit metadata.lifecycles")
 	}
 }
 
@@ -124,7 +159,7 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -190,7 +225,7 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, hashMap, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", hashMap, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 

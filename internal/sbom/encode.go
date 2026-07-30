@@ -30,7 +30,9 @@ import (
 // for scans with no OS package database (repo mode).
 // series identifies the document series for serial-number derivation; the
 // zero value yields a random serial per run (see bom.Series).
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+// lifecycle is the generation context the mode declared (pre-build /
+// post-build); empty omits metadata.lifecycles.
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -77,7 +79,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
-	if err := enrichCDXMetadata(cdxBom, series); err != nil {
+	if err := enrichCDXMetadata(cdxBom, series, lifecycle); err != nil {
 		return fmt.Errorf("failed to derive serial number: %w", err)
 	}
 	enrichCDXComponents(cdxBom, result.Inventory)
