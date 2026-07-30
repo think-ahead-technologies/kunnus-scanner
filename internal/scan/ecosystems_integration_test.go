@@ -76,6 +76,16 @@ func inventoryPURLs(res *scan.Result) map[string]bool {
 	return set
 }
 
+// inventoryPkgs collects every package as "name@version" — the identity used
+// for packages that carry no purl (e.g. the kernel extractors' output).
+func inventoryPkgs(res *scan.Result) map[string]bool {
+	set := make(map[string]bool)
+	for _, p := range res.Inventory.Packages {
+		set[p.Name+"@"+p.Version] = true
+	}
+	return set
+}
+
 // canonicalPURL mirrors the encoder's purl normalization (internal/sbom): it
 // decodes the escaped namespace separator (%2F → "/") in the path and the
 // escaped Debian epoch (%3A → ":") in the version, so namespaced and epoch'd
@@ -109,15 +119,18 @@ func sortedKeys(m map[string]bool) []string {
 // want.txt. The licenses field is parsed here for a shared corpus format but is
 // asserted only by the binary e2e tier, where the SBOM is encoded; this
 // scan-seam tier inspects the pre-encode inventory and so ignores it.
+// pkgs holds "name@version" expectations for packages that carry no purl
+// (scalibr's kernel extractors set no PURLType).
 type wants struct {
 	purls    []string
 	cpes     []string
 	licenses []string
+	pkgs     []string
 }
 
 // readWants parses dir/want.txt. Each non-blank, non-comment line is
-// "<kind> <value>" where kind is "purl", "cpe", or "license". A missing want.txt
-// is an error — fixtures without expectations are not coverage.
+// "<kind> <value>" where kind is "purl", "cpe", "license", or "pkg". A missing
+// want.txt is an error — fixtures without expectations are not coverage.
 func readWants(dir string) (wants, error) {
 	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
 	if err != nil {
@@ -141,6 +154,8 @@ func readWants(dir string) (wants, error) {
 			w.cpes = append(w.cpes, value)
 		case "license":
 			w.licenses = append(w.licenses, value)
+		case "pkg":
+			w.pkgs = append(w.pkgs, value)
 		default:
 			return wants{}, &parseError{line: line}
 		}
@@ -151,7 +166,7 @@ func readWants(dir string) (wants, error) {
 type parseError struct{ line string }
 
 func (e *parseError) Error() string {
-	return "malformed want.txt line (want \"purl <value>\", \"cpe <value>\", or \"license <value>\"): " + e.line
+	return "malformed want.txt line (want \"purl <value>\", \"cpe <value>\", \"license <value>\", or \"pkg <value>\"): " + e.line
 }
 
 // corpusDir resolves <module-root>/testdata/ecosystems. The corpus lives at the

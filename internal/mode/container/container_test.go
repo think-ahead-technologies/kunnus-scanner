@@ -47,6 +47,12 @@ func TestBuildConfig_InstalledOnlyLinuxFiltered(t *testing.T) {
 	if names["dotnet/pe"] {
 		t.Error("dotnet/pe must be filtered out for a Linux container scan")
 	}
+	// ...and must not include host-only families (containers have no kernel).
+	for _, unwanted := range []string{"os/kernel/module", "os/kernel/vmlinuz"} {
+		if names[unwanted] {
+			t.Errorf("host-only extractor %q must not be in a container scan", unwanted)
+		}
+	}
 }
 
 func TestBuildConfig_DisableOverride(t *testing.T) {

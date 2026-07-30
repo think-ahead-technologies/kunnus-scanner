@@ -126,6 +126,38 @@ func TestAllLinuxPlugins_IncludesFlatpakAndSnap(t *testing.T) {
 	}
 }
 
+func TestAllLinuxPlugins_IncludesKernel(t *testing.T) {
+	// The kernel family is fallback-only AND host-only: its extractors must be
+	// part of the "unknown root, scan everything" set (extracted firmware is
+	// the main place a kernel shows up with no distro fingerprint), even though
+	// container scans exclude them.
+	got := AllLinuxPlugins()
+	for _, must := range []string{"os/kernel/module", "os/kernel/vmlinuz"} {
+		if !slices.Contains(got, must) {
+			t.Errorf("AllLinuxPlugins missing %q (got %v)", must, got)
+		}
+	}
+}
+
+func TestContainerLinuxPlugins_ExcludesHostOnlyFamilies(t *testing.T) {
+	// Containers don't have kernels: host-only families must not ride into the
+	// container plugin union, while every other family must stay in it.
+	got := ContainerLinuxPlugins()
+	if !slices.IsSorted(got) {
+		t.Errorf("ContainerLinuxPlugins not sorted: %v", got)
+	}
+	for _, banned := range []string{"os/kernel/module", "os/kernel/vmlinuz"} {
+		if slices.Contains(got, banned) {
+			t.Errorf("ContainerLinuxPlugins must not contain host-only plugin %q", banned)
+		}
+	}
+	for _, must := range []string{"os/flatpak", "os/snap", "os/dpkg", "os/rpm", "os/apk"} {
+		if !slices.Contains(got, must) {
+			t.Errorf("ContainerLinuxPlugins missing %q (got %v)", must, got)
+		}
+	}
+}
+
 func TestWindowsPlugins(t *testing.T) {
 	got := WindowsPlugins()
 	for _, must := range []string{"windows/ospackages", "windows/regosversion", "windows/regpatchlevel"} {

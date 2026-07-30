@@ -57,8 +57,8 @@ func TestOSFamilies_EndToEnd(t *testing.T) {
 			if err != nil {
 				t.Fatalf("family %q: %v", fam.Name, err)
 			}
-			if len(want.purls) == 0 {
-				t.Fatalf("family %q: want.txt declares no expected purls", fam.Name)
+			if len(want.purls) == 0 && len(want.pkgs) == 0 {
+				t.Fatalf("family %q: want.txt declares no expected purls or pkgs", fam.Name)
 			}
 
 			plan, err := osmode.New().Plan(context.Background(), dir, mode.Overrides{TargetOS: "linux"})
@@ -75,6 +75,15 @@ func TestOSFamilies_EndToEnd(t *testing.T) {
 				if !got[p] {
 					t.Errorf("expected purl %q in inventory; got:\n  %s",
 						p, strings.Join(sortedKeys(got), "\n  "))
+				}
+			}
+			// name@version expectations, for packages that carry no purl
+			// (the kernel extractors set no PURLType).
+			gotPkgs := inventoryPkgs(res)
+			for _, p := range want.pkgs {
+				if !gotPkgs[p] {
+					t.Errorf("expected package %q in inventory; got:\n  %s",
+						p, strings.Join(sortedKeys(gotPkgs), "\n  "))
 				}
 			}
 		})

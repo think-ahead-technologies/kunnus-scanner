@@ -1,0 +1,21 @@
+# kernel family — fallback-only + host-only: no distro fingerprint at this
+# root, so detection yields nothing and the plan falls back to AllLinuxPlugins,
+# which is exactly the path a kernel-bearing firmware root takes in production.
+#
+# Fixture provenance (google/osv-scalibr testdata, Apache-2.0):
+#   lib/modules/.../intel_oaktrail.ko — extractor/filesystem/os/kernel/module/testdata/valid
+#     (a real .ko; version read from its ELF .modinfo section)
+#   boot/vmlinuz-6.8.0-49-generic — first 32 KiB of
+#     extractor/filesystem/os/kernel/vmlinuz/testdata/valid (binclass-style
+#     slice; the bzImage header magic and version string sit in the first pages)
+#
+# scalibr's kernel extractors set no PURLType, so these packages carry no purl
+# — the SBOM records them as name/version components, asserted via
+# "pkg <name>@<version>" instead of "purl". The kernel image still gets a CPE:
+# the encoder synthesises the NVD dictionary form from the vmlinuz metadata,
+# truncating the distro-suffixed version to its upstream release (NVD keys
+# kernel CVEs on "6.8.0", not "6.8.0-49-generic"). Modules get no CPE — an
+# in-tree module has no NVD identity; its CVEs are filed against the kernel.
+pkg intel_oaktrail@0.4ac1
+pkg Linux Kernel@6.8.0-49-generic
+cpe cpe:2.3:o:linux:linux_kernel:6.8.0:*:*:*:*:*:*:*

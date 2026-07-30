@@ -9,6 +9,8 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/os/dpkg"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/flatpak"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/homebrew"
+	kernelmodule "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/macapps"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/macports"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/nix"
@@ -49,6 +51,13 @@ type LinuxFamily struct {
 	// ScalibrPlugins lists the scalibr extractor names enabled when this
 	// family is selected.
 	ScalibrPlugins []string
+
+	// HostOnly marks families whose artifacts only exist on a full host, VM
+	// image, or extracted firmware root — never inside a container image
+	// (containers have no kernel). ContainerLinuxPlugins excludes them from
+	// the container plugin union; AllLinuxPlugins (the host-scan fallback)
+	// keeps them.
+	HostOnly bool
 }
 
 // linuxFamilies is the master list. Adding or removing a family is one struct
@@ -110,6 +119,18 @@ var linuxFamilies = []LinuxFamily{
 		Name:           "snap",
 		ScalibrPlugins: []string{snap.Name},
 	},
+	// The Linux kernel itself: every *.ko module (version from the ELF
+	// .modinfo section) and boot/vmlinuz* images. Fallback-only — extracted
+	// firmware is the main root with a kernel but no distro fingerprint — and
+	// host-only, so container scans never carry it. On a detected distro the
+	// kernel is opt-in via --enable-plugins os/kernel/module,os/kernel/vmlinuz
+	// (a full host yields one component per module, which is not the default
+	// SBOM character we want for "scan this Ubuntu root").
+	{
+		Name:           "kernel",
+		ScalibrPlugins: []string{kernelmodule.Name, vmlinuz.Name},
+		HostOnly:       true,
+	},
 }
 
 // LinuxFamilies returns the registered families. Exposed for introspection
@@ -138,12 +159,27 @@ func LinuxPluginsFor(families []string) []string {
 
 // AllLinuxPlugins returns the deduplicated, sorted union of every registered
 // Linux family's plugins — the "unknown distro, scan everything" set used when
-// detection produced no family, and the installed-state baseline for container
-// scans. Mirrors ecosystem.AllInstalledPlugins so the two registries answer
-// "give me everything" the same way.
+// detection produced no family at a host/firmware root. Mirrors
+// ecosystem.AllInstalledPlugins so the two registries answer "give me
+// everything" the same way. Container scans use ContainerLinuxPlugins instead,
+// which drops the host-only families.
 func AllLinuxPlugins() []string {
 	lists := make([][]string, 0, len(linuxFamilies))
 	for _, f := range linuxFamilies {
+		lists = append(lists, f.ScalibrPlugins)
+	}
+	return pluginset.Union(lists...)
+}
+
+// ContainerLinuxPlugins returns AllLinuxPlugins minus the host-only families —
+// the installed-state baseline for container scans, where artifacts like the
+// kernel can never appear.
+func ContainerLinuxPlugins() []string {
+	lists := make([][]string, 0, len(linuxFamilies))
+	for _, f := range linuxFamilies {
+		if f.HostOnly {
+			continue
+		}
 		lists = append(lists, f.ScalibrPlugins)
 	}
 	return pluginset.Union(lists...)

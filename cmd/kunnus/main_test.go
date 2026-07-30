@@ -328,6 +328,8 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			var doc struct {
 				BOMFormat  string `json:"bomFormat"`
 				Components []struct {
+					Name     string `json:"name"`
+					Version  string `json:"version"`
 					PURL     string `json:"purl"`
 					CPE      string `json:"cpe"`
 					Licenses []struct {
@@ -349,7 +351,9 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			purls := make(map[string]bool)
 			cpes := make(map[string]bool)
 			licenses := make(map[string]bool)
+			pkgs := make(map[string]bool)
 			for _, c := range doc.Components {
+				pkgs[c.Name+"@"+c.Version] = true
 				if c.PURL != "" {
 					purls[c.PURL] = true
 				}
@@ -383,6 +387,13 @@ func TestCLI_SBOM_OS_Linux(t *testing.T) {
 			for _, l := range w.licenses {
 				if !licenses[l] {
 					t.Errorf("family %q: expected license %q missing from SBOM", e.Name(), l)
+				}
+			}
+			// name@version expectations, for components that carry no purl
+			// (the kernel extractors set no PURLType).
+			for _, p := range w.pkgs {
+				if !pkgs[p] {
+					t.Errorf("family %q: expected component %q missing from SBOM", e.Name(), p)
 				}
 			}
 		})
@@ -465,15 +476,17 @@ func moduleRoot(t *testing.T) string {
 }
 
 // wants holds the expected purls, cpes, and licenses declared in a fixture's
-// want.txt.
+// want.txt. pkgs holds "name@version" expectations for components that carry
+// no purl (scalibr's kernel extractors set no PURLType).
 type wants struct {
 	purls    []string
 	cpes     []string
 	licenses []string
+	pkgs     []string
 }
 
 // readWants parses dir/want.txt. Each non-blank, non-comment line is
-// "<kind> <value>" where kind is "purl", "cpe", or "license".
+// "<kind> <value>" where kind is "purl", "cpe", "license", or "pkg".
 func readWants(t *testing.T, dir string) wants {
 	t.Helper()
 	data, err := os.ReadFile(filepath.Join(dir, "want.txt"))
@@ -498,6 +511,8 @@ func readWants(t *testing.T, dir string) wants {
 			w.cpes = append(w.cpes, value)
 		case "license":
 			w.licenses = append(w.licenses, value)
+		case "pkg":
+			w.pkgs = append(w.pkgs, value)
 		default:
 			t.Fatalf("unknown want.txt kind %q in %s", kind, dir)
 		}

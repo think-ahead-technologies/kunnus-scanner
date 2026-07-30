@@ -50,6 +50,18 @@ func TestPlan_LinuxNoDistroFallsBackToAll(t *testing.T) {
 	if len(plan.Config.Plugins) == 0 {
 		t.Error("want fallback to all linux extractors when no distro detected")
 	}
+	// The fallback set is the host-scan superset: it must include the host-only
+	// kernel extractors (extracted firmware has a kernel but often no distro
+	// fingerprint).
+	names := make(map[string]bool)
+	for _, p := range plan.Config.Plugins {
+		names[p.Name()] = true
+	}
+	for _, want := range []string{"os/kernel/module", "os/kernel/vmlinuz"} {
+		if !names[want] {
+			t.Errorf("fallback plugin set missing host-only kernel extractor %q", want)
+		}
+	}
 }
 
 func TestPlan_WindowsTarget(t *testing.T) {
@@ -119,7 +131,7 @@ func TestPlan_DisableOverrideTrimsPluginSet(t *testing.T) {
 	root := t.TempDir()
 	plan, err := New().Plan(context.Background(), root, mode.Overrides{
 		TargetOS:       "linux",
-		DisablePlugins: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage", "os/nix", "os/flatpak", "os/snap", "os/cos"},
+		DisablePlugins: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage", "os/nix", "os/flatpak", "os/snap", "os/cos", "os/kernel/module", "os/kernel/vmlinuz"},
 	})
 	// Disabling everything should produce the "no extractors selected" error.
 	if err == nil {
