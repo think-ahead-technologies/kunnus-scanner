@@ -92,6 +92,10 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// BOMRefs participate in the dep graph.
 	appendExtraComponents(cdxBom, extras)
 	injectHashesCDX(cdxBom, hashMap)
+	// After injectHashesCDX (its already-hashed guard must see the lockfile
+	// digests) and before normalizePURLsCDX (it joins on the original purl
+	// strings, like every inventory-keyed stage).
+	injectClassifierHashesCDX(cdxBom, result.Inventory)
 	injectDepGraphCDX(cdxBom)
 	normalizePURLsCDX(cdxBom)
 	// [enforced] Last: CISA's "explicitly identify unknown information" sweep
