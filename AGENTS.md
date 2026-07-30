@@ -364,6 +364,17 @@ is missing (making it required is a candidate for the next major version).
 Kunnus and SCALIBR are always recorded in `metadata.tools.components`
 regardless.
 
+## Unknown-information markers (CISA practice)
+
+`sbom.markUnknownInfoCDX` (`internal/sbom/unknown.go`) is the **last** encode
+stage: it sweeps the final component list and stamps `kunnus:unknown:producer`
+/ `version` / `hash` / `license` properties (documented in
+`docs/sbom-properties.md`) wherever a field is still absent, so omission is a
+statement, not an accident. Last is load-bearing ([enforced]): every stage
+that can still fill one of those fields must have run. The root component is
+exempt — its identity is the operator's own statement via flags. kunnus never
+withholds data, so a marker always means unknown, never redacted.
+
 ## Things we deliberately did NOT build
 
 - Plugin registry / factory pattern — two modes don't justify it.

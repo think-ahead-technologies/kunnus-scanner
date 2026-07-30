@@ -399,6 +399,13 @@ func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
 	if !strings.Contains(string(data), "kunnus:vendored:file") {
 		t.Error("SBOM missing kunnus:vendored:file properties")
 	}
+	// A vendored copy has no version, producer, or licence — CISA's
+	// "explicitly identify unknown information" markers must say so.
+	for _, marker := range []string{"kunnus:unknown:version", "kunnus:unknown:producer", "kunnus:unknown:license"} {
+		if !strings.Contains(string(data), marker) {
+			t.Errorf("SBOM missing %s marker on the vendored component", marker)
+		}
+	}
 }
 
 func TestCLI_SBOM_Repo_EmptyTreeFails(t *testing.T) {

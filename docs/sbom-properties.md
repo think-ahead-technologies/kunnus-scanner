@@ -74,6 +74,26 @@ Present **only for repo scans** (`kunnus sbom repo`), on the synthetic
 |---|---|---|
 | `kunnus:vendored:file` | `<path>:<algorithm>:<hex>` | One per fingerprinted source file in the vendored library. Records the per-file digest the platform uses to recover which file each `component.hashes[]` entry belongs to. `algorithm` is e.g. `MD5`; `path` is relative to the library directory, posix-separated. |
 
+## `kunnus:unknown:*` — explicit unknown-information markers
+
+Present for **all scan modes**, on any enumerated component missing a CISA
+minimum-element field. CISA's *Explicitly Identifying Unknown Information*
+practice requires an SBOM author to state that a value is unknown rather than
+silently omit it; these markers are that statement. kunnus withholds nothing,
+so every marker means "unknown to the SBOM author", never "known but
+redacted". The root component is never marked: its identity comes from the
+operator's flags, not from scanner derivation.
+
+| Key | Value | Meaning |
+|---|---|---|
+| `kunnus:unknown:producer` | `true` | No supplier could be derived for the component — it is of unknown provenance. |
+| `kunnus:unknown:version` | `true` | The component carries no version. |
+| `kunnus:unknown:hash` | `true` | No digest is available for the component (e.g. a pre-build scan where the artifact does not exist yet). |
+| `kunnus:unknown:license` | `true` | No licence information was found for the component. |
+
+Emitted only when the field is absent — a component with a supplier, version,
+hash, or licence never carries the corresponding marker.
+
 ## BSI TR-03183-2 conformance baseline
 
 CI gates on the BSI v2 conformance score of generated SBOMs via
