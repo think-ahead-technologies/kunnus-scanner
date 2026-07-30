@@ -24,6 +24,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/mode"
 	"github.com/think-ahead/kunnus-scanner/internal/modustoolbox"
 	"github.com/think-ahead/kunnus-scanner/internal/platformio"
+	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
 	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 	"github.com/think-ahead/kunnus-scanner/internal/zephyr"
@@ -47,7 +48,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		return nil, fmt.Errorf("resolve path: %w", err)
 	}
 
-	ecosystems, hashMap, licenseMap, graphMap := ecosystem.Survey(scalibrfs.DirFS(abs))
+	ecosystems, hashMap, licenseMap, graphMap, superseded := ecosystem.Survey(scalibrfs.DirFS(abs))
 
 	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
 	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor
@@ -69,7 +70,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		ecosystems = intersect(ecosystems, ov.Ecosystems)
 	}
 
-	pluginNames := ecosystem.PluginsFor(ecosystems)
+	// Drop the extractors a file present in the tree made redundant — today, the
+	// Cargo.toml extractor where a Cargo.lock resolves the same crates. Before
+	// ApplyOverrides, so an explicit --enable of a superseded plugin still wins.
+	pluginNames := pluginset.Without(ecosystem.PluginsFor(ecosystems), superseded)
 	pluginNames = mode.ApplyOverrides(pluginNames, ov)
 
 	// Kunnus-native extractors for detected ecosystems that have no scalibr

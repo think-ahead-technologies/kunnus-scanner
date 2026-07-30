@@ -555,6 +555,110 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 	}
 }
 
+// TestCLI_SBOM_Repo_DeclaredRangesSuppressed drives the real binary over one
+// tree per double-counting ecosystem and asserts the SBOM carries the resolved
+// pin only. Where a manifest declares a range and a lockfile next to it pins a
+// version, the two extractors would otherwise emit both under different PURLs —
+// pkg:cargo/anyhow@1.0 beside @1.0.102 — the second of which never existed.
+// cargo is fixed at plan time (the manifest extractor is not enabled at all),
+// nuget and pypi after the scan, per path; this proves the user-visible result
+// is the same either way.
+func TestCLI_SBOM_Repo_DeclaredRangesSuppressed(t *testing.T) {
+	root := t.TempDir()
+
+	// Rust workspace: the lock resolves the root manifest and the member.
+	writeFile(t, filepath.Join(root, "rust", "Cargo.toml"),
+		"[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\nlibc = \"0.2\"\n")
+	writeFile(t, filepath.Join(root, "rust", "Cargo.lock"), `
+[[package]]
+name = "libc"
+version = "0.2.147"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
+`)
+
+	// .NET project: a floating version and a range, both resolved by the lock.
+	writeFile(t, filepath.Join(root, "dotnet", "App.csproj"), `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+    <PackageReference Include="Serilog" Version="[3.0.0,4.0.0)" />
+  </ItemGroup>
+</Project>
+`)
+	writeFile(t, filepath.Join(root, "dotnet", "packages.lock.json"), `{"version":1,"dependencies":{"net6.0":{
+  "Newtonsoft.Json":{"type":"Direct","requested":"[13.0.1, )","resolved":"13.0.1","contentHash":"x=="},
+  "Serilog":{"type":"Direct","requested":"[3.0.0, 4.0.0)","resolved":"3.1.1","contentHash":"y=="}
+}}}`)
+
+	// Python project: a constraint floor and a bare requirement, both pinned by
+	// the lock. sphinx is declared in a docs requirements file the lock does not
+	// resolve, so it must survive.
+	writeFile(t, filepath.Join(root, "py", "requirements.txt"), "requests>=2.0\nurllib3\n")
+	writeFile(t, filepath.Join(root, "py", "docs", "requirements.txt"), "sphinx==7.0.1\n")
+	writeFile(t, filepath.Join(root, "py", "uv.lock"), `version = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "urllib3"
+version = "2.2.3"
+source = { registry = "https://pypi.org/simple" }
+`)
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t, "sbom", "repo", "--output", outPath, root)
+	if err != nil {
+		t.Fatalf("sbom repo failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc struct {
+		Components []struct {
+			PURL string `json:"purl"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	purls := make(map[string]bool, len(doc.Components))
+	for _, c := range doc.Components {
+		purls[c.PURL] = true
+	}
+
+	for _, want := range []string{
+		"pkg:cargo/libc@0.2.147",
+		"pkg:nuget/Newtonsoft.Json@13.0.1",
+		"pkg:nuget/Serilog@3.1.1",
+		"pkg:pypi/requests@2.32.3",
+		"pkg:pypi/urllib3@2.2.3",
+		// Declared where no lock resolves it: the only record of this dependency.
+		"pkg:pypi/sphinx@7.0.1",
+	} {
+		if !purls[want] {
+			t.Errorf("resolved pin %q missing from SBOM", want)
+		}
+	}
+	// The declared-range twins, in the escaped form the encoder emits.
+	for _, unwanted := range []string{
+		"pkg:cargo/libc@0.2",
+		"pkg:nuget/Newtonsoft.Json@13.0.%2A",
+		"pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29",
+		"pkg:pypi/requests@2.0",
+		"pkg:pypi/urllib3",
+	} {
+		if purls[unwanted] {
+			t.Errorf("declared range %q still in SBOM; the lockfile pin supersedes it", unwanted)
+		}
+	}
+}
+
 func TestCLI_SBOM_OS_Linux(t *testing.T) {
 	// Binary e2e for OS-package scans: run the built CLI against each fixtured
 	// Linux family root with --target-os linux, and assert the exact purl + cpe

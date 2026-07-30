@@ -23,6 +23,19 @@ var cargo = Ecosystem{
 	Filenames:        []string{"Cargo.toml", "Cargo.lock"},
 	ScalibrPlugins:   []string{cargoauditable.Name, cargolock.Name, cargotoml.Name},
 	InstalledPlugins: []string{cargoauditable.Name},
+	// A Cargo.lock resolves every manifest in its workspace, so where one covers
+	// them all the manifest extractor only re-reports the same crates at their
+	// declared range where the lock has the pin — pkg:cargo/anyhow@1.0 beside
+	// pkg:cargo/anyhow@1.0.102, counted twice and CPE-matched against a version
+	// that was never released. The lock lists the workspace's own member crates
+	// too, so standing the manifest extractor down loses nothing.
+	Supersedes: []Supersede{
+		{
+			Lock:      "Cargo.lock",
+			Manifests: []string{"Cargo.toml"},
+			Plugins:   []string{cargotoml.Name},
+		},
+	},
 	HashParsers: []Parser{
 		{
 			Name:      "cargo",
