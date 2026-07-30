@@ -87,6 +87,7 @@ func resultFrom(res *scalibr.ScanResult) *Result {
 			"reason", ps.Status.FailureReason,
 		)
 	}
+	backfillKernelModulePURLs(res.Inventory)
 	return &Result{
 		Inventory:      res.Inventory,
 		PluginStatuses: res.PluginStatus,

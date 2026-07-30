@@ -310,12 +310,16 @@ images) with two deliberate restrictions:
   which excludes host-only families; `AllLinuxPlugins()` (the host-scan
   fallback) keeps them.
 
-Known wart: scalibr's kernel extractors set no `PURLType`, so their packages
-carry no purl — they land in the SBOM as name/version components
-(`intel_oaktrail@0.4ac1`, `Linux Kernel@6.8.0-49-generic`). The purl-keyed
-sbom stages (dedup, hash/licence injection, supplier) skip them by design. If
-upstream adds a purl type, the fixtures' `want.txt` should switch from `pkg`
-lines back to `purl` lines. The kernel *image* does get a CPE despite the
+Known wart: scalibr's kernel extractors set no `PURLType`. For *modules*,
+`scan.backfillKernelModulePURLs` (run on every scan result) fills in
+`pkg:generic`, so each module carries a machine identifier (CISA Component
+Identifiers) — `pkg:generic/intel_oaktrail@0.4ac1` — and flows through the
+purl-keyed sbom stages like any other component; the fill only touches empty
+types, so it becomes a no-op if upstream ever stamps its own. Modules are
+excluded from the CPE stage's PURL heuristic (`isKernelModule`): an in-tree
+module has no NVD identity, so inventing `a:<module>:<module>` would be
+wrong. The kernel *image* stays purl-less ("Linux Kernel" makes a poor purl
+name) and lands as a name/version component. It does get a CPE despite the
 missing purl: `injectCPEsCDX` recognises the vmlinuz metadata and synthesises
 the NVD dictionary form `cpe:2.3:o:linux:linux_kernel:<upstream release>`,
 truncating a distro suffix ("6.8.0-49-generic" → "6.8.0") because NVD keys
