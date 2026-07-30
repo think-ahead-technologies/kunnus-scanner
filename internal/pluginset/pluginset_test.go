@@ -52,3 +52,55 @@ func TestUnion(t *testing.T) {
 		})
 	}
 }
+
+func TestWithout(t *testing.T) {
+	tests := []struct {
+		name   string
+		list   []string
+		remove []string
+		want   []string
+	}{
+		{
+			name:   "nothing to remove still normalizes",
+			list:   []string{"rust/cargolock", "rust/cargoauditable", "rust/cargolock"},
+			remove: nil,
+			want:   []string{"rust/cargoauditable", "rust/cargolock"},
+		},
+		{
+			name:   "named plugin is dropped",
+			list:   []string{"rust/cargoauditable", "rust/cargolock", "rust/cargotoml"},
+			remove: []string{"rust/cargotoml"},
+			want:   []string{"rust/cargoauditable", "rust/cargolock"},
+		},
+		{
+			name:   "removing a name that isn't there changes nothing",
+			list:   []string{"go/gomod"},
+			remove: []string{"rust/cargotoml"},
+			want:   []string{"go/gomod"},
+		},
+		{
+			name:   "removing everything yields empty, non-nil",
+			list:   []string{"rust/cargotoml"},
+			remove: []string{"rust/cargotoml"},
+			want:   []string{},
+		},
+		{
+			name:   "empty list yields empty, non-nil",
+			list:   nil,
+			remove: []string{"rust/cargotoml"},
+			want:   []string{},
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := Without(tt.list, tt.remove)
+			if got == nil {
+				t.Fatal("Without returned nil; want non-nil slice")
+			}
+			if !reflect.DeepEqual(got, tt.want) {
+				t.Errorf("Without(%v, %v) = %v, want %v", tt.list, tt.remove, got, tt.want)
+			}
+		})
+	}
+}

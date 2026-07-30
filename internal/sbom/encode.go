@@ -84,6 +84,13 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
+	// Same placement and reason as the stage above, for the other double-count a
+	// pair of extractors can produce: a dependency declared as a range in a
+	// manifest and pinned by a lockfile next to it. Dedup cannot collapse those
+	// (the versions, hence the PURLs, differ), so the declared twin is dropped
+	// here — before CPEs are synthesized for a version that is not one, and
+	// before the dep graph could reference it.
+	suppressResolvedDeclarations(cdxBom)
 	if err := enrichCDXMetadata(cdxBom, series, lifecycle, author); err != nil {
 		return fmt.Errorf("failed to derive serial number: %w", err)
 	}

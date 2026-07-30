@@ -51,7 +51,7 @@ encoder; the scanner library does the extraction work.
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
-| `ecosystem` | language markers, lockfile hash + licence + dependency-graph parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin | scalibr APIs, modes, CLI |
+| `ecosystem` | language markers, lockfile hash + licence + dependency-graph parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin, the `Supersedes` rules a resolved lockfile makes redundant | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
@@ -66,7 +66,7 @@ encoder; the scanner library does the extraction work.
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), binclass CPE templates | modes, CLI, scanning |
+| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
@@ -150,6 +150,63 @@ entries are left alone), and the authoritative OS package (with its distro
 version, supplier and licence) is the one kept. A genuinely non-packaged binary
 — memcached or redis compiled from source — is owned by nothing and matches no
 package name, so it survives.
+
+## Declared ranges vs resolved pins (manifest/lockfile double-counting)
+
+Three ecosystems ship both a manifest extractor and a lockfile extractor that
+read the *same* dependency: the manifest gives the declared constraint as the
+version, the lockfile the resolved pin. The PURLs differ, so dedup cannot
+collapse them, and the component is counted twice — the second one at a version
+that was never released, carrying a CPE that matches no advisory
+(`pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29`). The resolved pin is authoritative
+(it is what builds, and it carries the lockfile's checksum), so the declared
+twin goes.
+
+Which mechanism applies is decided by **how far the lockfile's authority
+reaches** — not by preference:
+
+| Ecosystem | Manifest → lock | Mechanism |
+|---|---|---|
+| cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
+| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
+| python | `*requirements*.txt` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock` | post scan, per path |
+
+- **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
+  walk, subtracted in `mode/repo` *before* `ApplyOverrides` so `--enable
+  rust/cargotoml` still wins). A `Cargo.lock` resolves its whole workspace, so
+  one lock speaks for every `Cargo.toml` below it and a whole-scan switch is
+  exact. The extractor never runs: no wasted pass, no phantom component to clean
+  up. The rule fires only when **every** manifest found is covered by a lock at
+  or above it — in a monorepo where one crate is locked and another is not, it
+  stays quiet and the unlocked crate keeps its declared ranges. Losing a
+  component is worse than listing one twice.
+- **Post scan** (`sbom.suppressResolvedDeclarations`, an encode stage beside
+  `suppressOSManagedBinaries` — after dedup, before CPEs and the dep graph). A
+  `packages.lock.json` is opt-in *per project* and a python lock speaks for the
+  project it sits in, so a whole-scan switch would silence manifests no resolver
+  ever saw. This drops a declared component only when both signals agree, the
+  same two-signal shape as the binary-classifier overlap stage: **path** (every
+  evidence location is a manifest in or below a directory holding one of that
+  ecosystem's lockfiles) and **name** (a component extracted from such a
+  lockfile pins the same name, under that ecosystem's name equivalence —
+  case-insensitive for nuget, PEP 503 separator folding for pypi). So an
+  unlocked project keeps its declarations, `docs/requirements.txt` keeps the
+  sphinx its project's lock does not resolve, and a conditional dependency the
+  resolver never saw survives with its range and its unknown-info markers.
+
+The other 20 ecosystems were audited and need nothing: their manifest-side
+extractor reports *installed state* rather than declared ranges
+(`javascript/packagejson` — dependency parsing is off by default;
+`ruby/gemspec`; `lua/luarocks`; `java/archive`), or the manifest has no
+extractor at all (`composer.json`, `Gemfile`, `build.gradle`, `conanfile.txt`),
+or the only file is itself a freeze/lock (`haskell`, `swift`, `r`, `gradle`).
+`java/pomxml` does emit declared ranges but Maven has no lockfile to supersede
+it. The embedded native extractors (espidf) already prefer the lock internally.
+
+Known gap: a mixed monorepo (one project locked, one not) keeps the phantoms for
+the *locked* cargo crates — the plan-time rule declines to fire rather than lose
+the unlocked crate's data. Moving cargo onto the post-scan stage would fix that
+at the cost of running an extractor whose output is thrown away.
 
 ## ModusToolbox ecosystem (native extractor, no scalibr plugin)
 
@@ -465,8 +522,11 @@ the fast/narrow ones:
   (a valid rpmdb is a binary sqlite/bdb blob, so the rpm parse path is verified
   e2e against a real rpm image, not an in-tree fixture — see the rpm note below);
   the `sbom` overlap stage is tested for both the path-ownership and name+version
-  drop signals. Hash parsers,
-  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/encode),
+  drop signals. The declared-range stage is tested per ecosystem for the mixed
+  cases that must survive it (an unlocked sibling project, a docs requirements
+  file the lock does not resolve), and the plan-time half by asserting the
+  selected plugin names in `mode/repo`. Hash parsers,
+  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/declared/encode),
   and `upload` (via `httptest`) are tested in isolation.
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`
   and `testdata/osfamilies/<name>/` each hold a real manifest/lockfile (or
