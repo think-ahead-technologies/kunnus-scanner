@@ -381,13 +381,30 @@ the presence claim; every component gets an entry) plus a `compositions[]`
 statement for graph completeness. Real component→component edges come from
 `graph.Map` (purl → dependsOn purls, both ends conventional form), mined in
 the same `ecosystem.Survey` pass as hashes and licences via the registry's
-`GraphParsers` hook — today Cargo.lock (three dependency-entry shapes; a
-bare name that matches several locked versions is dropped, never guessed)
-and composer.lock (`require` keys resolved against the lock's own packages,
-so platform deps like `php`/`ext-*` drop out naturally). An edge whose
-target purl matches no component is dropped — the parser and the stage never
-invent a ref. Repo-mode only, like every Survey product; the aggregate stays
-`incomplete` because only mined ecosystems have real edges.
+`GraphParsers` hook. An edge whose target purl matches no component is
+dropped — no parser and no stage ever invents a ref, so a requirement the
+lockfile leaves unresolved simply produces no edge. Repo-mode only, like
+every Survey product; the aggregate stays `incomplete` because only the
+mined formats have real edges.
+
+Six formats are mined, each with its own resolution rule:
+
+| Lockfile | Edge source → target resolution |
+|---|---|
+| `Cargo.lock` | per-package `dependencies` list, three entry shapes (`name`, `name version`, `name version (source)`); a bare name matching several locked versions is dropped, never guessed |
+| `composer.lock` | `require` keys resolved against the lock's own packages, so platform deps (`php`, `ext-*`, `composer-plugin-api`) drop out without a denylist |
+| `Gemfile.lock` | every 4-space `specs:` entry owns the 6-space requirement lines under it (GEM/PATH/GIT alike); constraints ignored — the lock pins one version per gem. Platform suffixes are stripped from the spec version, matching scalibr's purl |
+| `package-lock.json` (+`npm-shrinkwrap.json`) | node's own walk-up over the v2/v3 path-keyed `packages` map, so a nested copy beats the hoisted one. The `""` entry is the scanned project, never an edge source. v1 lockfiles (npm 6) are not parsed — their nesting semantics must be inferred, and no edges beats wrong edges |
+| `packages.lock.json` | each entry's `dependencies` map resolved to the *resolved* version within the **same target framework** (one id can resolve differently per framework); ids matched case-insensitively, as NuGet treats them |
+| `renv.lock` | `Requirements` names resolved against the lock's own `Packages`, so unpinned base/recommended R packages (and the `R` entry) drop out |
+
+Formats audited and found to carry **no** inter-component edges — flat pin
+lists or unresolved direct-only declarations, so a parser would have nothing
+to mine: `conan.lock`, `gradle.lockfile`, `Package.resolved`, `go.mod`/`go.sum`,
+`pom.xml`, `requirements.txt`, `cabal.project.freeze`, `stack.yaml.lock`, and
+the embedded-firmware manifests. Known follow-ups that *do* pin graphs but
+have no in-tree fixture yet: `poetry.lock`, `uv.lock`, `Pipfile.lock`,
+`Podfile.lock`.
 
 ## Unknown-information markers (CISA practice)
 

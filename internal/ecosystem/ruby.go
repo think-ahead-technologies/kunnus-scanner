@@ -5,6 +5,7 @@ package ecosystem
 import (
 	"bufio"
 	"encoding/hex"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -12,6 +13,7 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemfilelock"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/ruby/gemspec"
 
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
@@ -23,6 +25,9 @@ var ruby = Ecosystem{
 	InstalledPlugins: []string{gemspec.Name},
 	HashParsers: []Parser{
 		{Name: "bundler", Filenames: []string{"Gemfile.lock"}, Parse: parseGemfileLockChecksums},
+	},
+	GraphParsers: []GraphParser{
+		{Name: "bundler", Filenames: []string{"Gemfile.lock"}, Parse: parseGemfileLockGraph},
 	},
 }
 
@@ -82,4 +87,84 @@ func parseGemfileLockChecksums(r io.Reader) (hashes.Map, error) {
 		}
 	}
 	return out, scanner.Err()
+}
+
+// gemSpecLineRe matches a specs-block gem line: four spaces, then
+// `name (version[-platform])`. The version group stops at the first dash so a
+// platform-specific gem (nokogiri 1.19.1-arm64-darwin) keys the same
+// pkg:gem purl scalibr's gemfilelock extractor builds.
+var gemSpecLineRe = regexp.MustCompile(`^ {4}(\S+) \(([^-)]*)(?:-[^)]*)?\)$`)
+
+// gemSpecDepLineRe matches a gem's requirement line: six spaces, then a gem
+// name and an optional parenthesised constraint. The constraint is ignored —
+// the lockfile already pins one version of the named gem, and that pin is the
+// edge's target.
+var gemSpecDepLineRe = regexp.MustCompile(`^ {6}(\S+)(?: \(.*\))?$`)
+
+// parseGemfileLockGraph mines the dependency edges Bundler records inside each
+// specs: block of a Gemfile.lock (GEM, PATH and GIT sections alike): every
+// 4-space gem line owns the 6-space requirement lines that follow it. A
+// requirement naming a gem the lockfile does not pin (bundler itself, an
+// unresolved platform gem) is dropped — the parser never invents a purl.
+func parseGemfileLockGraph(r io.Reader) (graph.Map, error) {
+	type spec struct {
+		name    string
+		version string
+		deps    []string
+	}
+	var specs []spec
+	versionByName := make(map[string]string)
+
+	inSpecs := false
+	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for scanner.Scan() {
+		line := strings.TrimRight(scanner.Text(), "\r")
+		if line == "" {
+			continue
+		}
+		// A non-indented line starts a new top-level section (GEM, DEPENDENCIES,
+		// CHECKSUMS, …), which ends any specs block.
+		if !strings.HasPrefix(line, " ") {
+			inSpecs = false
+			continue
+		}
+		if strings.TrimSpace(line) == "specs:" {
+			inSpecs = true
+			continue
+		}
+		if !inSpecs {
+			continue
+		}
+		if m := gemSpecLineRe.FindStringSubmatch(line); m != nil {
+			specs = append(specs, spec{name: m[1], version: m[2]})
+			versionByName[m[1]] = m[2]
+			continue
+		}
+		if m := gemSpecDepLineRe.FindStringSubmatch(line); m != nil && len(specs) > 0 {
+			last := &specs[len(specs)-1]
+			last.deps = append(last.deps, m[1])
+		}
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read Gemfile.lock: %w", err)
+	}
+
+	out := make(graph.Map)
+	for _, s := range specs {
+		from := gemPURL(s.name, s.version)
+		for _, dep := range s.deps {
+			v, ok := versionByName[dep]
+			if !ok {
+				continue
+			}
+			out.Add(from, gemPURL(dep, v))
+		}
+	}
+	return out, nil
+}
+
+// gemPURL builds the conventional gem purl the SBOM components carry.
+func gemPURL(name, version string) string {
+	return "pkg:gem/" + name + "@" + version
 }

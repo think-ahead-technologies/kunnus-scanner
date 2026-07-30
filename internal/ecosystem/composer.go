@@ -7,6 +7,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"maps"
+	"slices"
 
 	"github.com/google/osv-scalibr/extractor/filesystem/language/php/composerlock"
 
@@ -151,7 +153,7 @@ func parseComposerLockGraph(r io.Reader) (graph.Map, error) {
 	if err := json.NewDecoder(r).Decode(&lock); err != nil {
 		return nil, fmt.Errorf("parse composer.lock: %w", err)
 	}
-	pkgs := append(lock.Packages, lock.PackagesDev...)
+	pkgs := slices.Concat(lock.Packages, lock.PackagesDev)
 
 	versionByName := make(map[string]string, len(pkgs))
 	for _, p := range pkgs {
@@ -165,7 +167,8 @@ func parseComposerLockGraph(r io.Reader) (graph.Map, error) {
 		if p.Name == "" || p.Version == "" {
 			continue
 		}
-		for dep := range p.Require {
+		// Sorted: see the npm parser — deterministic SBOM output.
+		for _, dep := range slices.Sorted(maps.Keys(p.Require)) {
 			v, ok := versionByName[dep]
 			if !ok {
 				continue

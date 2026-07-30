@@ -511,9 +511,8 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 		}
 	}
 
-	// Real dependency edges mined from Cargo.lock (CISA Component Dependency
-	// Relationship): the fixture workspace package must depend on libc in
-	// dependencies[], resolved through the components' bom-refs.
+	// Real dependency edges mined from lockfiles (CISA Component Dependency
+	// Relationship), resolved through the components' bom-refs.
 	var depDoc struct {
 		Components []struct {
 			BOMRef string `json:"bom-ref"`
@@ -531,23 +530,28 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 	for _, c := range depDoc.Components {
 		refByPURL[c.PURL] = c.BOMRef
 	}
-	fixtureRef, libcRef := refByPURL["pkg:cargo/fixture@0.1.0"], refByPURL["pkg:cargo/libc@0.2.147"]
-	if fixtureRef == "" || libcRef == "" {
-		t.Fatal("cargo fixture components missing bom-refs")
-	}
-	edgeFound := false
+	dependsOn := map[string]map[string]bool{}
 	for _, d := range depDoc.Dependencies {
-		if d.Ref != fixtureRef {
+		set := map[string]bool{}
+		for _, ref := range d.DependsOn {
+			set[ref] = true
+		}
+		dependsOn[d.Ref] = set
+	}
+	for _, tc := range []struct{ from, to string }{
+		// Cargo.lock: the fixture workspace package requires libc.
+		{"pkg:cargo/fixture@0.1.0", "pkg:cargo/libc@0.2.147"},
+		// Gemfile.lock: the real Rails lock's actioncable requires actionpack.
+		{"pkg:gem/actioncable@8.2.0.alpha", "pkg:gem/actionpack@8.2.0.alpha"},
+	} {
+		fromRef, toRef := refByPURL[tc.from], refByPURL[tc.to]
+		if fromRef == "" || toRef == "" {
+			t.Errorf("components for edge %s → %s missing from SBOM", tc.from, tc.to)
 			continue
 		}
-		for _, ref := range d.DependsOn {
-			if ref == libcRef {
-				edgeFound = true
-			}
+		if !dependsOn[fromRef][toRef] {
+			t.Errorf("dependencies[] missing the lockfile-mined edge %s → %s", tc.from, tc.to)
 		}
-	}
-	if !edgeFound {
-		t.Error("dependencies[] missing the Cargo.lock-mined edge fixture → libc")
 	}
 }
 

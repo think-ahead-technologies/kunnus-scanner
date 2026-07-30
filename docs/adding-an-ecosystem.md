@@ -37,8 +37,13 @@ Create `internal/ecosystem/<name>.go` with a `var` of type `Ecosystem`
   per-package licences scalibr doesn't surface (see `composer.go`).
 - **`GraphParsers`** (optional) — same shape again, returning a `graph.Map`
   (purl → dependsOn purls) for lockfiles that pin the resolved dependency
-  graph (see `cargo.go`, `composer.go`). Only emit an edge whose *target* the
-  lockfile itself pins — never invent a purl for an unresolvable requirement.
+  graph (see `ruby.go`, `npm.go`, `dotnet.go`, `r.go`, `cargo.go`,
+  `composer.go`). Only emit an edge whose *target* the lockfile itself pins —
+  never invent a purl for an unresolvable requirement. Follow the ecosystem's
+  own resolution rule (node's node_modules walk-up, NuGet's per-framework
+  blocks, …); if that rule is ambiguous for an entry, drop the edge rather
+  than guess. Flat pin lists (`Package.resolved`, `gradle.lockfile`) and
+  direct-only manifests (`pom.xml`, `go.mod`) have nothing to mine — skip them.
 
 Register the entry in the `All()` slice in `ecosystem.go`.
 
