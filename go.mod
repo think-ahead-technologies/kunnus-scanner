@@ -10,7 +10,7 @@ require (
 	github.com/go-git/go-git/v5 v5.19.1
 	github.com/google/go-containerregistry v0.21.6
 	github.com/google/licensecheck v0.3.1
-	github.com/google/osv-scalibr v0.4.6-0.20260727075515-eb1ca153f805
+	github.com/google/osv-scalibr v0.4.6-0.20260729191116-54a774354557
 	github.com/google/uuid v1.6.0
 	github.com/opencontainers/go-digest v1.0.0
 	github.com/tidwall/jsonc v0.3.3
