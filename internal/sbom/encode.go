@@ -78,7 +78,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
 	if err := enrichCDXMetadata(cdxBom, series); err != nil {
-		return fmt.Errorf("derive serial number: %w", err)
+		return fmt.Errorf("failed to derive serial number: %w", err)
 	}
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
