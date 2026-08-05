@@ -376,7 +376,7 @@ func TestEncode_ListsKunnusAsTool(t *testing.T) {
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil); err != nil {
+		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
