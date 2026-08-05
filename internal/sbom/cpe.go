@@ -51,7 +51,7 @@ func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
 		// Kernel modules carry a backfilled pkg:generic purl (their CISA
 		// identifier) but stay CPE-less: the heuristic would invent
 		// a:<module>:<module>, an NVD identity no in-tree module has.
-		if isKernelModule(byPURL[c.PackageURL]) {
+		if hasKernelModule(byPURL[c.PackageURL]) {
 			return
 		}
 		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
@@ -60,9 +60,9 @@ func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
 	})
 }
 
-// isKernelModule reports whether any of the packages behind a component came
+// hasKernelModule reports whether any of the packages behind a component came
 // from scalibr's os/kernel/module extractor.
-func isKernelModule(pkgs []*extractor.Package) bool {
+func hasKernelModule(pkgs []*extractor.Package) bool {
 	for _, p := range pkgs {
 		if _, ok := p.Metadata.(*modulemeta.Metadata); ok {
 			return true
