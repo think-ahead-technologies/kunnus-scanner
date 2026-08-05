@@ -11,8 +11,8 @@ from "an SBOM of something else".
 
 | Invocation | serialNumber | version |
 |---|---|---|
-| No identity flags (`sbom repo .`, `sbom os`) | Random per run — every document is a series of one | `1` |
-| `--component-id` (± `--component-version`) | Deterministic — stable across rescans of the same id + version | Generation timestamp (epoch seconds) |
+| No identity flags (`sbom repo .`, `sbom os`) | A fresh random UUID for every run — two scans of the same tree get different serials, so every document is a series of one | `1` |
+| `--component-id`, with or without `--component-version` | Deterministic — rescans of the same id + version always produce the same serial | Generation timestamp (epoch seconds) |
 | `sbom container <registry-ref>` | Deterministic automatically — derived from the image's repository path, tag as version | Generation timestamp (epoch seconds) |
 | `--serial-number <uuid>` | Exactly the given value | Generation timestamp (epoch seconds) |
 
