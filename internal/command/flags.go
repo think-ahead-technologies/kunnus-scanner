@@ -57,7 +57,7 @@ func commonSBOMFlags() []cli.Flag {
 
 // parseAuthor parses the --author flag value: a display name optionally
 // followed by an email in angle brackets ("ACME GmbH <psirt@acme.example>").
-// An empty value yields the zero Author, meaning "use the kunnus default".
+// An empty value yields the zero Author.
 func parseAuthor(s string) (bom.Author, error) {
 	s = strings.TrimSpace(s)
 	if s == "" {

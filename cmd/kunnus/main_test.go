@@ -158,9 +158,10 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 		t.Error("SBOM missing pre-build lifecycle phase (metadata.lifecycles)")
 	}
 
-	// The SCALIBR tool entry must carry the linked module version, read from
-	// the real binary's build info — only a `go build` binary embeds it, so
-	// this is the one place the backfill can be proven end to end.
+	// Both scanners are recorded under metadata.tools. The SCALIBR entry must
+	// carry the linked module version, read from the real binary's build info —
+	// only a `go build` binary embeds it, so this is the one place the backfill
+	// can be proven end to end.
 	var toolDoc struct {
 		Metadata struct {
 			Tools struct {
@@ -174,17 +175,23 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	if err := json.Unmarshal(data, &toolDoc); err != nil {
 		t.Fatalf("unmarshal tools: %v", err)
 	}
-	scalibrSeen := false
+	scalibrSeen, kunnusSeen := false, false
 	for _, tool := range toolDoc.Metadata.Tools.Components {
-		if tool.Name == "SCALIBR" {
+		switch tool.Name {
+		case "SCALIBR":
 			scalibrSeen = true
 			if !strings.HasPrefix(tool.Version, "v") {
 				t.Errorf("SCALIBR tool version = %q, want the linked osv-scalibr module version", tool.Version)
 			}
+		case "kunnus":
+			kunnusSeen = true
 		}
 	}
 	if !scalibrSeen {
 		t.Error("no SCALIBR entry in metadata.tools.components")
+	}
+	if !kunnusSeen {
+		t.Errorf("metadata.tools.components = %+v, want kunnus listed", toolDoc.Metadata.Tools.Components)
 	}
 }
 
@@ -279,7 +286,7 @@ func TestCLI_SBOM_Repo_InvalidSerialFailsBeforeScan(t *testing.T) {
 
 func TestCLI_SBOM_Repo_AuthorFlag(t *testing.T) {
 	// --author records the entity operating the scanner as the SBOM author
-	// (CISA's SBOM Author element); kunnus itself stays in metadata.tools.
+	// (CISA's SBOM Author element).
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
 
@@ -295,9 +302,6 @@ func TestCLI_SBOM_Repo_AuthorFlag(t *testing.T) {
 		Metadata struct {
 			Authors      []struct{ Name, Email string }
 			Manufacturer struct{ Name string }
-			Tools        struct {
-				Components []struct{ Name string }
-			}
 		}
 	}
 	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
@@ -308,15 +312,6 @@ func TestCLI_SBOM_Repo_AuthorFlag(t *testing.T) {
 	}
 	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
 		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
-	}
-	kunnusListed := false
-	for _, c := range doc.Metadata.Tools.Components {
-		if c.Name == "kunnus" {
-			kunnusListed = true
-		}
-	}
-	if !kunnusListed {
-		t.Errorf("metadata.tools.components = %+v, want kunnus listed", doc.Metadata.Tools.Components)
 	}
 	// An explicit author is what the operator intended — no warning.
 	if strings.Contains(stderr, "--author") {
@@ -351,9 +346,9 @@ func TestCLI_SBOM_Repo_AuthorDefaultWarns(t *testing.T) {
 	}
 }
 
-func TestCLI_SBOM_Repo_InvalidAuthorFailsBeforeScan(t *testing.T) {
-	// Like --serial-number: a malformed --author must fail fast, before the
-	// (potentially expensive) scan runs.
+func TestCLI_SBOM_Repo_InvalidAuthorFails(t *testing.T) {
+	// Like --serial-number: a malformed --author is rejected with a message
+	// naming the flag, instead of silently producing an SBOM.
 	root := t.TempDir()
 	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
 

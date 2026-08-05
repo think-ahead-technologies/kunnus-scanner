@@ -42,7 +42,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		}
 	}
 
-	// Same rule for --author: a malformed value must fail before the scan.
+	// a malformed author must fail before the scan.
 	author, err := parseAuthor(cmd.String("author"))
 	if err != nil {
 		return fmt.Errorf("--author: %w", err)
