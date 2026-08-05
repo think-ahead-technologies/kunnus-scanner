@@ -343,7 +343,7 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	// CISA's SBOM Author element names the entity *operating* the tool, not
 	// the tool itself. An explicit author replaces the kunnus identity in
 	// metadata.authors and metadata.manufacturer (the org that created the
-	// BOM); kunnus remains listed under metadata.tools only.
+	// BOM).
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
 	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
@@ -357,9 +357,6 @@ func TestEncode_AuthorOverride(t *testing.T) {
 				Name    string
 				Contact []struct{ Name, Email string }
 			}
-			Tools struct {
-				Components []struct{ Name string }
-			}
 		}
 	}
 	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
@@ -370,6 +367,27 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	}
 	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
 		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
+	}
+}
+
+func TestEncode_ListsKunnusAsTool(t *testing.T) {
+	// The scanner belongs in metadata.tools, whoever the author is: an
+	// explicit --author must not displace it.
+	var buf bytes.Buffer
+	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", author, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Tools struct {
+				Components []struct{ Name string }
+			}
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
 	}
 	var toolNames []string
 	for _, c := range doc.Metadata.Tools.Components {
