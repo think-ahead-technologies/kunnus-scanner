@@ -105,14 +105,14 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 // metadata.tools.components when the converter left it empty. A no-op for an
 // empty version (dependency build info is absent in go-test binaries) or when
 // scalibr ever starts stamping its own version.
-func backfillScalibrToolVersion(cdxBom *cyclonedx.BOM, sv string) {
-	if sv == "" || cdxBom.Metadata == nil || cdxBom.Metadata.Tools == nil || cdxBom.Metadata.Tools.Components == nil {
+func backfillScalibrToolVersion(cdxBom *cyclonedx.BOM, scalibrVersion string) {
+	if scalibrVersion == "" || cdxBom.Metadata == nil || cdxBom.Metadata.Tools == nil || cdxBom.Metadata.Tools.Components == nil {
 		return
 	}
 	comps := *cdxBom.Metadata.Tools.Components
 	for i := range comps {
 		if comps[i].Name == "SCALIBR" && comps[i].Version == "" {
-			comps[i].Version = sv
+			comps[i].Version = scalibrVersion
 		}
 	}
 }
