@@ -403,3 +403,52 @@ func TestEncode_ListsKunnusAsTool(t *testing.T) {
 		t.Errorf("metadata.tools.components = %v, want kunnus listed", toolNames)
 	}
 }
+
+func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
+	// The unknown-info sweep must judge the *final* component state: a hash
+	// arriving via hashMap (injectHashesCDX) suppresses kunnus:unknown:hash —
+	// this fails if markUnknownInfoCDX runs before the hash injector — while
+	// the genuinely absent fields on the same component are marked.
+	const vendoredPURL = "pkg:generic/zlib?vendored_path=third_party/zlib"
+	extras := []bom.ExtraComponent{{
+		PURL:   vendoredPURL,
+		Name:   "zlib",
+		Type:   bom.ComponentTypeLibrary,
+		BomRef: "vendored:third_party/zlib",
+	}}
+	hashMap := hashes.Map{
+		vendoredPURL: []hashes.Hash{
+			{Algorithm: hashes.AlgMD5, Hex: "deadbeefdeadbeefdeadbeefdeadbeef", Path: "deflate.c"},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, extras, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	props := componentProperties(t, doc, vendoredPURL)
+	// Hash came in via hashMap: not unknown.
+	if _, ok := props["kunnus:unknown:hash"]; ok {
+		t.Error("kunnus:unknown:hash set despite hashMap hash (sweep ran too early?)")
+	}
+	// The vendored component genuinely has no version, producer, or licence.
+	for _, field := range []string{"producer", "version", "license"} {
+		if props["kunnus:unknown:"+field] != "true" {
+			t.Errorf("kunnus:unknown:%s = %q, want \"true\"", field, props["kunnus:unknown:"+field])
+		}
+	}
+
+	// The scalibr package (testify with version + derivable golang supplier)
+	// must not be marked for producer or version.
+	tProps := componentProperties(t, doc, "pkg:golang/github.com/stretchr/testify@1.8.0")
+	for _, field := range []string{"producer", "version"} {
+		if _, ok := tProps["kunnus:unknown:"+field]; ok {
+			t.Errorf("kunnus:unknown:%s set on testify, which has the field", field)
+		}
+	}
+}
