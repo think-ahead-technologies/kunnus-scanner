@@ -104,9 +104,9 @@ Override flags (`--target-os`, `--ecosystem`, `--source`, `--enable`, `--disable
 
 ### Supported ecosystems
 
-- **Language ecosystems** (via osv-scalibr): npm/pnpm/yarn/bun, Python (requirements, poetry, pdm, Pipfile, uv), Go, Rust (Cargo), Java (Maven, Gradle), .NET (NuGet), PHP (Composer), Ruby (Bundler), Swift, Haskell (Stack/Cabal), Lua (LuaRocks), R (renv), C/C++ (Conan).
+- **Language ecosystems** (via osv-scalibr): npm/pnpm/yarn/bun, Python (requirements, poetry, pdm, Pipfile, uv, conda), Go, Rust (Cargo), Java (Maven, Gradle), .NET (NuGet), PHP (Composer), Ruby (Bundler), Swift (SwiftPM, CocoaPods), Haskell (Stack/Cabal), Lua (LuaRocks), R (renv), C/C++ (Conan).
 - **Embedded & C/C++ manifests** (kunnus-native extractors): vcpkg, CMake `FetchContent`/`ExternalProject`/CPM declares, git submodules, PlatformIO, ESP-IDF, Zephyr (west), Arduino, CMSIS-Solution, Infineon ModusToolbox.
-- **OS packages**: Debian/Ubuntu, RHEL, SUSE, Alpine, Arch, Gentoo, Nix, Container-Optimized OS, Flatpak, Snap; Windows via registry.
+- **OS packages**: Debian/Ubuntu, RHEL, SUSE, Alpine, Arch, Gentoo, Nix, Container-Optimized OS, Flatpak, Snap; Windows via registry plus Chocolatey and winget; macOS via Homebrew, MacPorts, and installed `.app` bundles.
 - **Non-packaged binaries**: a syft-derived classifier surfaces bare ELF executables (hand-built memcached, python, …) that no package manager tracks, with OS-package overlap suppression so nothing appears twice.
 
 New here? The [getting-started guide](docs/getting-started.md) walks through
@@ -132,14 +132,21 @@ internal/
   scan/            # thin scalibr Scan()/ScanContainer() wrapper
   sbom/            # inventory -> CycloneDX encoder (dedup, CPEs, licences, layers)
   hashes/          # native component-content hashes from lockfiles (BSI TR-03183-2)
+  apkchecksum/     # recovers apk pull-checksums the apk extractor drops
   license/         # licence normalization + classification (SPDX)
+  manifestlicense/ # offline licence enricher: installed packages' own manifests
+  debiancopyright/ # offline licence enricher: Debian/Ubuntu copyright files
   binclass/        # non-packaged ELF binary classifier (syft-derived catalog)
   ownership/       # dpkg/apk/rpm file-ownership DBs for overlap suppression
+  vendored/        # vendored C/C++ library directories -> pkg:generic components
   arduino/ cmake/ cmakedecl/ cmsis/ espidf/ gitsubmodule/
   modustoolbox/ platformio/ vcpkg/ zephyr/
                    # native extractors for ecosystems scalibr does not cover
+  bom/             # boundary types between planner (mode) and encoder (sbom)
+  fswalk/          # the one list of directory names every walk skips
+  pluginset/       # sorted, deduplicated unions of scalibr plugin names
   upload/          # multipart POST to the platform
-  version/
+  log/ version/
 ```
 
 Cohesion contract: the `detect` package has zero scalibr imports;

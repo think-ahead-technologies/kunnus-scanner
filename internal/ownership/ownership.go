@@ -1,16 +1,19 @@
-// ABOUTME: Reads the dpkg, apk and rpm package databases to map which files an OS package manager owns.
+// ABOUTME: Reads the dpkg, apk, rpm and chisel package databases to map which files an OS package manager owns.
 // ABOUTME: The binary-classifier overlap suppression uses this to drop pkg:generic twins of packaged binaries by path.
 package ownership
 
 import (
 	"bufio"
 	"bytes"
+	"encoding/json"
+	"io"
 	"io/fs"
 	"os"
 	"path"
 	"strings"
 
 	rpmdb "github.com/erikvarga/go-rpmdb/pkg"
+	"github.com/klauspost/compress/zstd"
 	_ "modernc.org/sqlite" // sqlite driver for reading rpmdb.sqlite databases
 )
 
@@ -28,15 +31,16 @@ func (s Set) Owns(loc string) bool {
 	return ok
 }
 
-// Scan reads the dpkg, apk and rpm databases on fsys and returns every file path
-// they record as owned. Absent databases are skipped, so a root with none yields
-// an empty Set rather than an error — ownership data refines SBOM dedup and is
-// never required for a scan to succeed.
+// Scan reads the dpkg, apk, rpm and chisel databases on fsys and returns every
+// file path they record as owned. Absent databases are skipped, so a root with
+// none yields an empty Set rather than an error — ownership data refines SBOM
+// dedup and is never required for a scan to succeed.
 func Scan(fsys fs.FS) Set {
 	s := Set{}
 	scanDpkg(fsys, s)
 	scanApk(fsys, s)
 	scanRpm(fsys, s)
+	scanChisel(fsys, s)
 	return s
 }
 
@@ -129,6 +133,62 @@ func scanRpm(fsys fs.FS, s Set) {
 			}
 		}
 	}
+}
+
+// scanChisel reads var/lib/chisel/manifest.wall, the package record of a
+// chiselled Ubuntu root (which has no dpkg status or .list files). The manifest
+// is a zstd-compressed jsonwall whose kind=path records each name a path a
+// package slice installed. Any failure — no manifest, not zstd, malformed —
+// yields no entries rather than an error: ownership is advisory.
+func scanChisel(fsys fs.FS, s Set) {
+	data, err := fs.ReadFile(fsys, "var/lib/chisel/manifest.wall")
+	if err != nil {
+		return
+	}
+	r, err := zstd.NewReader(bytes.NewReader(data))
+	if err != nil {
+		return
+	}
+	defer r.Close()
+	raw, err := io.ReadAll(r)
+	if err != nil {
+		return
+	}
+	for _, p := range parseChiselManifest(raw) {
+		s[p] = struct{}{}
+	}
+}
+
+// parseChiselManifest reads a decompressed chisel jsonwall — one JSON object
+// per line — and returns the path of every kind=path record, root-relative
+// (leading slash stripped). Other record kinds (package, slice, content) and
+// unparseable lines are skipped; content records duplicate the path records
+// slice-by-slice, so reading them too would only add duplicates. Directory
+// records keep their trailing slash and are inert in Owns, which matches file
+// locations. Split from the filesystem read so the line parsing is exercisable
+// on raw bytes alone.
+func parseChiselManifest(data []byte) []string {
+	var out []string
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	// A jsonwall line can exceed bufio's 64 KiB default token size in theory;
+	// real manifests keep path records short, but buy headroom cheaply.
+	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	for sc.Scan() {
+		var rec struct {
+			Kind string `json:"kind"`
+			Path string `json:"path"`
+		}
+		if err := json.Unmarshal(sc.Bytes(), &rec); err != nil {
+			continue
+		}
+		if rec.Kind != "path" {
+			continue
+		}
+		if p := strings.TrimPrefix(rec.Path, "/"); p != "" {
+			out = append(out, p)
+		}
+	}
+	return out
 }
 
 // readFirst returns the contents of the first of paths that exists on fsys.

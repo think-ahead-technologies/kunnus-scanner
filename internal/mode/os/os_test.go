@@ -136,7 +136,7 @@ func TestPlan_DisableOverrideTrimsPluginSet(t *testing.T) {
 	root := t.TempDir()
 	plan, err := New().Plan(context.Background(), root, mode.Overrides{
 		TargetOS:       "linux",
-		DisablePlugins: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage", "os/nix", "os/flatpak", "os/snap", "os/cos", "os/kernel/module", "os/kernel/vmlinuz"},
+		DisablePlugins: []string{"os/dpkg", "os/rpm", "os/apk", "os/pacman", "os/portage", "os/nix", "os/flatpak", "os/snap", "os/cos", "os/chisel", "os/kernel/module", "os/kernel/vmlinuz"},
 	})
 	// Disabling everything should produce the "no extractors selected" error.
 	if err == nil {

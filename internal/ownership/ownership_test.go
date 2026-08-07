@@ -24,6 +24,70 @@ func TestParseApkInstalled(t *testing.T) {
 	}
 }
 
+func TestParseChiselManifest(t *testing.T) {
+	got := parseChiselManifest([]byte(`{"jsonwall":"1.0","schema":"1.0","count":6}
+{"kind":"content","slice":"openssl_bins","path":"/usr/bin/openssl"}
+{"kind":"package","name":"openssl","version":"3.0.13-0ubuntu3.5","sha256":"00f9","arch":"amd64"}
+{"kind":"path","path":"/etc/","mode":"0755","slices":["base-files_etc"]}
+{"kind":"path","path":"/usr/bin/openssl","mode":"0755","slices":["openssl_bins"],"sha256":"ab12","size":1002832}
+{"kind":"path","path":"/bin","mode":"0777","slices":["base-files_bin"],"link":"usr/bin"}
+not json at all
+{"kind":"slice","name":"openssl_bins"}
+`))
+	// Only kind=path records own their path: content records duplicate them,
+	// package/slice records carry no path, and unparseable lines are skipped.
+	want := []string{"etc/", "usr/bin/openssl", "bin"}
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("parseChiselManifest = %q, want %q", got, want)
+	}
+}
+
+// TestScanChisel proves the zstd-wrapped read end to end against the real
+// chiselled-noble manifest fixture shared with the scan-seam and e2e tiers.
+func TestScanChisel(t *testing.T) {
+	data, err := os.ReadFile(filepath.Join("..", "..", "testdata", "osfamilies", "chisel", "var", "lib", "chisel", "manifest.wall"))
+	if err != nil {
+		t.Fatalf("read chisel fixture: %v", err)
+	}
+	root := t.TempDir()
+	write(t, filepath.Join(root, "var/lib/chisel/manifest.wall"), string(data))
+
+	got := Scan(os.DirFS(root))
+
+	// Paths owned per the fixture manifest: openssl's binary and libssl's
+	// shared object (the binclass-shaped overlap cases path ownership exists
+	// to bridge).
+	for _, p := range []string{
+		"usr/bin/openssl",
+		"usr/lib/x86_64-linux-gnu/libssl.so.3",
+	} {
+		if !got.Owns(p) {
+			t.Errorf("expected %q to be owned via the chisel manifest", p)
+		}
+	}
+	if got.Owns("usr/local/bin/memcached") {
+		t.Errorf("an unowned path must not be reported as owned")
+	}
+}
+
+// TestScanCorruptChiselManifest checks that a present-but-unparseable chisel
+// manifest (not zstd at all) is tolerated: ownership is advisory, so Scan
+// returns whatever the other databases yield without surfacing an error.
+func TestScanCorruptChiselManifest(t *testing.T) {
+	root := t.TempDir()
+	write(t, filepath.Join(root, "var/lib/chisel/manifest.wall"), "this is not zstd")
+	write(t, filepath.Join(root, "var/lib/dpkg/info/bash.list"), "/usr/bin/bash\n")
+
+	got := Scan(os.DirFS(root))
+
+	if !got.Owns("usr/bin/bash") {
+		t.Errorf("dpkg ownership must still be read alongside a corrupt chisel manifest")
+	}
+	if got.Owns("usr/bin/openssl") {
+		t.Errorf("a corrupt chisel manifest must contribute no owned paths")
+	}
+}
+
 func TestScan(t *testing.T) {
 	root := t.TempDir()
 	// dpkg: a package whose name differs from the binary it owns (the case the

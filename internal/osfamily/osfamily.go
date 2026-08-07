@@ -4,6 +4,7 @@ package osfamily
 
 import (
 	"github.com/google/osv-scalibr/extractor/filesystem/os/apk"
+	"github.com/google/osv-scalibr/extractor/filesystem/os/chisel"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/chocolatey"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/cos"
 	"github.com/google/osv-scalibr/extractor/filesystem/os/dpkg"
@@ -79,6 +80,17 @@ var linuxFamilies = []LinuxFamily{
 		Name:           "suse",
 		OSReleaseIDs:   []string{"sles", "opensuse", "opensuse-leap", "opensuse-tumbleweed"},
 		ScalibrPlugins: []string{rpm.Name},
+	},
+	{
+		// Chiselled Ubuntu images (Canonical's distroless variant) carry no
+		// dpkg status file; their package record is the chisel manifest. The
+		// os-release ID is plain "ubuntu", so detection rests on the DB path
+		// alone — a chiselled root surfaces both debian (via os-release) and
+		// chisel (via this fingerprint), and the harmless dpkg extractor
+		// simply finds nothing.
+		Name:           "chisel",
+		PackageDBPath:  "var/lib/chisel/manifest.wall",
+		ScalibrPlugins: []string{chisel.Name},
 	},
 	{
 		Name:           "alpine",

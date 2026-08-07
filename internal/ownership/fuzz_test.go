@@ -1,5 +1,5 @@
-// ABOUTME: Fuzz targets for the dpkg .list and apk installed-db line parsers, split out of the fs walk for testability.
-// ABOUTME: parseDpkgList must never emit an empty path; parseApkInstalled echoes record content and must never panic.
+// ABOUTME: Fuzz targets for the dpkg .list, apk installed-db and chisel jsonwall line parsers, split out of the fs walk for testability.
+// ABOUTME: parseDpkgList and parseChiselManifest must never emit an empty path; parseApkInstalled echoes record content and must never panic.
 package ownership
 
 import "testing"
@@ -44,5 +44,29 @@ func FuzzParseApkInstalled(f *testing.F) {
 
 	f.Fuzz(func(t *testing.T, data string) {
 		_ = parseApkInstalled([]byte(data))
+	})
+}
+
+// FuzzParseChiselManifest drives the chisel jsonwall line parser with arbitrary
+// bytes (the decompressed form — zstd framing is the reader's concern, not the
+// parser's). Non-JSON lines and non-path records are skipped, so the invariant
+// is that it never panics and every recorded path is non-empty.
+func FuzzParseChiselManifest(f *testing.F) {
+	seeds := []string{
+		"",
+		`{"jsonwall":"1.0","schema":"1.0","count":2}` + "\n" + `{"kind":"path","path":"/usr/bin/openssl","mode":"0755"}` + "\n",
+		`{"kind":"path","path":"/"}` + "\n" + `{"kind":"path"}` + "\n",
+		`{"kind":"content","path":"/dup"}` + "\n" + "not json\n" + `{"kind":"path","path":"no-slash"}` + "\n",
+	}
+	for _, s := range seeds {
+		f.Add(s)
+	}
+
+	f.Fuzz(func(t *testing.T, data string) {
+		for _, p := range parseChiselManifest([]byte(data)) {
+			if p == "" {
+				t.Fatalf("parseChiselManifest(%q) yielded an empty path", data)
+			}
+		}
 	})
 }
