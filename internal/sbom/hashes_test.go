@@ -6,7 +6,10 @@ import (
 	"testing"
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
+	"github.com/google/osv-scalibr/extractor"
+	"github.com/google/osv-scalibr/inventory"
 
+	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
@@ -120,5 +123,60 @@ func TestInjectHashesCDX_MatchesNamespacedPURLBeforeNormalization(t *testing.T) 
 	}
 	if h := (*c.Hashes)[0]; h.Algorithm != cyclonedx.HashAlgoSHA256 || h.Value != digest {
 		t.Errorf("hash = %s:%s, want SHA-256:%s", h.Algorithm, h.Value, digest)
+	}
+}
+
+func TestInjectClassifierHashes(t *testing.T) {
+	// The binary classifier records the classified file's SHA-256 in its
+	// package metadata; the stage must surface it as a standard
+	// component.hashes[] entry (CISA Component Hash Value + Algorithm).
+	const digest = "3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855c"
+	pkg := &extractor.Package{
+		Name:     "memcached",
+		Version:  "1.6.42",
+		PURLType: "generic",
+		Metadata: &binclass.Metadata{SHA256: digest},
+	}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
+	bomDoc := &cyclonedx.BOM{Components: &[]cyclonedx.Component{{
+		Name:       "memcached",
+		Version:    "1.6.42",
+		PackageURL: pkg.PURL().String(),
+	}}}
+
+	injectClassifierHashesCDX(bomDoc, inv)
+
+	c := (*bomDoc.Components)[0]
+	if c.Hashes == nil || len(*c.Hashes) != 1 {
+		t.Fatalf("hashes = %+v, want exactly one entry", c.Hashes)
+	}
+	h := (*c.Hashes)[0]
+	if h.Algorithm != cyclonedx.HashAlgoSHA256 || h.Value != digest {
+		t.Errorf("hash = %+v, want SHA-256 %s", h, digest)
+	}
+}
+
+func TestInjectClassifierHashes_NoDigestNoEntry(t *testing.T) {
+	// A partially-read binary carries no digest — the component must stay
+	// hash-free (and later receive the explicit unknown-hash marker) rather
+	// than gain an empty hash entry. Components with existing hashes and
+	// non-classifier packages are left untouched.
+	pkg := &extractor.Package{
+		Name:     "memcached",
+		Version:  "1.6.42",
+		PURLType: "generic",
+		Metadata: &binclass.Metadata{}, // no SHA256: file exceeded the scan cap
+	}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
+	bomDoc := &cyclonedx.BOM{Components: &[]cyclonedx.Component{{
+		Name:       "memcached",
+		Version:    "1.6.42",
+		PackageURL: pkg.PURL().String(),
+	}}}
+
+	injectClassifierHashesCDX(bomDoc, inv)
+
+	if c := (*bomDoc.Components)[0]; c.Hashes != nil {
+		t.Errorf("hashes = %+v, want none for a digest-less classifier package", c.Hashes)
 	}
 }

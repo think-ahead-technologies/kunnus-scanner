@@ -4,6 +4,8 @@ package binclass
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"os"
 	"path/filepath"
 	"strings"
@@ -55,6 +57,16 @@ func TestExtractMemcached(t *testing.T) {
 	}
 	if purl := got[0].PURL(); purl == nil || purl.String() != "pkg:generic/memcached@1.6.42" {
 		t.Errorf("purl = %v, want pkg:generic/memcached@1.6.42", purl)
+	}
+	// The classifier reads the whole file anyway, so it records the binary's
+	// SHA-256 (CISA Component Hash) for the sbom stage to surface.
+	md, ok := got[0].Metadata.(*Metadata)
+	if !ok {
+		t.Fatalf("metadata = %T, want *binclass.Metadata", got[0].Metadata)
+	}
+	sum := sha256.Sum256(readFixture(t, "memcached"))
+	if want := hex.EncodeToString(sum[:]); md.SHA256 != want {
+		t.Errorf("metadata SHA256 = %q, want %q", md.SHA256, want)
 	}
 }
 

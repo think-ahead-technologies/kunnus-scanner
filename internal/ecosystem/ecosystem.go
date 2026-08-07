@@ -7,10 +7,12 @@ import (
 	"io"
 	"io/fs"
 	"log/slog"
+	pathpkg "path"
 	"slices"
 	"strings"
 
 	"github.com/think-ahead/kunnus-scanner/internal/fswalk"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
@@ -56,6 +58,22 @@ type Ecosystem struct {
 	// An invariant test enforces InstalledPlugins ⊆ ScalibrPlugins.
 	InstalledPlugins []string
 
+	// Supersedes declares extractors a resolved lockfile in the scanned tree makes
+	// redundant, so they are never enabled: without this, the manifest extractor
+	// and the lockfile extractor both report the same dependency — once at its
+	// declared range, once at the resolved pin — under two different PURLs that
+	// dedup cannot collapse. Survey evaluates each rule against the files it
+	// actually saw and the scanning mode subtracts the result before applying user
+	// overrides, so an explicit --enable of a superseded plugin still wins.
+	//
+	// Only for lockfiles whose authority covers every manifest below them (a
+	// Cargo.lock resolves its whole workspace). Where a lockfile speaks for one
+	// directory only — NuGet's opt-in packages.lock.json, a python lock beside its
+	// project — a whole-scan switch is the wrong instrument, because the manifests
+	// it silences may include ones no resolver ever saw; those ecosystems drop the
+	// redundant component per path after the scan instead (internal/sbom/declared.go).
+	Supersedes []Supersede
+
 	// HashParsers is the optional set of lockfile parsers kunnus runs to
 	// extract native digests. nil for ecosystems we detect and scan via
 	// scalibr but do not deep-hash ourselves.
@@ -67,6 +85,23 @@ type Ecosystem struct {
 	// surface. nil for ecosystems with no offline licence source. Each Parser's
 	// Filenames must be a subset of the owning Ecosystem.Filenames.
 	LicenseParsers []LicenseParser
+
+	// GraphParsers is the optional set of lockfile parsers kunnus runs to mine
+	// component→component dependency edges (the CISA Component Dependency
+	// Relationship element) — for lockfiles that pin the full resolved graph
+	// (e.g. Cargo.lock, composer.lock). nil for ecosystems whose lockfile
+	// carries no per-package edge data. Each parser's Filenames must be a
+	// subset of the owning Ecosystem.Filenames.
+	GraphParsers []GraphParser
+}
+
+// GraphParser describes one lockfile format kunnus mines for dependency
+// edges. Parse returns a graph.Map keyed by the conventional (normalized)
+// purl form, so the SBOM encoder matches it after purl normalization.
+type GraphParser struct {
+	Name      string
+	Filenames []string
+	Parse     func(r io.Reader) (graph.Map, error)
 }
 
 // LicenseParser describes one lockfile/manifest format kunnus mines for licences
@@ -76,6 +111,31 @@ type LicenseParser struct {
 	Name      string
 	Filenames []string
 	Parse     func(r io.Reader) (license.Map, error)
+}
+
+// Supersede is one ecosystem's "a resolved lockfile makes this extractor
+// redundant" rule (see Ecosystem.Supersedes).
+//
+// The rule fires only when Lock was found somewhere in the tree AND every
+// Manifest found sits in, or below, a directory holding a Lock. That coverage
+// condition is what makes a whole-scan switch safe: in a repository where one
+// project is locked and another is not, the rule stays quiet and the unlocked
+// project keeps its declared dependencies. Losing a component is worse than
+// listing one twice.
+//
+// Lock and Manifests must appear in the owning Ecosystem.Filenames (detection
+// and superseding cannot drift), and Plugins in its ScalibrPlugins; an invariant
+// test enforces all three.
+type Supersede struct {
+	// Lock is the resolved-lockfile basename whose presence supersedes Plugins.
+	Lock string
+
+	// Manifests are the basenames of the files Plugins read — the ones Lock must
+	// cover for the rule to fire.
+	Manifests []string
+
+	// Plugins are the scalibr extractor names to leave disabled.
+	Plugins []string
 }
 
 // Parser describes one lockfile format kunnus mines for native digests.
@@ -146,6 +206,65 @@ var ecosystemByFilename = indexByFilename(all, func(eco *Ecosystem, add func(str
 	}
 })
 
+// supersedeRules is the flat list of every ecosystem's superseding rules, so the
+// walker evaluates them without re-walking the registry per file.
+var supersedeRules = func() []Supersede {
+	var out []Supersede
+	for _, eco := range all {
+		out = append(out, eco.Supersedes...)
+	}
+	return out
+}()
+
+// supersedeTracker accumulates, over one filesystem walk, what a single
+// Supersede rule needs to decide: where the lockfiles are, and which manifest
+// directories they must cover.
+type supersedeTracker struct {
+	lockDirs     map[string]bool
+	manifestDirs map[string]bool
+}
+
+// observe records a file the walk reached, if the rule cares about it.
+func (t *supersedeTracker) observe(rule *Supersede, dir, basename string) {
+	if strings.EqualFold(basename, rule.Lock) {
+		t.lockDirs[dir] = true
+		return
+	}
+	for _, m := range rule.Manifests {
+		if strings.EqualFold(basename, m) {
+			t.manifestDirs[dir] = true
+			return
+		}
+	}
+}
+
+// fires reports whether the rule's plugins are redundant: at least one lockfile
+// was found, and every manifest directory has one at or above it.
+func (t *supersedeTracker) fires() bool {
+	if len(t.lockDirs) == 0 {
+		return false
+	}
+	for dir := range t.manifestDirs {
+		if !t.covered(dir) {
+			return false
+		}
+	}
+	return true
+}
+
+// covered reports whether dir, or one of its ancestors, holds a lockfile.
+func (t *supersedeTracker) covered(dir string) bool {
+	for {
+		if t.lockDirs[dir] {
+			return true
+		}
+		if dir == "." || dir == "/" {
+			return false
+		}
+		dir = pathpkg.Dir(dir)
+	}
+}
+
 // ForFile returns the ecosystem Name claimed by a marker filename
 // (case-insensitive), or "" if no ecosystem matches. Exact-name matches are an
 // O(1) map lookup; suffixes (a small set) fall back to a linear scan.
@@ -207,6 +326,18 @@ var parsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(strin
 
 // licenseParsersByFilename is the walker's O(1) dispatch table for offline
 // licence extraction, built once over every LicenseParser in every ecosystem.
+// graphParsersByFilename is the filename → parser dispatch table for offline
+// dependency-edge extraction, built once over every GraphParser in every
+// ecosystem.
+var graphParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *GraphParser)) {
+	for j := range eco.GraphParsers {
+		p := &eco.GraphParsers[j]
+		for _, fn := range p.Filenames {
+			add(fn, p)
+		}
+	}
+})
+
 var licenseParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add func(string, *LicenseParser)) {
 	for j := range eco.LicenseParsers {
 		p := &eco.LicenseParsers[j]
@@ -217,18 +348,26 @@ var licenseParsersByFilename = indexByFilename(all, func(eco *Ecosystem, add fun
 })
 
 // Survey walks fsys once and returns the ecosystems detected from marker
-// filenames, the merged native-digest map mined from lockfiles, and the merged
-// licence map mined from lockfiles that embed licence data. One pass covers
-// detection, hashes, and licences. Operating on an fs.FS lets the same survey
-// serve a real directory (os.DirFS) and any virtual filesystem.
+// filenames, the merged native-digest map mined from lockfiles, the merged
+// licence map mined from lockfiles that embed licence data, the mined dependency
+// edges, and the scalibr plugins the files present make redundant (see
+// Ecosystem.PluginsSupersededBy). One pass covers all five. Operating on an fs.FS
+// lets the same survey serve a real directory (os.DirFS) and any virtual
+// filesystem.
 //
 // Per-parser failures are logged at warn level via slog.Default() but never
 // fail the walk — a single broken lockfile must not block SBOM output.
 // Permission errors on subtrees are skipped, not surfaced.
-func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses license.Map) {
+func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses license.Map, deps graph.Map, superseded []string) {
 	digests = make(hashes.Map)
 	licenses = make(license.Map)
+	deps = make(graph.Map)
 	found := make(map[string]struct{})
+
+	trackers := make([]supersedeTracker, len(supersedeRules))
+	for i := range trackers {
+		trackers[i] = supersedeTracker{lockDirs: map[string]bool{}, manifestDirs: map[string]bool{}}
+	}
 
 	_ = fs.WalkDir(fsys, ".", func(path string, d fs.DirEntry, err error) error {
 		if err != nil {
@@ -246,6 +385,9 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses licen
 		name := d.Name()
 		if eco := ForFile(name); eco != "" {
 			found[eco] = struct{}{}
+		}
+		for i := range supersedeRules {
+			trackers[i].observe(&supersedeRules[i], pathpkg.Dir(path), name)
 		}
 		if p, ok := parsersByFilename[name]; ok {
 			m, perr := parseFile(fsys, path, p)
@@ -269,6 +411,17 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses licen
 			}
 			licenses.Merge(m)
 		}
+		if p, ok := graphParsersByFilename[name]; ok {
+			m, perr := parseGraphFile(fsys, path, p)
+			if perr != nil {
+				slog.Warn("dependency-graph parser failed",
+					"ecosystem", p.Name,
+					"path", path,
+					"err", perr,
+				)
+			}
+			deps.Merge(m)
+		}
 		return nil
 	})
 
@@ -277,7 +430,14 @@ func Survey(fsys fs.FS) (ecosystems []string, digests hashes.Map, licenses licen
 		ecosystems = append(ecosystems, e)
 	}
 	slices.Sort(ecosystems)
-	return ecosystems, digests, licenses
+
+	var supersededLists [][]string
+	for i := range supersedeRules {
+		if trackers[i].fires() {
+			supersededLists = append(supersededLists, supersedeRules[i].Plugins)
+		}
+	}
+	return ecosystems, digests, licenses, deps, pluginset.Union(supersededLists...)
 }
 
 // parseFile opens path within fsys and runs the lockfile parser over its
@@ -296,6 +456,18 @@ func parseFile(fsys fs.FS, path string, p *Parser) (hashes.Map, error) {
 // contents, mirroring parseFile so licence parsers stay pure (io.Reader in,
 // license.Map out) and Survey owns the filesystem access.
 func parseLicenseFile(fsys fs.FS, path string, p *LicenseParser) (license.Map, error) {
+	f, err := fsys.Open(path)
+	if err != nil {
+		return nil, fmt.Errorf("open %s: %w", path, err)
+	}
+	defer func() { _ = f.Close() }()
+	return p.Parse(f)
+}
+
+// parseGraphFile opens path within fsys and runs the dependency-graph parser
+// over its contents, so parsers stay pure (io.Reader in, edges out) and
+// Survey owns the filesystem access.
+func parseGraphFile(fsys fs.FS, path string, p *GraphParser) (graph.Map, error) {
 	f, err := fsys.Open(path)
 	if err != nil {
 		return nil, fmt.Errorf("open %s: %w", path, err)

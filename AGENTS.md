@@ -51,7 +51,7 @@ encoder; the scanner library does the extraction work.
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
-| `ecosystem` | language markers, lockfile hash + licence parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin | scalibr APIs, modes, CLI |
+| `ecosystem` | language markers, lockfile hash + licence + dependency-graph parsers, scalibr plugin names (as strings), the `NativeExtractor` flag for ecosystems with no scalibr plugin, the `Supersedes` rules a resolved lockfile makes redundant | scalibr APIs, modes, CLI |
 | `osfamily` | distro fingerprints + scalibr plugin imports for each family | modes, CLI, ecosystems |
 | `binclass` | filename globs + version-string regexes for non-packaged ELF binaries (ported from syft, Apache-2.0) | modes, CLI, encoding, OS package managers |
 | `modustoolbox` | `.mtb` manifest parsing (Infineon/Cypress embedded firmware) → `pkg:github` components | modes, CLI, encoding, ecosystem registry |
@@ -66,7 +66,7 @@ encoder; the scanner library does the extraction work.
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), binclass CPE templates | modes, CLI, scanning |
+| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
@@ -109,7 +109,12 @@ anchore/syft's binary cataloger (Apache-2.0); `doc.go` records what was left out
 CPE templates are carried on each classifier as data; the `sbom` CPE stage
 renders the detected version into them (first template → the component's `cpe`,
 further vendor aliases → repeated `kunnus:cpe` properties) in preference to its
-PURL heuristic.
+PURL heuristic. The classifier also records the SHA-256 of each classified
+file (the bytes are in memory anyway) on `binclass.Metadata`;
+`sbom.injectClassifierHashesCDX` surfaces it as `component.hashes[]` — the
+CISA Component Hash for exactly the binaries no package manager vouches for.
+A file that hit the `maxScanBytes` cap gets no digest (hashing a prefix would
+be wrong) and keeps its explicit unknown-hash marker.
 
 It is a kunnus extractor, not a scalibr-registry plugin, so `mode/os` and
 `mode/container` append `binclass.New()` directly to their plugin lists (it is
@@ -145,6 +150,63 @@ entries are left alone), and the authoritative OS package (with its distro
 version, supplier and licence) is the one kept. A genuinely non-packaged binary
 — memcached or redis compiled from source — is owned by nothing and matches no
 package name, so it survives.
+
+## Declared ranges vs resolved pins (manifest/lockfile double-counting)
+
+Three ecosystems ship both a manifest extractor and a lockfile extractor that
+read the *same* dependency: the manifest gives the declared constraint as the
+version, the lockfile the resolved pin. The PURLs differ, so dedup cannot
+collapse them, and the component is counted twice — the second one at a version
+that was never released, carrying a CPE that matches no advisory
+(`pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29`). The resolved pin is authoritative
+(it is what builds, and it carries the lockfile's checksum), so the declared
+twin goes.
+
+Which mechanism applies is decided by **how far the lockfile's authority
+reaches** — not by preference:
+
+| Ecosystem | Manifest → lock | Mechanism |
+|---|---|---|
+| cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
+| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
+| python | `*requirements*.txt` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock` | post scan, per path |
+
+- **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
+  walk, subtracted in `mode/repo` *before* `ApplyOverrides` so `--enable
+  rust/cargotoml` still wins). A `Cargo.lock` resolves its whole workspace, so
+  one lock speaks for every `Cargo.toml` below it and a whole-scan switch is
+  exact. The extractor never runs: no wasted pass, no phantom component to clean
+  up. The rule fires only when **every** manifest found is covered by a lock at
+  or above it — in a monorepo where one crate is locked and another is not, it
+  stays quiet and the unlocked crate keeps its declared ranges. Losing a
+  component is worse than listing one twice.
+- **Post scan** (`sbom.suppressResolvedDeclarations`, an encode stage beside
+  `suppressOSManagedBinaries` — after dedup, before CPEs and the dep graph). A
+  `packages.lock.json` is opt-in *per project* and a python lock speaks for the
+  project it sits in, so a whole-scan switch would silence manifests no resolver
+  ever saw. This drops a declared component only when both signals agree, the
+  same two-signal shape as the binary-classifier overlap stage: **path** (every
+  evidence location is a manifest in or below a directory holding one of that
+  ecosystem's lockfiles) and **name** (a component extracted from such a
+  lockfile pins the same name, under that ecosystem's name equivalence —
+  case-insensitive for nuget, PEP 503 separator folding for pypi). So an
+  unlocked project keeps its declarations, `docs/requirements.txt` keeps the
+  sphinx its project's lock does not resolve, and a conditional dependency the
+  resolver never saw survives with its range and its unknown-info markers.
+
+The other 20 ecosystems were audited and need nothing: their manifest-side
+extractor reports *installed state* rather than declared ranges
+(`javascript/packagejson` — dependency parsing is off by default;
+`ruby/gemspec`; `lua/luarocks`; `java/archive`), or the manifest has no
+extractor at all (`composer.json`, `Gemfile`, `build.gradle`, `conanfile.txt`),
+or the only file is itself a freeze/lock (`haskell`, `swift`, `r`, `gradle`).
+`java/pomxml` does emit declared ranges but Maven has no lockfile to supersede
+it. The embedded native extractors (espidf) already prefer the lock internally.
+
+Known gap: a mixed monorepo (one project locked, one not) keeps the phantoms for
+the *locked* cargo crates — the plan-time rule declines to fire rather than lose
+the unlocked crate's data. Moving cargo onto the post-scan stage would fix that
+at the cost of running an extractor whose output is thrown away.
 
 ## ModusToolbox ecosystem (native extractor, no scalibr plugin)
 
@@ -305,12 +367,16 @@ images) with two deliberate restrictions:
   which excludes host-only families; `AllLinuxPlugins()` (the host-scan
   fallback) keeps them.
 
-Known wart: scalibr's kernel extractors set no `PURLType`, so their packages
-carry no purl — they land in the SBOM as name/version components
-(`intel_oaktrail@0.4ac1`, `Linux Kernel@6.8.0-49-generic`). The purl-keyed
-sbom stages (dedup, hash/licence injection, supplier) skip them by design. If
-upstream adds a purl type, the fixtures' `want.txt` should switch from `pkg`
-lines back to `purl` lines. The kernel *image* does get a CPE despite the
+Known wart: scalibr's kernel extractors set no `PURLType`. For *modules*,
+`scan.backfillKernelModulePURLs` (run on every scan result) fills in
+`pkg:generic`, so each module carries a machine identifier (CISA Component
+Identifiers) — `pkg:generic/intel_oaktrail@0.4ac1` — and flows through the
+purl-keyed sbom stages like any other component; the fill only touches empty
+types, so it becomes a no-op if upstream ever stamps its own. Modules are
+excluded from the CPE stage's PURL heuristic (`isKernelModule`): an in-tree
+module has no NVD identity, so inventing `a:<module>:<module>` would be
+wrong. The kernel *image* stays purl-less ("Linux Kernel" makes a poor purl
+name) and lands as a name/version component. It does get a CPE despite the
 missing purl: `injectCPEsCDX` recognises the vmlinuz metadata and synthesises
 the NVD dictionary form `cpe:2.3:o:linux:linux_kernel:<upstream release>`,
 truncating a distro suffix ("6.8.0-49-generic" → "6.8.0") because NVD keys
@@ -342,6 +408,71 @@ overrides derivation entirely and is validated (`sbom.NormalizeSerial`) before
 the scan runs. Mode is part of the key: repo and os SBOMs of one component are
 different series. The scheme prefix, separator, and namespace must never
 change — each would silently split (or merge) every existing series.
+
+## Generation context (CycloneDX lifecycles)
+
+Each mode declares its CISA generation context on `Plan.Lifecycle`
+(`bom.Lifecycle`): repo → `pre-build` (reads source), os and container →
+`post-build` (analyse built artifacts). `sbom` writes it to
+`metadata.lifecycles` verbatim and stays mode-agnostic; empty omits the field.
+
+## SBOM author (CISA SBOM Author element)
+
+The author is the entity *operating* the scanner, not the tool (CISA is
+explicit about the distinction). `--author "Name <email>"` / `KUNNUS_AUTHOR`
+(parsed by `command.parseAuthor`, validated before the scan) rides through
+`bom.Author` into `sbom.enrichCDXMetadata`, which writes it to
+`metadata.authors` and `metadata.manufacturer` (CycloneDX 1.6: the org that
+created the BOM). Unset, both keep the kunnus creator identity so BSI
+`sbom_creator` stays satisfied out of the box — correct when think-ahead
+operates the scan, a placeholder otherwise, so `runScan` warns when the flag
+is missing (making it required is a candidate for the next major version).
+Kunnus and SCALIBR are always recorded in `metadata.tools.components`
+regardless.
+
+## Dependency graph (CISA Component Dependency Relationship)
+
+`sbom.injectDepGraphCDX` emits `dependencies[]` (root → every component as
+the presence claim; every component gets an entry) plus a `compositions[]`
+`aggregate: incomplete` declaration — CycloneDX's native known-unknowns
+statement for graph completeness. Real component→component edges come from
+`graph.Map` (purl → dependsOn purls, both ends conventional form), mined in
+the same `ecosystem.Survey` pass as hashes and licences via the registry's
+`GraphParsers` hook. An edge whose target purl matches no component is
+dropped — no parser and no stage ever invents a ref, so a requirement the
+lockfile leaves unresolved simply produces no edge. Repo-mode only, like
+every Survey product; the aggregate stays `incomplete` because only the
+mined formats have real edges.
+
+Six formats are mined, each with its own resolution rule:
+
+| Lockfile | Edge source → target resolution |
+|---|---|
+| `Cargo.lock` | per-package `dependencies` list, three entry shapes (`name`, `name version`, `name version (source)`); a bare name matching several locked versions is dropped, never guessed |
+| `composer.lock` | `require` keys resolved against the lock's own packages, so platform deps (`php`, `ext-*`, `composer-plugin-api`) drop out without a denylist |
+| `Gemfile.lock` | every 4-space `specs:` entry owns the 6-space requirement lines under it (GEM/PATH/GIT alike); constraints ignored — the lock pins one version per gem. Platform suffixes are stripped from the spec version, matching scalibr's purl |
+| `package-lock.json` (+`npm-shrinkwrap.json`) | node's own walk-up over the v2/v3 path-keyed `packages` map, so a nested copy beats the hoisted one. The `""` entry is the scanned project, never an edge source. v1 lockfiles (npm 6) are not parsed — their nesting semantics must be inferred, and no edges beats wrong edges |
+| `packages.lock.json` | each entry's `dependencies` map resolved to the *resolved* version within the **same target framework** (one id can resolve differently per framework); ids matched case-insensitively, as NuGet treats them |
+| `renv.lock` | `Requirements` names resolved against the lock's own `Packages`, so unpinned base/recommended R packages (and the `R` entry) drop out |
+
+Formats audited and found to carry **no** inter-component edges — flat pin
+lists or unresolved direct-only declarations, so a parser would have nothing
+to mine: `conan.lock`, `gradle.lockfile`, `Package.resolved`, `go.mod`/`go.sum`,
+`pom.xml`, `requirements.txt`, `cabal.project.freeze`, `stack.yaml.lock`, and
+the embedded-firmware manifests. Known follow-ups that *do* pin graphs but
+have no in-tree fixture yet: `poetry.lock`, `uv.lock`, `Pipfile.lock`,
+`Podfile.lock`.
+
+## Unknown-information markers (CISA practice)
+
+`sbom.markUnknownInfoCDX` (`internal/sbom/unknown.go`) is the **last** encode
+stage: it sweeps the final component list and stamps `kunnus:unknown:producer`
+/ `version` / `hash` / `license` properties (documented in
+`docs/sbom-properties.md`) wherever a field is still absent, so omission is a
+statement, not an accident. Last is load-bearing ([enforced]): every stage
+that can still fill one of those fields must have run. The root component is
+exempt — its identity is the operator's own statement via flags. kunnus never
+withholds data, so a marker always means unknown, never redacted.
 
 ## Things we deliberately did NOT build
 
@@ -391,8 +522,11 @@ the fast/narrow ones:
   (a valid rpmdb is a binary sqlite/bdb blob, so the rpm parse path is verified
   e2e against a real rpm image, not an in-tree fixture — see the rpm note below);
   the `sbom` overlap stage is tested for both the path-ownership and name+version
-  drop signals. Hash parsers,
-  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/encode),
+  drop signals. The declared-range stage is tested per ecosystem for the mixed
+  cases that must survive it (an unlocked sibling project, a docs requirements
+  file the lock does not resolve), and the plan-time half by asserting the
+  selected plugin names in `mode/repo`. Hash parsers,
+  `detect`, `sbom` stages (cpe/supplier/dedup/depgraph/properties/overlap/declared/encode),
   and `upload` (via `httptest`) are tested in isolation.
 - **Shared fixture corpus at the module root.** `testdata/ecosystems/<name>/`
   and `testdata/osfamilies/<name>/` each hold a real manifest/lockfile (or

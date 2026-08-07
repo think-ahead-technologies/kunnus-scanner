@@ -10,6 +10,7 @@ import (
 	"github.com/google/osv-scalibr/converter"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 	"github.com/think-ahead/kunnus-scanner/internal/license"
 	"github.com/think-ahead/kunnus-scanner/internal/ownership"
@@ -30,7 +31,13 @@ import (
 // for scans with no OS package database (repo mode).
 // series identifies the document series for serial-number derivation; the
 // zero value yields a random serial per run (see bom.Series).
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+// lifecycle is the generation context the mode declared (pre-build /
+// post-build); empty omits metadata.lifecycles.
+// author is the entity operating the scanner (CISA's SBOM Author element);
+// the zero value falls back to the kunnus creator identity.
+// graphMap is an optional map of purl → dependsOn purls mined offline from
+// lockfiles (Cargo.lock, composer.lock); pass nil if unavailable.
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, hashMap hashes.Map, licenseMap license.Map, graphMap graph.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -77,7 +84,14 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
-	if err := enrichCDXMetadata(cdxBom, series); err != nil {
+	// Same placement and reason as the stage above, for the other double-count a
+	// pair of extractors can produce: a dependency declared as a range in a
+	// manifest and pinned by a lockfile next to it. Dedup cannot collapse those
+	// (the versions, hence the PURLs, differ), so the declared twin is dropped
+	// here — before CPEs are synthesized for a version that is not one, and
+	// before the dep graph could reference it.
+	suppressResolvedDeclarations(cdxBom)
+	if err := enrichCDXMetadata(cdxBom, series, lifecycle, author); err != nil {
 		return fmt.Errorf("failed to derive serial number: %w", err)
 	}
 	enrichCDXComponents(cdxBom, result.Inventory)
@@ -88,8 +102,16 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// BOMRefs participate in the dep graph.
 	appendExtraComponents(cdxBom, extras)
 	injectHashesCDX(cdxBom, hashMap)
-	injectDepGraphCDX(cdxBom)
+	// After injectHashesCDX (its already-hashed guard must see the lockfile
+	// digests) and before normalizePURLsCDX (it joins on the original purl
+	// strings, like every inventory-keyed stage).
+	injectClassifierHashesCDX(cdxBom, result.Inventory)
+	injectDepGraphCDX(cdxBom, graphMap)
 	normalizePURLsCDX(cdxBom)
+	// [enforced] Last: CISA's "explicitly identify unknown information" sweep
+	// judges the final state of every component, so every stage that can still
+	// fill a producer/version/hash/licence must have run.
+	markUnknownInfoCDX(cdxBom)
 
 	// Emit CycloneDX 1.6, not the library's 1.7 default: 1.7 is too new for the
 	// current SBOM consumer toolchain, which rejects it, and we use no 1.7-only

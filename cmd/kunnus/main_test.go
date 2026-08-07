@@ -4,6 +4,8 @@ package main_test
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"flag"
@@ -152,6 +154,47 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	if !strings.Contains(string(data), "testify") {
 		t.Error("SBOM missing testify dependency")
 	}
+
+	// Repo scans read source code, so the CISA generation context is pre-build.
+	if !strings.Contains(string(data), `"phase": "pre-build"`) {
+		t.Error("SBOM missing pre-build lifecycle phase (metadata.lifecycles)")
+	}
+
+	// Both scanners are recorded under metadata.tools. The SCALIBR entry must
+	// carry the linked module version, read from the real binary's build info —
+	// only a `go build` binary embeds it, so this is the one place the backfill
+	// can be proven end to end.
+	var toolDoc struct {
+		Metadata struct {
+			Tools struct {
+				Components []struct {
+					Name    string `json:"name"`
+					Version string `json:"version"`
+				} `json:"components"`
+			} `json:"tools"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &toolDoc); err != nil {
+		t.Fatalf("unmarshal tools: %v", err)
+	}
+	scalibrSeen, kunnusSeen := false, false
+	for _, tool := range toolDoc.Metadata.Tools.Components {
+		switch tool.Name {
+		case "SCALIBR":
+			scalibrSeen = true
+			if !strings.HasPrefix(tool.Version, "v") {
+				t.Errorf("SCALIBR tool version = %q, want the linked osv-scalibr module version", tool.Version)
+			}
+		case "kunnus":
+			kunnusSeen = true
+		}
+	}
+	if !scalibrSeen {
+		t.Error("no SCALIBR entry in metadata.tools.components")
+	}
+	if !kunnusSeen {
+		t.Errorf("metadata.tools.components = %+v, want kunnus listed", toolDoc.Metadata.Tools.Components)
+	}
 }
 
 func TestCLI_SBOM_Repo_SerialNumberSeries(t *testing.T) {
@@ -243,6 +286,83 @@ func TestCLI_SBOM_Repo_InvalidSerialFailsBeforeScan(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Repo_AuthorFlag(t *testing.T) {
+	// --author records the entity operating the scanner as the SBOM author
+	// (CISA's SBOM Author element).
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	stdout, stderr, err := runKunnus(t,
+		"sbom", "repo",
+		"--author", "ACME GmbH <psirt@acme.example>",
+		root,
+	)
+	if err != nil {
+		t.Fatalf("sbom repo --author failed: %v\nstderr:\n%s", err, stderr)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct{ Name string }
+		}
+	}
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "ACME GmbH" || doc.Metadata.Authors[0].Email != "psirt@acme.example" {
+		t.Errorf("metadata.authors = %+v, want ACME GmbH <psirt@acme.example>", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
+		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
+	}
+	// An explicit author is what the operator intended — no warning.
+	if strings.Contains(stderr, "--author") {
+		t.Errorf("unexpected author warning with --author set:\n%s", stderr)
+	}
+}
+
+func TestCLI_SBOM_Repo_AuthorDefaultWarns(t *testing.T) {
+	// Without --author the document records the kunnus identity as SBOM
+	// author — correct only when think-ahead itself operates the scan. Warn
+	// so other operators know they are shipping a placeholder author.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	stdout, stderr, err := runKunnus(t, "sbom", "repo", root)
+	if err != nil {
+		t.Fatalf("sbom repo failed: %v\nstderr:\n%s", err, stderr)
+	}
+	if !strings.Contains(stderr, "--author") {
+		t.Errorf("stderr missing the default-author warning:\n%s", stderr)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors []struct{ Name string }
+		}
+	}
+	if err := json.Unmarshal([]byte(stdout), &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "Kunnus" {
+		t.Errorf("metadata.authors = %+v, want the Kunnus default", doc.Metadata.Authors)
+	}
+}
+
+func TestCLI_SBOM_Repo_InvalidAuthorFails(t *testing.T) {
+	// Like --serial-number: a malformed --author is rejected with a message
+	// naming the flag, instead of silently producing an SBOM.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	_, stderr, err := runKunnus(t, "sbom", "repo", "--author", "<psirt@acme.example>", root)
+	if err == nil {
+		t.Fatal("want error for invalid --author")
+	}
+	if !strings.Contains(stderr, "author") {
+		t.Errorf("stderr missing author error: %s", stderr)
+	}
+}
+
 func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
 	// A vendored-only C/C++ repo (no Conan lockfile, no other manifest) must
 	// produce a valid SBOM containing the vendored library as a component.
@@ -280,6 +400,13 @@ func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
 	// And the per-file properties must be there so the platform can match.
 	if !strings.Contains(string(data), "kunnus:vendored:file") {
 		t.Error("SBOM missing kunnus:vendored:file properties")
+	}
+	// A vendored copy has no version, producer, or licence — CISA's
+	// "explicitly identify unknown information" markers must say so.
+	for _, marker := range []string{"kunnus:unknown:version", "kunnus:unknown:producer", "kunnus:unknown:license"} {
+		if !strings.Contains(string(data), marker) {
+			t.Errorf("SBOM missing %s marker on the vendored component", marker)
+		}
 	}
 }
 
@@ -381,6 +508,153 @@ func TestCLI_SBOM_Repo_AllEcosystems(t *testing.T) {
 			if !licenses[l] {
 				t.Errorf("ecosystem %q: expected licence %q missing from combined SBOM", e.Name(), l)
 			}
+		}
+	}
+
+	// Real dependency edges mined from lockfiles (CISA Component Dependency
+	// Relationship), resolved through the components' bom-refs.
+	var depDoc struct {
+		Components []struct {
+			BOMRef string `json:"bom-ref"`
+			PURL   string `json:"purl"`
+		} `json:"components"`
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(data, &depDoc); err != nil {
+		t.Fatalf("unmarshal dependencies: %v", err)
+	}
+	refByPURL := map[string]string{}
+	for _, c := range depDoc.Components {
+		refByPURL[c.PURL] = c.BOMRef
+	}
+	dependsOn := map[string]map[string]bool{}
+	for _, d := range depDoc.Dependencies {
+		set := map[string]bool{}
+		for _, ref := range d.DependsOn {
+			set[ref] = true
+		}
+		dependsOn[d.Ref] = set
+	}
+	for _, tc := range []struct{ from, to string }{
+		// Cargo.lock: the fixture workspace package requires libc.
+		{"pkg:cargo/fixture@0.1.0", "pkg:cargo/libc@0.2.147"},
+		// Gemfile.lock: the real Rails lock's actioncable requires actionpack.
+		{"pkg:gem/actioncable@8.2.0.alpha", "pkg:gem/actionpack@8.2.0.alpha"},
+	} {
+		fromRef, toRef := refByPURL[tc.from], refByPURL[tc.to]
+		if fromRef == "" || toRef == "" {
+			t.Errorf("components for edge %s → %s missing from SBOM", tc.from, tc.to)
+			continue
+		}
+		if !dependsOn[fromRef][toRef] {
+			t.Errorf("dependencies[] missing the lockfile-mined edge %s → %s", tc.from, tc.to)
+		}
+	}
+}
+
+// TestCLI_SBOM_Repo_DeclaredRangesSuppressed drives the real binary over one
+// tree per double-counting ecosystem and asserts the SBOM carries the resolved
+// pin only. Where a manifest declares a range and a lockfile next to it pins a
+// version, the two extractors would otherwise emit both under different PURLs —
+// pkg:cargo/anyhow@1.0 beside @1.0.102 — the second of which never existed.
+// cargo is fixed at plan time (the manifest extractor is not enabled at all),
+// nuget and pypi after the scan, per path; this proves the user-visible result
+// is the same either way.
+func TestCLI_SBOM_Repo_DeclaredRangesSuppressed(t *testing.T) {
+	root := t.TempDir()
+
+	// Rust workspace: the lock resolves the root manifest and the member.
+	writeFile(t, filepath.Join(root, "rust", "Cargo.toml"),
+		"[package]\nname = \"app\"\nversion = \"0.1.0\"\n\n[dependencies]\nlibc = \"0.2\"\n")
+	writeFile(t, filepath.Join(root, "rust", "Cargo.lock"), `
+[[package]]
+name = "libc"
+version = "0.2.147"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
+`)
+
+	// .NET project: a floating version and a range, both resolved by the lock.
+	writeFile(t, filepath.Join(root, "dotnet", "App.csproj"), `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net6.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.*" />
+    <PackageReference Include="Serilog" Version="[3.0.0,4.0.0)" />
+  </ItemGroup>
+</Project>
+`)
+	writeFile(t, filepath.Join(root, "dotnet", "packages.lock.json"), `{"version":1,"dependencies":{"net6.0":{
+  "Newtonsoft.Json":{"type":"Direct","requested":"[13.0.1, )","resolved":"13.0.1","contentHash":"x=="},
+  "Serilog":{"type":"Direct","requested":"[3.0.0, 4.0.0)","resolved":"3.1.1","contentHash":"y=="}
+}}}`)
+
+	// Python project: a constraint floor and a bare requirement, both pinned by
+	// the lock. sphinx is declared in a docs requirements file the lock does not
+	// resolve, so it must survive.
+	writeFile(t, filepath.Join(root, "py", "requirements.txt"), "requests>=2.0\nurllib3\n")
+	writeFile(t, filepath.Join(root, "py", "docs", "requirements.txt"), "sphinx==7.0.1\n")
+	writeFile(t, filepath.Join(root, "py", "uv.lock"), `version = 1
+requires-python = ">=3.11"
+
+[[package]]
+name = "requests"
+version = "2.32.3"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "urllib3"
+version = "2.2.3"
+source = { registry = "https://pypi.org/simple" }
+`)
+
+	outPath := filepath.Join(t.TempDir(), "sbom.json")
+	stdout, stderr, err := runKunnus(t, "sbom", "repo", "--output", outPath, root)
+	if err != nil {
+		t.Fatalf("sbom repo failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+	}
+	data, err := os.ReadFile(outPath)
+	if err != nil {
+		t.Fatalf("read sbom: %v", err)
+	}
+	var doc struct {
+		Components []struct {
+			PURL string `json:"purl"`
+		} `json:"components"`
+	}
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("sbom is not valid JSON: %v", err)
+	}
+	purls := make(map[string]bool, len(doc.Components))
+	for _, c := range doc.Components {
+		purls[c.PURL] = true
+	}
+
+	for _, want := range []string{
+		"pkg:cargo/libc@0.2.147",
+		"pkg:nuget/Newtonsoft.Json@13.0.1",
+		"pkg:nuget/Serilog@3.1.1",
+		"pkg:pypi/requests@2.32.3",
+		"pkg:pypi/urllib3@2.2.3",
+		// Declared where no lock resolves it: the only record of this dependency.
+		"pkg:pypi/sphinx@7.0.1",
+	} {
+		if !purls[want] {
+			t.Errorf("resolved pin %q missing from SBOM", want)
+		}
+	}
+	// The declared-range twins, in the escaped form the encoder emits.
+	for _, unwanted := range []string{
+		"pkg:cargo/libc@0.2",
+		"pkg:nuget/Newtonsoft.Json@13.0.%2A",
+		"pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29",
+		"pkg:pypi/requests@2.0",
+		"pkg:pypi/urllib3",
+	} {
+		if purls[unwanted] {
+			t.Errorf("declared range %q still in SBOM; the lockfile pin supersedes it", unwanted)
 		}
 	}
 }
@@ -523,8 +797,12 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 	}
 	var doc struct {
 		Components []struct {
-			PURL       string `json:"purl"`
-			CPE        string `json:"cpe"`
+			PURL   string `json:"purl"`
+			CPE    string `json:"cpe"`
+			Hashes []struct {
+				Alg     string `json:"alg"`
+				Content string `json:"content"`
+			} `json:"hashes"`
 			Properties []struct {
 				Name  string `json:"name"`
 				Value string `json:"value"`
@@ -534,6 +812,14 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 	if err := json.Unmarshal(data, &doc); err != nil {
 		t.Fatalf("sbom is not valid JSON: %v", err)
 	}
+
+	// The classifier hashes the file it classified (CISA Component Hash).
+	fixtureBytes, err := os.ReadFile(filepath.Join(binclassFixtures, "libpython3.14.so"))
+	if err != nil {
+		t.Fatalf("read fixture: %v", err)
+	}
+	digest := sha256.Sum256(fixtureBytes)
+	wantHash := hex.EncodeToString(digest[:])
 
 	const wantPURL = "pkg:generic/python@3.14.5"
 	const wantCPE = "cpe:2.3:a:python_software_foundation:python:3.14.5:*:*:*:*:*:*:*"
@@ -552,9 +838,15 @@ func TestCLI_SBOM_OS_NonPackagedBinary(t *testing.T) {
 			if p.Name == "kunnus:cpe" && p.Value == wantAlias {
 				hasAlias = true
 			}
+			if p.Name == "kunnus:unknown:hash" {
+				t.Error("python component marked unknown-hash despite classifier digest")
+			}
 		}
 		if !hasAlias {
 			t.Errorf("python component lacks kunnus:cpe alias %q; properties=%+v", wantAlias, c.Properties)
+		}
+		if len(c.Hashes) != 1 || c.Hashes[0].Alg != "SHA-256" || c.Hashes[0].Content != wantHash {
+			t.Errorf("python hashes = %+v, want one SHA-256 %s", c.Hashes, wantHash)
 		}
 	}
 	if !found {

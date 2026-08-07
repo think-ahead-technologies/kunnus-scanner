@@ -8,6 +8,7 @@ import (
 	"strings"
 	"testing"
 
+	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/opencontainers/go-digest"
@@ -33,7 +34,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -58,7 +59,7 @@ func TestEncode_CycloneDX(t *testing.T) {
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, bom.Series{}, nil, nil, nil, nil)
+	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil)
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -89,6 +90,76 @@ func TestEncode_CycloneDX(t *testing.T) {
 
 	if !strings.Contains(buf.String(), "testify") {
 		t.Error("CycloneDX output missing testify")
+	}
+}
+
+func TestBackfillScalibrToolVersion(t *testing.T) {
+	// scalibr's converter emits its SCALIBR tool entry without a version; the
+	// metadata stage backfills it so the SBOM records exactly which extractor
+	// library produced it. (The end-to-end proof against a real `go build`
+	// binary — the only place dependency build info exists — lives in
+	// cmd/kunnus; this covers the backfill mechanics.)
+	mkBOM := func(name, ver string) *cyclonedx.BOM {
+		return &cyclonedx.BOM{Metadata: &cyclonedx.Metadata{
+			Tools: &cyclonedx.ToolsChoice{Components: &[]cyclonedx.Component{{Name: name, Version: ver}}},
+		}}
+	}
+
+	b := mkBOM("SCALIBR", "")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "v0.4.5" {
+		t.Errorf("SCALIBR version = %q, want v0.4.5", got)
+	}
+
+	// An already-set version is never overwritten.
+	b = mkBOM("SCALIBR", "v9.9.9")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "v9.9.9" {
+		t.Errorf("SCALIBR version overwritten to %q, want v9.9.9 kept", got)
+	}
+
+	// Other tools are left alone; empty version and nil metadata are no-ops.
+	b = mkBOM("othertool", "")
+	backfillScalibrToolVersion(b, "v0.4.5")
+	if got := (*b.Metadata.Tools.Components)[0].Version; got != "" {
+		t.Errorf("othertool version = %q, want empty", got)
+	}
+	backfillScalibrToolVersion(mkBOM("SCALIBR", ""), "")
+	backfillScalibrToolVersion(&cyclonedx.BOM{}, "v0.4.5")
+}
+
+func TestEncode_GenerationContextLifecycle(t *testing.T) {
+	// CISA's "generation context" minimum element rides on CycloneDX
+	// metadata.lifecycles: the mode declares the phase (pre-build for source
+	// scans, post-build for built-artifact scans) and Encode records it.
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Lifecycles []struct {
+				Phase string `json:"phase"`
+			} `json:"lifecycles"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Lifecycles) != 1 || doc.Metadata.Lifecycles[0].Phase != "pre-build" {
+		t.Errorf("metadata.lifecycles = %+v, want one pre-build phase", doc.Metadata.Lifecycles)
+	}
+}
+
+func TestEncode_NoLifecycleOmitsField(t *testing.T) {
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	if strings.Contains(buf.String(), "lifecycles") {
+		t.Error("empty lifecycle must not emit metadata.lifecycles")
 	}
 }
 
@@ -124,7 +195,7 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -190,7 +261,7 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, hashMap, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -240,5 +311,144 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 	if fileProps != 2 {
 		t.Errorf("kunnus:vendored:file properties = %d, want 2 (one per source file)", fileProps)
+	}
+}
+
+func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
+	// No --author given: the document keeps the kunnus identity as SBOM
+	// author (BSI sbom_creator stays satisfied out of the box).
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct{ Name string }
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "Kunnus" {
+		t.Errorf("metadata.authors = %+v, want the Kunnus default", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "Kunnus" {
+		t.Errorf("metadata.manufacturer.name = %q, want Kunnus", doc.Metadata.Manufacturer.Name)
+	}
+}
+
+func TestEncode_AuthorOverride(t *testing.T) {
+	// CISA's SBOM Author element names the entity *operating* the tool, not
+	// the tool itself. An explicit author replaces the kunnus identity in
+	// metadata.authors and metadata.manufacturer (the org that created the
+	// BOM).
+	var buf bytes.Buffer
+	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Authors      []struct{ Name, Email string }
+			Manufacturer struct {
+				Name    string
+				Contact []struct{ Name, Email string }
+			}
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	if len(doc.Metadata.Authors) != 1 || doc.Metadata.Authors[0].Name != "ACME GmbH" || doc.Metadata.Authors[0].Email != "psirt@acme.example" {
+		t.Errorf("metadata.authors = %+v, want ACME GmbH <psirt@acme.example>", doc.Metadata.Authors)
+	}
+	if doc.Metadata.Manufacturer.Name != "ACME GmbH" {
+		t.Errorf("metadata.manufacturer.name = %q, want ACME GmbH", doc.Metadata.Manufacturer.Name)
+	}
+}
+
+func TestEncode_ListsKunnusAsTool(t *testing.T) {
+	// The scanner belongs in metadata.tools, whoever the author is: an
+	// explicit --author must not displace it.
+	var buf bytes.Buffer
+	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
+		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+	var doc struct {
+		Metadata struct {
+			Tools struct {
+				Components []struct{ Name string }
+			}
+		}
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	var toolNames []string
+	for _, c := range doc.Metadata.Tools.Components {
+		toolNames = append(toolNames, c.Name)
+	}
+	found := false
+	for _, n := range toolNames {
+		if n == "kunnus" {
+			found = true
+		}
+	}
+	if !found {
+		t.Errorf("metadata.tools.components = %v, want kunnus listed", toolNames)
+	}
+}
+
+func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
+	// The unknown-info sweep must judge the *final* component state: a hash
+	// arriving via hashMap (injectHashesCDX) suppresses kunnus:unknown:hash —
+	// this fails if markUnknownInfoCDX runs before the hash injector — while
+	// the genuinely absent fields on the same component are marked.
+	const vendoredPURL = "pkg:generic/zlib?vendored_path=third_party/zlib"
+	extras := []bom.ExtraComponent{{
+		PURL:   vendoredPURL,
+		Name:   "zlib",
+		Type:   bom.ComponentTypeLibrary,
+		BomRef: "vendored:third_party/zlib",
+	}}
+	hashMap := hashes.Map{
+		vendoredPURL: []hashes.Hash{
+			{Algorithm: hashes.AlgMD5, Hex: "deadbeefdeadbeefdeadbeefdeadbeef", Path: "deflate.c"},
+		},
+	}
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc map[string]any
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+	props := componentProperties(t, doc, vendoredPURL)
+	// Hash came in via hashMap: not unknown.
+	if _, ok := props["kunnus:unknown:hash"]; ok {
+		t.Error("kunnus:unknown:hash set despite hashMap hash (sweep ran too early?)")
+	}
+	// The vendored component genuinely has no version, producer, or licence.
+	for _, field := range []string{"producer", "version", "license"} {
+		if props["kunnus:unknown:"+field] != "true" {
+			t.Errorf("kunnus:unknown:%s = %q, want \"true\"", field, props["kunnus:unknown:"+field])
+		}
+	}
+
+	// The scalibr package (testify with version + derivable golang supplier)
+	// must not be marked for producer or version.
+	tProps := componentProperties(t, doc, "pkg:golang/github.com/stretchr/testify@1.8.0")
+	for _, field := range []string{"producer", "version"} {
+		if _, ok := tProps["kunnus:unknown:"+field]; ok {
+			t.Errorf("kunnus:unknown:%s set on testify, which has the field", field)
+		}
 	}
 }

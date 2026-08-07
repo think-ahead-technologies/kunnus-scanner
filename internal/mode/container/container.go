@@ -90,6 +90,9 @@ func (*Mode) Plan(ctx context.Context, target string, ov mode.Overrides) (*mode.
 	return &mode.Plan{
 		Config: cfg,
 		Image:  img,
+		// A container scan analyses a built image, so its generation context
+		// is post-build.
+		Lifecycle: bom.LifecyclePostBuild,
 		Component: bom.ComponentInfo{
 			Name:    target,
 			Version: imgVersion,

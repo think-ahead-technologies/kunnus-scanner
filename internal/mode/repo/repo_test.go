@@ -48,6 +48,10 @@ func TestPlan_DetectsGoEcosystem(t *testing.T) {
 	if plan.Component.Name == "" {
 		t.Error("ComponentInfo.Name should default to the directory basename")
 	}
+	// A repo scan reads source, so its CISA generation context is pre-build.
+	if plan.Lifecycle != bom.LifecyclePreBuild {
+		t.Errorf("Plan.Lifecycle = %q, want %q", plan.Lifecycle, bom.LifecyclePreBuild)
+	}
 }
 
 func TestPlan_EmptyTreeFailsExplicitly(t *testing.T) {
@@ -75,6 +79,66 @@ func TestPlan_EcosystemOverrideRestricts(t *testing.T) {
 	if len(plan.Config.Plugins) == 0 {
 		t.Error("expected plugins after restricting to npm")
 	}
+}
+
+// TestPlan_CargoLockSupersedesManifestExtractor pins the plan-time half of the
+// cargo double-count fix: with a Cargo.lock in the tree, the manifest extractor
+// is not enabled at all, so the declared range (pkg:cargo/anyhow@1.0) is never
+// emitted beside the lock's pin (pkg:cargo/anyhow@1.0.102).
+func TestPlan_CargoLockSupersedesManifestExtractor(t *testing.T) {
+	const manifestPlugin = "rust/cargotoml"
+	const lockPlugin = "rust/cargolock"
+
+	t.Run("lock present drops the manifest extractor", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"x\"\n")
+		writeFile(t, filepath.Join(root, "Cargo.lock"), "")
+
+		names := planPluginNames(t, root, mode.Overrides{})
+		if names[manifestPlugin] {
+			t.Errorf("%s is enabled even though a Cargo.lock resolves the same crates", manifestPlugin)
+		}
+		if !names[lockPlugin] {
+			t.Errorf("%s must stay enabled; got plugins %v", lockPlugin, names)
+		}
+	})
+
+	t.Run("manifest alone keeps the manifest extractor", func(t *testing.T) {
+		// A library repo that commits no lockfile: the declared ranges are the
+		// only dependency data there is.
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"x\"\n")
+
+		if names := planPluginNames(t, root, mode.Overrides{}); !names[manifestPlugin] {
+			t.Errorf("%s must be enabled with no lockfile present; got %v", manifestPlugin, names)
+		}
+	})
+
+	t.Run("explicit enable overrides the superseding", func(t *testing.T) {
+		root := t.TempDir()
+		writeFile(t, filepath.Join(root, "Cargo.toml"), "[package]\nname = \"x\"\n")
+		writeFile(t, filepath.Join(root, "Cargo.lock"), "")
+
+		names := planPluginNames(t, root, mode.Overrides{EnablePlugins: []string{manifestPlugin}})
+		if !names[manifestPlugin] {
+			t.Errorf("--enable %s must win over superseding; got %v", manifestPlugin, names)
+		}
+	})
+}
+
+// planPluginNames plans a scan of root and returns the enabled plugin names as a
+// set, so a test can assert on selection without reaching into scalibr.
+func planPluginNames(t *testing.T, root string, ov mode.Overrides) map[string]bool {
+	t.Helper()
+	plan, err := New().Plan(context.Background(), root, ov)
+	if err != nil {
+		t.Fatalf("Plan: %v", err)
+	}
+	names := make(map[string]bool, len(plan.Config.Plugins))
+	for _, p := range plan.Config.Plugins {
+		names[p.Name()] = true
+	}
+	return names
 }
 
 func TestPlan_EveryShippedPluginResolves(t *testing.T) {

@@ -5,9 +5,12 @@ package binclass
 import (
 	"bytes"
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"io"
 	"path"
 	"regexp"
+	"slices"
 	"strings"
 
 	"github.com/google/osv-scalibr/extractor"
@@ -78,9 +81,19 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 	if err != nil {
 		return inventory.Inventory{}, err
 	}
-	version := c.extractVersion(input.Path, append(header, rest...))
+	data := slices.Concat(header, rest)
+	version := c.extractVersion(input.Path, data)
 	if version == "" {
 		return inventory.Inventory{}, nil
+	}
+	// The whole binary is in memory anyway, so record its SHA-256 (CISA's
+	// Component Hash element) for the sbom stage to surface. A file that hit
+	// the maxScanBytes cap was only partially read — hashing the prefix would
+	// be a wrong digest, so it stays empty (→ an explicit unknown-hash marker).
+	var digest string
+	if int64(len(data)) < maxScanBytes {
+		sum := sha256.Sum256(data)
+		digest = hex.EncodeToString(sum[:])
 	}
 	purlType, name := splitPURLTemplate(c.purl)
 	return inventory.Inventory{Packages: []*extractor.Package{{
@@ -88,15 +101,19 @@ func (e *Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inv
 		Version:  version,
 		PURLType: purlType,
 		Location: extractor.LocationFromPath(input.Path),
-		Metadata: &Metadata{CPEs: c.cpes},
+		Metadata: &Metadata{CPEs: c.cpes, SHA256: digest},
 	}}}, nil
 }
 
 // Metadata carries the classifier-supplied CPE templates (full CPE 2.3
-// strings with "*" in the version slot, per syft's catalog). The sbom
-// package's CPE stage renders the detected version into them.
+// strings with "*" in the version slot, per syft's catalog) and the SHA-256
+// of the classified binary. The sbom package's CPE stage renders the detected
+// version into the templates; its hash stage surfaces the digest.
 type Metadata struct {
 	CPEs []string
+	// SHA256 is the hex digest of the classified file's full contents. Empty
+	// when the file exceeded maxScanBytes and was read only partially.
+	SHA256 string
 }
 
 // IsProtoable marks Metadata as a scalibr package-metadata type.

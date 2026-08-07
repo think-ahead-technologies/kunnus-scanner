@@ -113,7 +113,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	}
 
 	return &mode.Plan{
-		Config:    cfg,
+		Config: cfg,
+		// An OS scan analyses built artifacts (installed packages, binaries),
+		// so its generation context is post-build.
+		Lifecycle: bom.LifecyclePostBuild,
 		Component: component,
 		// dpkg/apk file ownership at the scan root, so the encoder can suppress
 		// binary-classifier pkg:generic twins of packaged binaries by path.

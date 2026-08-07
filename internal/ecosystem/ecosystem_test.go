@@ -109,6 +109,13 @@ func TestRegistry_ParserFilenamesAreDetectable(t *testing.T) {
 				}
 			}
 		}
+		for _, p := range eco.GraphParsers {
+			for _, f := range p.Filenames {
+				if _, ok := ecoSet[strings.ToLower(f)]; !ok {
+					t.Errorf("ecosystem %q graph parser %q claims filename %q that detect wouldn't see (missing from Ecosystem.Filenames)", eco.Name, p.Name, f)
+				}
+			}
+		}
 	}
 }
 
@@ -128,6 +135,17 @@ func TestRegistry_ParserFieldsAreComplete(t *testing.T) {
 				t.Errorf("ecosystem %q parser %q has nil Parse func", eco.Name, p.Name)
 			}
 		}
+		for _, p := range eco.GraphParsers {
+			if p.Name == "" {
+				t.Errorf("ecosystem %q has a GraphParser with empty Name", eco.Name)
+			}
+			if len(p.Filenames) == 0 {
+				t.Errorf("ecosystem %q graph parser %q has no filenames", eco.Name, p.Name)
+			}
+			if p.Parse == nil {
+				t.Errorf("ecosystem %q graph parser %q has nil Parse func", eco.Name, p.Name)
+			}
+		}
 	}
 }
 
@@ -143,6 +161,41 @@ func TestRegistry_EcosystemFieldsAreComplete(t *testing.T) {
 		}
 		if len(eco.ScalibrPlugins) == 0 && !eco.NativeExtractor {
 			t.Errorf("ecosystem %q has no ScalibrPlugins and no NativeExtractor; detection would flag it but nothing would produce components", eco.Name)
+		}
+	}
+}
+
+// TestRegistry_SupersedeRulesAreConsistent is the drift guard for Supersedes: a
+// filename detection never sees would make the rule unreachable, and a plugin
+// name outside the ecosystem's own ScalibrPlugins would silence something it does
+// not own (a typo included — a misspelled plugin name never matches anything).
+func TestRegistry_SupersedeRulesAreConsistent(t *testing.T) {
+	for _, eco := range all {
+		markers := make(map[string]struct{}, len(eco.Filenames))
+		for _, f := range eco.Filenames {
+			markers[strings.ToLower(f)] = struct{}{}
+		}
+		for _, rule := range eco.Supersedes {
+			for _, f := range append([]string{rule.Lock}, rule.Manifests...) {
+				if f == "" {
+					t.Errorf("ecosystem %q has a Supersede rule with an empty filename", eco.Name)
+					continue
+				}
+				if _, ok := markers[strings.ToLower(f)]; !ok {
+					t.Errorf("ecosystem %q supersedes on %q, a filename detect wouldn't see (missing from Ecosystem.Filenames)", eco.Name, f)
+				}
+			}
+			if len(rule.Manifests) == 0 {
+				t.Errorf("ecosystem %q supersedes on %q with no Manifests, so the coverage condition is vacuous", eco.Name, rule.Lock)
+			}
+			if len(rule.Plugins) == 0 {
+				t.Errorf("ecosystem %q has a Supersede rule for %q with no Plugins", eco.Name, rule.Lock)
+			}
+			for _, p := range rule.Plugins {
+				if !slices.Contains(eco.ScalibrPlugins, p) {
+					t.Errorf("ecosystem %q supersedes plugin %q on %q, but %q is not in its own ScalibrPlugins", eco.Name, p, rule.Lock, p)
+				}
+			}
 		}
 	}
 }
@@ -210,7 +263,7 @@ func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 }
 
 func TestSurvey_EmptyTree(t *testing.T) {
-	ecos, digests, _ := Survey(os.DirFS(t.TempDir()))
+	ecos, digests, _, _, _ := Survey(os.DirFS(t.TempDir()))
 	if len(ecos) != 0 {
 		t.Errorf("empty tree: got ecosystems %v, want []", ecos)
 	}
@@ -275,12 +328,55 @@ func TestSurvey_DetectsEcosystems(t *testing.T) {
 			for _, rel := range tc.files {
 				writeAt(t, root, rel, "")
 			}
-			got, _, _ := Survey(os.DirFS(root))
+			got, _, _, _, _ := Survey(os.DirFS(root))
 			if got == nil {
 				got = []string{}
 			}
 			if !slices.Equal(got, tc.want) {
 				t.Errorf("Survey(%q) ecosystems = %v, want %v", root, got, tc.want)
+			}
+		})
+	}
+}
+
+// TestSurvey_SupersededPlugins pins the fifth Survey product: a resolved
+// lockfile in the tree stands the matching manifest extractor down, so a crate
+// is not reported twice (declared range and resolved pin under different purls).
+func TestSurvey_SupersededPlugins(t *testing.T) {
+	tests := []struct {
+		name  string
+		files []string
+		want  []string
+	}{
+		{"lock beside manifest", []string{"Cargo.toml", "Cargo.lock"}, []string{"rust/cargotoml"}},
+		{"lock in a workspace subtree", []string{"app/Cargo.toml", "app/Cargo.lock"}, []string{"rust/cargotoml"}},
+		{
+			// The root lock resolves every member manifest below it.
+			name:  "workspace members covered by the root lock",
+			files: []string{"Cargo.toml", "Cargo.lock", "bootstrap/Cargo.toml", "crates/a/Cargo.toml"},
+			want:  []string{"rust/cargotoml"},
+		},
+		{
+			// A crate outside the locked subtree keeps its declared ranges: they
+			// are the only record of its dependencies. Listing a crate twice beats
+			// dropping one entirely.
+			name:  "unlocked crate beside a locked one keeps the manifest extractor",
+			files: []string{"app/Cargo.toml", "app/Cargo.lock", "tools/loose/Cargo.toml"},
+			want:  []string{},
+		},
+		{"manifest only keeps the manifest extractor", []string{"Cargo.toml"}, []string{}},
+		{"unrelated ecosystem supersedes nothing", []string{"go.mod", "go.sum"}, []string{}},
+		{"lockfile in a skipped dir is not seen", []string{"Cargo.toml", "node_modules/x/Cargo.lock"}, []string{}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			root := t.TempDir()
+			for _, rel := range tc.files {
+				writeAt(t, root, rel, "")
+			}
+			_, _, _, _, got := Survey(os.DirFS(root))
+			if !slices.Equal(got, tc.want) {
+				t.Errorf("Survey superseded = %v, want %v", got, tc.want)
 			}
 		})
 	}
@@ -296,7 +392,7 @@ func TestSurvey_PermissionErrorOnSubdirSkipped(t *testing.T) {
 	}
 	t.Cleanup(func() { _ = os.Chmod(bad, 0o755) })
 
-	got, _, _ := Survey(os.DirFS(root))
+	got, _, _, _, _ := Survey(os.DirFS(root))
 	if !slices.Equal(got, []string{"go"}) {
 		t.Errorf("Survey with unreadable subdir: %v, want [go]", got)
 	}
@@ -314,7 +410,7 @@ version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "`+checksum+`"
 `)
-	_, digests, _ := Survey(os.DirFS(root))
+	_, digests, _, _, _ := Survey(os.DirFS(root))
 	if _, ok := digests["pkg:cargo/serde@1.0.0"]; !ok {
 		t.Errorf("walker did not dispatch Cargo.lock through cargo parser; got %v", digests)
 	}
@@ -335,7 +431,7 @@ checksum = "`+checksum+`"
 	logBuf, restore := captureSlog(t)
 	defer restore()
 
-	_, digests, _ := Survey(os.DirFS(root))
+	_, digests, _, _, _ := Survey(os.DirFS(root))
 	if _, ok := digests["pkg:cargo/ok@1.0.0"]; !ok {
 		t.Errorf("sibling parser output lost: %v", digests)
 	}
