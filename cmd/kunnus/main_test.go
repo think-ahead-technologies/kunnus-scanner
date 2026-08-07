@@ -157,6 +157,35 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	if !strings.Contains(string(data), `"phase": "pre-build"`) {
 		t.Error("SBOM missing pre-build lifecycle phase (metadata.lifecycles)")
 	}
+
+	// The SCALIBR tool entry must carry the linked module version, read from
+	// the real binary's build info — only a `go build` binary embeds it, so
+	// this is the one place the backfill can be proven end to end.
+	var toolDoc struct {
+		Metadata struct {
+			Tools struct {
+				Components []struct {
+					Name    string `json:"name"`
+					Version string `json:"version"`
+				} `json:"components"`
+			} `json:"tools"`
+		} `json:"metadata"`
+	}
+	if err := json.Unmarshal(data, &toolDoc); err != nil {
+		t.Fatalf("unmarshal tools: %v", err)
+	}
+	scalibrSeen := false
+	for _, tool := range toolDoc.Metadata.Tools.Components {
+		if tool.Name == "SCALIBR" {
+			scalibrSeen = true
+			if !strings.HasPrefix(tool.Version, "v") {
+				t.Errorf("SCALIBR tool version = %q, want the linked osv-scalibr module version", tool.Version)
+			}
+		}
+	}
+	if !scalibrSeen {
+		t.Error("no SCALIBR entry in metadata.tools.components")
+	}
 }
 
 func TestCLI_SBOM_Repo_SerialNumberSeries(t *testing.T) {
