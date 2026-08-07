@@ -1,0 +1,19 @@
+# chisel family — sourced from var/lib/chisel/manifest.wall (a zstd-compressed
+# jsonwall, the package record of a chiselled Ubuntu image, which has no dpkg
+# status file). The manifest is a real chiselled-noble manifest taken from
+# osv-scalibr's chisel extractor testdata (Apache-2.0). Packages come out as
+# dpkg-shaped purls: vendor (ubuntu) and distro qualifier (noble) derive from
+# etc/os-release, arch from the manifest itself. Exact purl + synthesized cpe.
+purl pkg:deb/ubuntu/base-files@13ubuntu10.2?arch=amd64&distro=noble
+cpe  cpe:2.3:o:ubuntu:base-files:13ubuntu10.2:*:*:*:*:*:*:*
+purl pkg:deb/ubuntu/libc6@2.39-0ubuntu8.4?arch=amd64&distro=noble
+cpe  cpe:2.3:o:ubuntu:libc6:2.39-0ubuntu8.4:*:*:*:*:*:*:*
+purl pkg:deb/ubuntu/libssl3t64@3.0.13-0ubuntu3.5?arch=amd64&distro=noble
+cpe  cpe:2.3:o:ubuntu:libssl3t64:3.0.13-0ubuntu3.5:*:*:*:*:*:*:*
+purl pkg:deb/ubuntu/openssl@3.0.13-0ubuntu3.5?arch=amd64&distro=noble
+cpe  cpe:2.3:o:ubuntu:openssl:3.0.13-0ubuntu3.5:*:*:*:*:*:*:*
+# Chiselled images ship usr/share/doc/<pkg>/copyright via each package's
+# _copyright slice; dpkg's status DB is absent but the debiancopyright
+# enricher keys on the deb purl type, not the dpkg extractor, so the DEP-5
+# licence is recovered exactly as on a full Ubuntu root.
+license Apache-2.0

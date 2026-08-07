@@ -70,6 +70,17 @@ func TestLinuxDistroFamilies(t *testing.T) {
 			want:    []string{"alpine"},
 		},
 		{
+			name:    "no os-release, chisel manifest only",
+			dbPaths: []string{"var/lib/chisel/manifest.wall"},
+			want:    []string{"chisel"},
+		},
+		{
+			name:      "chiselled ubuntu detects both debian and chisel",
+			osRelease: `ID=ubuntu` + "\n" + `ID_LIKE=debian`,
+			dbPaths:   []string{"var/lib/chisel/manifest.wall"},
+			want:      []string{"chisel", "debian"},
+		},
+		{
 			name:      "os-release + matching db dedups",
 			osRelease: `ID=debian`,
 			dbPaths:   []string{"var/lib/dpkg/status"},
