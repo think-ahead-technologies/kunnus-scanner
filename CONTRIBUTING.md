@@ -20,7 +20,8 @@ make all           # fmt + vet + lint + test + build — run before pushing
 
 `make cover` produces a coverage profile that includes the binary e2e tests
 (they merge counters via `GOCOVERDIR`); `make compliance` builds the binary
-and scans the fixture corpus end to end.
+and scans the fixture corpus end to end; `make fuzz` runs the parser fuzz
+targets (`FUZZTIME=30s` per target by default).
 
 ## How we work
 

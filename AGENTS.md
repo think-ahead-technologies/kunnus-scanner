@@ -68,6 +68,14 @@ encoder; the scanner library does the extraction work.
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
 | `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
+| `manifestlicense` | offline licence enricher over installed packages' own manifests; parsing delegated to `ecosystem` (keyed by scalibr extractor name) | CycloneDX, modes, CLI |
+| `debiancopyright` | offline licence enricher: DEP-5 / common-licenses / classifier over `usr/share/doc/<pkg>/copyright` | CycloneDX, modes, CLI, ecosystem registry |
+| `hashes` | shared `hashes.Map`/`Hash` types every hash-evidence source produces | scalibr, modes, CLI, encoding |
+| `apkchecksum` | recovers apk pull-checksums scalibr's apk extractor drops → `hashes.Map` | modes, CLI, encoding |
+| `vendored` | vendored C/C++ library-directory detection + per-file digests → `pkg:generic` components | scalibr, modes, CLI, encoding |
+| `fswalk` | the one list of directory names every walk skips | everything else |
+| `pluginset` | sorted, deduplicated unions of scalibr plugin-name lists | everything else |
+| `bom` | boundary types between planner (mode) and encoder (sbom) | scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
 
 ## Licence pipeline
@@ -76,9 +84,11 @@ Licence handling is spread across several packages on purpose; the map of the
 whole flow lives in `internal/license/doc.go` (read that first). The short
 version:
 
-- **Five sources** feed a component's licence: apk/rpm (scalibr, free),
+- **Six sources** feed a component's licence: apk/rpm (scalibr, free),
   deps.dev (opt-in online enricher), per-package manifests of installed packages
-  (npm/python/java/lua/ruby), Debian/Ubuntu copyright files, and composer.lock.
+  (npm/python/java/lua/ruby), Debian/Ubuntu copyright files, composer.lock, and
+  the offline full-text classifier (`license.Classify`, google/licensecheck) as
+  a probabilistic fallback when structured parsing yields nothing.
 - **Two paths** carry them, chosen by cardinality + timing: *enrichers* mutate
   `pkg.Licenses` post-scan, one package at a time (and are the **only** path that
   works for container scans, which never call `ecosystem.Survey`); the *map path*
