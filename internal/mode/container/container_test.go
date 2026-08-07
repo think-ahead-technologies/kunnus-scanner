@@ -93,6 +93,32 @@ func TestResolveSource(t *testing.T) {
 	}
 }
 
+func TestSeriesIdentity(t *testing.T) {
+	cases := []struct {
+		name        string
+		target      string
+		src         Source
+		wantID      string
+		wantVersion string
+	}{
+		{"tag reference splits into repo path and tag", "ghcr.io/acme/app:v1.2.3", SourceRemote, "ghcr.io/acme/app", "v1.2.3"},
+		{"bare name normalizes and defaults to latest", "alpine", SourceRemote, "index.docker.io/library/alpine", "latest"},
+		{"digest reference keeps repo path, no version", "ghcr.io/acme/app@sha256:0000000000000000000000000000000000000000000000000000000000000000", SourceRemote, "ghcr.io/acme/app", ""},
+		{"docker source parses like remote", "myimage:dev", SourceDocker, "index.docker.io/library/myimage", "dev"},
+		{"tarball path is no identity", "build/image.tar", SourceTarball, "", ""},
+		{"unparseable reference is no identity", "UPPER CASE not a ref", SourceRemote, "", ""},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			id, version := seriesIdentity(tc.target, tc.src)
+			if id != tc.wantID || version != tc.wantVersion {
+				t.Errorf("seriesIdentity(%q, %q) = (%q, %q), want (%q, %q)",
+					tc.target, tc.src, id, version, tc.wantID, tc.wantVersion)
+			}
+		})
+	}
+}
+
 func TestPlan_EmptyRefErrors(t *testing.T) {
 	if _, err := New().Plan(context.Background(), "", mode.Overrides{}); err == nil {
 		t.Fatal("want error for empty image reference")

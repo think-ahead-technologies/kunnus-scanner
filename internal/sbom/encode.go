@@ -28,7 +28,9 @@ import (
 // owned is the set of filesystem paths the scan root's OS package manager
 // records as owned; it drives binary-classifier overlap suppression. Pass nil
 // for scans with no OS package database (repo mode).
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
+// series identifies the document series for serial-number derivation; the
+// zero value yields a random serial per run (see bom.Series).
+func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, hashMap hashes.Map, licenseMap license.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
 	componentType := comp.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
@@ -75,7 +77,9 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, hashMap 
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
-	enrichCDXMetadata(cdxBom)
+	if err := enrichCDXMetadata(cdxBom, series); err != nil {
+		return fmt.Errorf("failed to derive serial number: %w", err)
+	}
 	enrichCDXComponents(cdxBom, result.Inventory)
 	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
 	injectCPEsCDX(cdxBom, result.Inventory)

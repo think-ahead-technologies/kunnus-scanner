@@ -26,14 +26,21 @@ pipe-safe. Shell completion is built in (`kunnus completion --help`).
 
 Accepted by all three `sbom` subcommands:
 
-| Flag | Default | Description |
-|---|---|---|
-| `--output`, `-o` | stdout | Write the SBOM to a file |
-| `--enable` | | Add a scalibr plugin by name (repeatable) |
-| `--disable` | | Remove a scalibr plugin by name (repeatable) |
-| `--online-licenses` | off | Look up component licences via deps.dev — the only scan feature that uses the network |
+| Flag | Env var | Default | Description |
+|---|---|---|---|
+| `--output`, `-o` | | stdout | Write the SBOM to a file |
+| `--enable` | | | Add a scalibr plugin by name (repeatable) |
+| `--disable` | | | Remove a scalibr plugin by name (repeatable) |
+| `--online-licenses` | | off | Look up component licences via deps.dev — the only scan feature that uses the network |
+| `--component-id` | `KUNNUS_COMPONENT_ID` | | Stable component identity; scans sharing an id + version reuse one `serialNumber` (a document series — see [serial-numbers.md](serial-numbers.md)) |
+| `--component-version` | `KUNNUS_COMPONENT_VERSION` | | Component version, for the SBOM root component and the serial-number series |
+| `--serial-number` | `KUNNUS_SERIAL_NUMBER` | derived | Explicit `serialNumber` (UUID, bare or `urn:uuid:` form); overrides derivation from `--component-id` |
 
-Output format is always CycloneDX 1.6 (BSI TR-03183-2 conformant).
+Output format is always CycloneDX 1.6 (BSI TR-03183-2 conformant). Without
+identity flags each run gets a fresh random `serialNumber`; supply
+`--component-id` (or scan a container registry reference, which carries its
+own identity) to make rescans form a stable document series —
+[serial-numbers.md](serial-numbers.md) has the full story.
 
 ## `kunnus sbom repo [path]`
 

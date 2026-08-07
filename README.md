@@ -114,8 +114,10 @@ install, all three scan modes (including how to mount a firmware image), and
 CI integration; [docs/cli.md](docs/cli.md) is the full flag reference.
 
 The emitted SBOMs carry `bsi:*` and `kunnus:*` component properties; see
-[docs/sbom-properties.md](docs/sbom-properties.md) for the full reference, and
-[docs/licenses.md](docs/licenses.md) for per-ecosystem licence coverage.
+[docs/sbom-properties.md](docs/sbom-properties.md) for the full reference,
+[docs/licenses.md](docs/licenses.md) for per-ecosystem licence coverage, and
+[docs/serial-numbers.md](docs/serial-numbers.md) for how rescans of one
+component form a stable serial-number series (CISA SBOM lineage).
 
 ## Architecture
 

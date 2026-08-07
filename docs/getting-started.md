@@ -146,8 +146,15 @@ derivable, licences where the package data provides them
 and `bsi:*`/`kunnus:*` properties documented in
 [sbom-properties.md](sbom-properties.md).
 
-Two behaviours worth knowing:
+Three behaviours worth knowing:
 
+- **Serial numbers form a series only when you supply an identity.** Without
+  flags, every run gets a fresh random `serialNumber` — honest, but no lineage.
+  Pass `--component-id` (and ideally `--component-version`) to make rescans of
+  the same component share one serial number, ordered by the document version,
+  so consumers can tell "new revision of this SBOM" from "different SBOM".
+  Container scans of a registry reference get this automatically. See
+  [serial-numbers.md](serial-numbers.md).
 - **Offline by default.** Scans make no network requests. `--online-licenses`
   opts into deps.dev licence lookups; remote container references pull from
   the registry. Nothing else touches the network.
@@ -173,8 +180,15 @@ All flags are also readable from env vars (`KUNNUS_API_KEY`,
 
 ```yaml
 - name: Generate SBOM
+  env:
+    # The same component id used for upload also keys the SBOM's serialNumber,
+    # so successive pipeline runs form one document series (see
+    # serial-numbers.md). Without it every run gets a random serial.
+    KUNNUS_COMPONENT_ID: ${{ vars.KUNNUS_COMPONENT_ID }}
+    KUNNUS_COMPONENT_VERSION: ${{ github.ref_name }}
   run: |
     docker run --rm -v ${{ github.workspace }}:/src \
+      -e KUNNUS_COMPONENT_ID -e KUNNUS_COMPONENT_VERSION \
       ghcr.io/think-ahead-technologies/kunnus-scanner:latest \
       sbom repo /src --output /src/sbom.cdx.json
 

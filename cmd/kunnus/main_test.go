@@ -154,6 +154,95 @@ func TestCLI_SBOM_Repo_GoMod(t *testing.T) {
 	}
 }
 
+func TestCLI_SBOM_Repo_SerialNumberSeries(t *testing.T) {
+	// A supplied component identity must yield the same serialNumber across
+	// runs (the CISA "relationship to earlier iterations" requirement), with
+	// the document version derived from the generation timestamp so series
+	// members stay strictly ordered.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"),
+		"module example.com/x\n\ngo 1.21\n\nrequire github.com/stretchr/testify v1.8.0\n")
+
+	generate := func(extra ...string) map[string]any {
+		t.Helper()
+		outPath := filepath.Join(t.TempDir(), "sbom.json")
+		args := append([]string{"sbom", "repo", "--output", outPath}, extra...)
+		args = append(args, root)
+		stdout, stderr, err := runKunnus(t, args...)
+		if err != nil {
+			t.Fatalf("sbom repo failed: %v\nstdout:\n%s\nstderr:\n%s", err, stdout, stderr)
+		}
+		data, err := os.ReadFile(outPath)
+		if err != nil {
+			t.Fatalf("read sbom: %v", err)
+		}
+		var doc map[string]any
+		if err := json.Unmarshal(data, &doc); err != nil {
+			t.Fatalf("sbom is not valid JSON: %v\n%s", err, data)
+		}
+		return doc
+	}
+
+	idFlags := []string{"--component-id", "acme/widget", "--component-version", "1.2.3"}
+	first := generate(idFlags...)
+	second := generate(idFlags...)
+
+	serial, _ := first["serialNumber"].(string)
+	if serial == "" || !strings.HasPrefix(serial, "urn:uuid:") {
+		t.Fatalf("serialNumber = %q, want urn:uuid form", serial)
+	}
+	if serial != second["serialNumber"] {
+		t.Errorf("serialNumber not stable across runs: %q vs %v", serial, second["serialNumber"])
+	}
+	if v, _ := first["version"].(float64); v <= 1 {
+		t.Errorf("version = %v, want timestamp-derived (> 1)", first["version"])
+	}
+
+	// --component-version must land on the root component, not just the key.
+	meta, _ := first["metadata"].(map[string]any)
+	comp, _ := meta["component"].(map[string]any)
+	if v, _ := comp["version"].(string); v != "1.2.3" {
+		t.Errorf("metadata.component.version = %q, want 1.2.3", v)
+	}
+
+	// A different identity is a different series.
+	other := generate("--component-id", "acme/gadget", "--component-version", "1.2.3")
+	if other["serialNumber"] == serial {
+		t.Error("different component-id produced the same serialNumber")
+	}
+
+	// An explicit serial number wins over derivation.
+	pinned := generate(append(idFlags, "--serial-number", "b3c5bd21-1e46-4a44-9b62-8dcbcafb54b7")...)
+	if got, _ := pinned["serialNumber"].(string); got != "urn:uuid:b3c5bd21-1e46-4a44-9b62-8dcbcafb54b7" {
+		t.Errorf("serialNumber = %q, want pinned urn:uuid:b3c5bd21-...", got)
+	}
+
+	// Without any identity, each run gets a fresh random serial and version 1.
+	anonA := generate()
+	anonB := generate()
+	if anonA["serialNumber"] == anonB["serialNumber"] {
+		t.Errorf("no-identity serials must differ per run, got %v twice", anonA["serialNumber"])
+	}
+	if v, _ := anonA["version"].(float64); v != 1 {
+		t.Errorf("no-identity version = %v, want 1", anonA["version"])
+	}
+}
+
+func TestCLI_SBOM_Repo_InvalidSerialFailsBeforeScan(t *testing.T) {
+	// A malformed --serial-number must fail fast, before the (potentially
+	// expensive) scan runs.
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "go.mod"), "module example.com/x\n\ngo 1.21\n")
+
+	_, stderr, err := runKunnus(t, "sbom", "repo", "--serial-number", "not-a-uuid", root)
+	if err == nil {
+		t.Fatal("want error for invalid --serial-number")
+	}
+	if !strings.Contains(stderr, "serial") {
+		t.Errorf("stderr missing serial-number error: %s", stderr)
+	}
+}
+
 func TestCLI_SBOM_Repo_VendoredOnly(t *testing.T) {
 	// A vendored-only C/C++ repo (no Conan lockfile, no other manifest) must
 	// produce a valid SBOM containing the vendored library as a component.

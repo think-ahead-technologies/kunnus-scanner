@@ -19,6 +19,37 @@ type ComponentInfo struct {
 	Name    string
 	Version string
 	Type    string // one of ComponentType* constants above
+
+	// ID is a stable identity for the scanned component, used to derive the
+	// SBOM serial-number series (see Series). Empty when no stable identity is
+	// known — modes only set it when the target itself carries one (a container
+	// image's repository path); the user supplies it otherwise.
+	ID string
+}
+
+// Series identifies the document series an SBOM belongs to: successive scans
+// of the same component produce documents sharing one serial number, ordered
+// by document version. The serial derivation keys on Mode+ID+Version. The
+// zero value means "no stable identity": the encoder falls back to a random
+// serial per run, making each document a series of one.
+type Series struct {
+	// Mode is the scan mode name ("repo", "os", "container"). Part of the key:
+	// a repo SBOM and an os SBOM of the same component are different documents
+	// with different generation semantics, so they must not share a series.
+	Mode string
+
+	// ID is the stable component identity. Empty when unknown.
+	ID string
+
+	// Version is the component version. Empty when unknown — an empty version
+	// still yields a stable key; supplying one later deliberately splits the
+	// series (CISA keys a series on the name/version pair).
+	Version string
+
+	// Serial is an explicit serial-number override in urn:uuid form. When set
+	// it wins over derivation, letting build systems align the series with
+	// their own PLM identifiers.
+	Serial string
 }
 
 // ExtraComponent is one BOM component sourced outside scalibr. The fields are
