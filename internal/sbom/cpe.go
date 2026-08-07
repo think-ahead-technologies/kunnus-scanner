@@ -9,6 +9,7 @@ import (
 
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 	"github.com/google/osv-scalibr/extractor"
+	modulemeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/module/metadata"
 	vmlinuzmeta "github.com/google/osv-scalibr/extractor/filesystem/os/kernel/vmlinuz/metadata"
 	"github.com/google/osv-scalibr/inventory"
 
@@ -47,10 +48,27 @@ func injectCPEsCDX(bom *cyclonedx.BOM, inv inventory.Inventory) {
 		if applyClassifierCPEs(c, byPURL[c.PackageURL]) {
 			return
 		}
+		// Kernel modules carry a backfilled pkg:generic purl (their CISA
+		// identifier) but stay CPE-less: the heuristic would invent
+		// a:<module>:<module>, an NVD identity no in-tree module has.
+		if hasKernelModule(byPURL[c.PackageURL]) {
+			return
+		}
 		if cpe := cpeFromPURL(c.PackageURL); cpe != "" {
 			c.CPE = cpe
 		}
 	})
+}
+
+// hasKernelModule reports whether any of the packages behind a component came
+// from scalibr's os/kernel/module extractor.
+func hasKernelModule(pkgs []*extractor.Package) bool {
+	for _, p := range pkgs {
+		if _, ok := p.Metadata.(*modulemeta.Metadata); ok {
+			return true
+		}
+	}
+	return false
 }
 
 // kernelImageVersions indexes the packages the vmlinuz extractor produced by
