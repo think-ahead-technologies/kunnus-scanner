@@ -20,7 +20,23 @@ import (
 // commit and date are injected at build time by goreleaser and surface in
 // `kunnus --version`. Returns the process exit code.
 func Run(ctx context.Context, args []string, commit, date string) int {
-	app := &cli.Command{
+	app := newApp(commit, date)
+
+	if err := app.Run(ctx, args); err != nil {
+		_, _ = fmt.Fprintln(os.Stderr, "kunnus:", err)
+		return 1
+	}
+	return 0
+}
+
+// newApp builds the root kunnus command. Split out of Run so tests can drive
+// the real command tree with their own writers instead of the process's.
+func newApp(commit, date string) *cli.Command {
+	cli.VersionPrinter = func(cmd *cli.Command) {
+		_, _ = fmt.Fprintf(os.Stdout, "kunnus %s (commit %s, built %s)\n", cmd.Version, commit, date)
+	}
+
+	return &cli.Command{
 		Name:    "kunnus",
 		Usage:   "Generate SBOMs and upload them to the Kunnus platform",
 		Version: version.Version,
@@ -33,19 +49,10 @@ func Run(ctx context.Context, args []string, commit, date string) int {
 			},
 		},
 		Before:                installLogger,
+		Action:                dispatchOnly,
 		Commands:              []*cli.Command{sbomCmd(), uploadCmd()},
 		EnableShellCompletion: true,
 	}
-
-	cli.VersionPrinter = func(cmd *cli.Command) {
-		_, _ = fmt.Fprintf(os.Stdout, "kunnus %s (commit %s, built %s)\n", cmd.Version, commit, date)
-	}
-
-	if err := app.Run(ctx, args); err != nil {
-		_, _ = fmt.Fprintln(os.Stderr, "kunnus:", err)
-		return 1
-	}
-	return 0
 }
 
 // installLogger reads --verbosity, builds a stderr text logger, and installs
