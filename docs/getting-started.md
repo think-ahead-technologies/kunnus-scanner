@@ -28,12 +28,12 @@ a single static binary, no installer, no runtime dependencies. Verify it works:
 kunnus --version
 ```
 
-Optionally, turn on TAB completion for subcommands, flags and paths — add this
-to `~/.zshrc` (or see [cli.md](cli.md#shell-completion) for bash, fish and
-powershell):
+TAB completion for subcommands, flags and paths comes with the Homebrew cask
+and the `.deb`/`.rpm` packages — nothing to set up. If you installed the
+tarball or use powershell, turn it on with one line in your shell profile:
 
 ```shell
-source <(kunnus completion zsh)
+source <(kunnus completion zsh)   # see cli.md for bash, fish and powershell
 ```
 
 ## Your first scan

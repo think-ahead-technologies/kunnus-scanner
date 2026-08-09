@@ -3,6 +3,13 @@ version: 2
 before:
   hooks:
     - go mod tidy
+    # Completion scripts ship inside every package, so a user who installs
+    # kunnus gets TAB completion without editing a shell profile. Generated
+    # from the binary itself, so they can never drift from the command tree.
+    - mkdir -p completions
+    - sh -c 'go run ./cmd/kunnus completion bash > completions/kunnus.bash'
+    - sh -c 'go run ./cmd/kunnus completion zsh > completions/_kunnus'
+    - sh -c 'go run ./cmd/kunnus completion fish > completions/kunnus.fish'
 builds:
   - main: ./cmd/kunnus/
     id: kunnus
@@ -66,6 +73,10 @@ homebrew_casks:
       token: "{{ .Env.HOMEBREW_TAP_TOKEN }}"
     homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
     description: "SBOM-generation CLI for the kunnus platform"
+    completions:
+      bash: completions/kunnus.bash
+      zsh: completions/_kunnus
+      fish: completions/kunnus.fish
 
 # Native Linux packages, attached to the GitHub release. The Homebrew cask
 # above is macOS-only (casks don't work on Homebrew-on-Linux), so Linux
@@ -83,6 +94,13 @@ nfpms:
     homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
     description: "SBOM-generation CLI for the kunnus platform"
     license: "Apache-2.0"
+    contents:
+      - src: completions/kunnus.bash
+        dst: /usr/share/bash-completion/completions/kunnus
+      - src: completions/_kunnus
+        dst: /usr/share/zsh/site-functions/_kunnus
+      - src: completions/kunnus.fish
+        dst: /usr/share/fish/vendor_completions.d/kunnus.fish
 
 scoops:
   - name: kunnus
@@ -95,6 +113,10 @@ scoops:
     homepage: "https://github.com/think-ahead-technologies/kunnus-scanner"
     description: "SBOM-generation CLI for the kunnus platform"
     license: "Apache-2.0"
+    # Scoop has no completion mechanism of its own, and editing a user's
+    # $PROFILE on install would be presumptuous. Point at the command instead.
+    post_install:
+      - "Write-Host 'For TAB completion, add to your $PROFILE: kunnus completion pwsh | Out-String | Invoke-Expression'"
 
 docker_signs:
   - cmd: cosign
@@ -116,6 +138,8 @@ archives:
       - goos: windows
         formats:
           - zip
+    files:
+      - completions/*
 checksum:
   name_template: "{{ .ProjectName }}_SHA256SUMS"
   algorithm: sha256
