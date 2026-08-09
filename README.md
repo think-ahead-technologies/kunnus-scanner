@@ -2,7 +2,7 @@
 
 [![OpenSSF Best Practices](https://www.bestpractices.dev/projects/13467/badge)](https://www.bestpractices.dev/projects/13467)
 [![OpenSSF Scorecard](https://api.scorecard.dev/projects/github.com/think-ahead-technologies/kunnus-scanner/badge)](https://scorecard.dev/viewer/?uri=github.com/think-ahead-technologies/kunnus-scanner)
-[![SLSA 3](https://slsa.dev/images/gh-badge-level3.svg)](https://slsa.dev)
+[![SLSA 2](https://slsa.dev/images/gh-badge-level2.svg)](https://slsa.dev)
 [![CI](https://github.com/think-ahead-technologies/kunnus-scanner/actions/workflows/checks.yml/badge.svg)](https://github.com/think-ahead-technologies/kunnus-scanner/actions/workflows/checks.yml)
 [![Release](https://img.shields.io/github/v/release/think-ahead-technologies/kunnus-scanner)](https://github.com/think-ahead-technologies/kunnus-scanner/releases/latest)
 [![License](https://img.shields.io/github/license/think-ahead-technologies/kunnus-scanner)](LICENSE)
@@ -168,6 +168,6 @@ Contributions are welcome — [CONTRIBUTING.md](CONTRIBUTING.md) covers the dev
 setup and conventions, and [docs/adding-an-ecosystem.md](docs/adding-an-ecosystem.md)
 walks through adding support for a new ecosystem. Vulnerabilities go through
 the private channel described in [SECURITY.md](SECURITY.md), not the issue
-tracker. Release artifacts ship with SLSA Build L3 provenance and signed
-container images — [SECURITY.md](SECURITY.md#verifying-release-artifacts)
-shows how to verify them.
+tracker. Release artifacts ship with SLSA Build L2 provenance, an SBOM and signed
+container images, all as GitHub artifact attestations —
+[SECURITY.md](SECURITY.md#verifying-release-artifacts) shows how to verify them.

@@ -12,13 +12,14 @@ permissions: {}
 jobs:
   goreleaser:
     outputs:
-      hashes: ${{ steps.hash.outputs.hashes }}
-      image: ${{ steps.image.outputs.name }}
-      digest: ${{ steps.image.outputs.digest }}
+      image: ${{ steps.artifacts.outputs.image }}
+      digest: ${{ steps.artifacts.outputs.digest }}
     permissions:
       contents: write # for goreleaser/goreleaser-action to create a GitHub release
       packages: write # for goreleaser/goreleaser-action to publish docker images
-      id-token: write # for cosign keyless signing of container images
+      id-token: write # for cosign keyless signing and Sigstore certificates
+      attestations: write # to persist the artifact attestations
+      artifact-metadata: write # to create the attestations' storage records
     runs-on: ubuntu-latest
     env:
       # Required for buildx on docker 19.x
@@ -87,50 +88,126 @@ jobs:
           STABLE: ${{ env.STABLE }}
           HOMEBREW_TAP_TOKEN: ${{ steps.homebrew-token.outputs.token }}
           SCOOP_BUCKET_TOKEN: ${{ steps.scoop-token.outputs.token }}
-      - name: Generate subject
-        id: hash
-        env:
-          ARTIFACTS: "${{ steps.run-goreleaser.outputs.artifacts }}"
-        run: |
-          set -euo pipefail
-          checksum_file=$(echo "$ARTIFACTS" | jq -r '.[] | select (.type=="Checksum") | .path')
-          echo "hashes=$(cat $checksum_file | base64 -w0)" >> "$GITHUB_OUTPUT"
-      - name: Extract container image digest
-        id: image
+      - name: Locate release artifacts
+        id: artifacts
         # All pushed tags of the multi-platform image share one manifest-list
-        # digest, so `unique` collapses them to a single subject for the
-        # container provenance job below.
+        # digest, so `unique` collapses them to a single attestation subject.
         env:
           ARTIFACTS: "${{ steps.run-goreleaser.outputs.artifacts }}"
         run: |
           set -euo pipefail
+          checksums=$(echo "$ARTIFACTS" | jq -re '.[] | select(.type=="Checksum") | .path')
           name=$(echo "$ARTIFACTS" | jq -re '[.[] | select(.type=="Docker Image") | .name | split(":")[0]] | unique | .[0]')
           digest=$(echo "$ARTIFACTS" | jq -re '[.[] | select(.type=="Docker Image") | .extra.Digest] | unique | .[0]')
-          echo "name=$name" >> "$GITHUB_OUTPUT"
+          echo "checksums=$checksums" >> "$GITHUB_OUTPUT"
+          echo "image=$name" >> "$GITHUB_OUTPUT"
           echo "digest=$digest" >> "$GITHUB_OUTPUT"
-  provenance:
+      - name: Export the released source tree
+        # git archive gives the scanner the tagged source alone — the working
+        # tree also holds goreleaser's dist/, whose binaries and archives are
+        # release output, not dependencies.
+        run: |
+          set -euo pipefail
+          mkdir -p "${RUNNER_TEMP}/src"
+          git archive HEAD | tar -x -C "${RUNNER_TEMP}/src"
+      - name: Generate source SBOM
+        # The released image scans the released source, pinned by the digest
+        # this run just published. The mount path names the SBOM's root
+        # component, which repo mode takes from the scanned directory.
+        # --component-id / --component-version make the serialNumber
+        # deterministic, so each release's SBOM is one member of a document
+        # series for this component.
+        env:
+          IMAGE: "${{ steps.artifacts.outputs.image }}@${{ steps.artifacts.outputs.digest }}"
+          KUNNUS_COMPONENT_ID: "github.com/${{ github.repository }}"
+          KUNNUS_COMPONENT_VERSION: "${{ github.ref_name }}"
+          KUNNUS_AUTHOR: "Think Ahead Technologies <kunnus@think-ahead.tech>"
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -v "${RUNNER_TEMP}/src:/kunnus-scanner:ro" -w /kunnus-scanner \
+            -e KUNNUS_COMPONENT_ID -e KUNNUS_COMPONENT_VERSION -e KUNNUS_AUTHOR \
+            "$IMAGE" sbom repo . > kunnus_sbom.cdx.json
+      - name: Sign source SBOM
+        run: cosign sign-blob --yes --bundle kunnus_sbom.cdx.json.sigstore.json kunnus_sbom.cdx.json
+      - name: Attach SBOM to release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gh release upload "${GITHUB_REF_NAME}" kunnus_sbom.cdx.json kunnus_sbom.cdx.json.sigstore.json
+      - name: Collect attestation subjects
+        # goreleaser's checksum file covers the archives and the .deb/.rpm
+        # packages; the SBOM ships beside them, so it is a subject too. The
+        # published checksum file itself is left untouched.
+        env:
+          CHECKSUMS: ${{ steps.artifacts.outputs.checksums }}
+        run: |
+          set -euo pipefail
+          cp "$CHECKSUMS" subjects.txt
+          sha256sum kunnus_sbom.cdx.json >> subjects.txt
+      - name: Attest release artifacts
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: subjects.txt
+      - name: Attest release SBOM
+        # The SBOM describes the source the archives and packages were built
+        # from, so they are its subjects.
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-checksums: ${{ steps.artifacts.outputs.checksums }}
+          sbom-path: kunnus_sbom.cdx.json
+      - name: Attest container image
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ steps.artifacts.outputs.image }}
+          subject-digest: ${{ steps.artifacts.outputs.digest }}
+          push-to-registry: true
+  image-sbom:
+    # One SBOM per platform image: the manifest-list members differ in their
+    # installed packages, so a single SBOM cannot describe both. Each is
+    # attested against the platform digest it describes and pushed to ghcr.
     needs: [goreleaser]
     permissions:
-      actions: read # To read the workflow path.
-      id-token: write # To sign the provenance.
-      contents: write # To add assets to a release.
-    # This must be a tag, not a hash: https://github.com/slsa-framework/slsa-github-generator/blob/main/README.md#referencing-slsa-builders-and-generators
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_generic_slsa3.yml@v2.1.0
-    with:
-      base64-subjects: "${{ needs.goreleaser.outputs.hashes }}"
-      upload-assets: true # upload to a new release
-      draft-release: true # upload to a new draft release
-  container-provenance:
-    needs: [goreleaser]
-    permissions:
-      actions: read # To read the workflow path.
-      id-token: write # To sign the provenance.
-      packages: write # To push the provenance attestation to ghcr.io.
-    # This must be a tag, not a hash: https://github.com/slsa-framework/slsa-github-generator/blob/main/README.md#referencing-slsa-builders-and-generators
-    uses: slsa-framework/slsa-github-generator/.github/workflows/generator_container_slsa3.yml@v2.1.0
-    with:
-      image: ${{ needs.goreleaser.outputs.image }}
-      digest: ${{ needs.goreleaser.outputs.digest }}
-      registry-username: ${{ github.actor }}
-    secrets:
-      registry-password: ${{ secrets.GITHUB_TOKEN }}
+      packages: write # to push the attestation to ghcr.io
+      id-token: write # for the Sigstore signing certificate
+      attestations: write # to persist the attestation
+      artifact-metadata: write # to create the attestation's storage record
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        platform: [linux/amd64, linux/arm64]
+    steps:
+      - name: Resolve platform digest
+        id: platform
+        env:
+          IMAGE: "${{ needs.goreleaser.outputs.image }}@${{ needs.goreleaser.outputs.digest }}"
+          PLATFORM: ${{ matrix.platform }}
+        run: |
+          set -euo pipefail
+          digest=$(docker buildx imagetools inspect "$IMAGE" --raw \
+            | jq -re --arg p "$PLATFORM" '.manifests[] | select(.platform.os + "/" + .platform.architecture == $p) | .digest')
+          echo "digest=$digest" >> "$GITHUB_OUTPUT"
+          echo "slug=${PLATFORM/\//-}" >> "$GITHUB_OUTPUT"
+      - name: Generate image SBOM
+        # The scanner reads the platform image straight from the registry
+        # (public, so no credentials). The platform is part of the component
+        # id: the two images are separate document series.
+        env:
+          SCANNER: "${{ needs.goreleaser.outputs.image }}@${{ needs.goreleaser.outputs.digest }}"
+          TARGET: "${{ needs.goreleaser.outputs.image }}@${{ steps.platform.outputs.digest }}"
+          KUNNUS_COMPONENT_ID: "${{ needs.goreleaser.outputs.image }}@${{ matrix.platform }}"
+          KUNNUS_COMPONENT_VERSION: "${{ github.ref_name }}"
+          KUNNUS_AUTHOR: "Think Ahead Technologies <kunnus@think-ahead.tech>"
+          SLUG: ${{ steps.platform.outputs.slug }}
+        run: |
+          set -euo pipefail
+          docker run --rm \
+            -e KUNNUS_COMPONENT_ID -e KUNNUS_COMPONENT_VERSION -e KUNNUS_AUTHOR \
+            "$SCANNER" sbom container --source remote "$TARGET" \
+            > "kunnus_sbom_image_${SLUG}.cdx.json"
+      - name: Attest image SBOM
+        uses: actions/attest@1e69f48acb82d1966a394da916b4c1698aa569d6 # v4.2.2
+        with:
+          subject-name: ${{ needs.goreleaser.outputs.image }}
+          subject-digest: ${{ steps.platform.outputs.digest }}
+          sbom-path: kunnus_sbom_image_${{ steps.platform.outputs.slug }}.cdx.json
+          push-to-registry: true
