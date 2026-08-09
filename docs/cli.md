@@ -6,7 +6,7 @@ kunnus [--verbosity <level>] <command> [flags] [args]
 
 Operational output (logs, warnings) always goes to **stderr**; stdout carries
 the SBOM payload (or the server response for `upload`), so every command is
-pipe-safe. Shell completion is built in (`kunnus completion --help`).
+pipe-safe. Shell completion is built in — see [Shell completion](#shell-completion).
 
 ## Global flags
 
@@ -109,3 +109,43 @@ kunnus upload sbom.cdx.json --api-key "$KUNNUS_API_KEY" --component-id "$KUNNUS_
 
 On upload errors the response body is logged at `info` level rather than
 printed — re-run with `--verbosity info` to see it.
+
+## Shell completion
+
+`kunnus completion <shell>` prints a completion script for `bash`, `zsh`,
+`fish`, or `pwsh`. Install it once per shell:
+
+```shell
+# zsh — add to ~/.zshrc
+source <(kunnus completion zsh)
+
+# bash — add to ~/.bashrc
+source <(kunnus completion bash)
+
+# fish — one-off, picked up automatically from then on
+kunnus completion fish > ~/.config/fish/completions/kunnus.fish
+
+# powershell — add to $PROFILE
+kunnus completion pwsh | Out-String | Invoke-Expression
+```
+
+Sourcing on every shell start costs a `kunnus` exec. To pay it once, write the
+script to a file and source that instead, regenerating it when you upgrade:
+
+```shell
+kunnus completion zsh > ~/.kunnus-completion.zsh   # then: source ~/.kunnus-completion.zsh
+```
+
+The script holds no knowledge of kunnus itself — on TAB it re-runs the binary
+with the words typed so far, so completion always matches the installed
+version. Subcommands, their aliases (`sbom image` as well as `sbom container`),
+and flags all complete, each shown with the description from `--help`. Where a
+command takes a path rather than a subcommand — `sbom repo`, `sbom os`,
+`sbom container` with a tarball, `upload` — kunnus offers nothing so the shell
+falls back to its own file completion.
+
+Two caveats. The powershell script takes its command name from the filename it
+is saved under, so save it as `kunnus.ps1` if you write it to disk rather than
+piping it to `Invoke-Expression`. And on macOS, bash completion needs the
+`bash-completion` package (`brew install bash-completion`) — zsh, the default
+shell, needs nothing extra.

@@ -36,7 +36,7 @@ func newApp(commit, date string) *cli.Command {
 		_, _ = fmt.Fprintf(os.Stdout, "kunnus %s (commit %s, built %s)\n", cmd.Version, commit, date)
 	}
 
-	return &cli.Command{
+	app := &cli.Command{
 		Name:    "kunnus",
 		Usage:   "Generate SBOMs and upload them to the Kunnus platform",
 		Version: version.Version,
@@ -53,6 +53,8 @@ func newApp(commit, date string) *cli.Command {
 		Commands:              []*cli.Command{sbomCmd(), uploadCmd()},
 		EnableShellCompletion: true,
 	}
+	installCompletion(app)
+	return app
 }
 
 // installLogger reads --verbosity, builds a stderr text logger, and installs

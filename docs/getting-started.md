@@ -28,6 +28,14 @@ a single static binary, no installer, no runtime dependencies. Verify it works:
 kunnus --version
 ```
 
+Optionally, turn on TAB completion for subcommands, flags and paths — add this
+to `~/.zshrc` (or see [cli.md](cli.md#shell-completion) for bash, fish and
+powershell):
+
+```shell
+source <(kunnus completion zsh)
+```
+
 ## Your first scan
 
 kunnus has three scan modes. Pick the one that matches what you're pointing
