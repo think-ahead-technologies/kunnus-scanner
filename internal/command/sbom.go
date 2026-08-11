@@ -7,8 +7,9 @@ import "github.com/urfave/cli/v3"
 // sbomCmd returns the `kunnus sbom` parent command.
 func sbomCmd() *cli.Command {
 	return &cli.Command{
-		Name:  "sbom",
-		Usage: "generate a Software Bill of Materials",
+		Name:   "sbom",
+		Usage:  "generate a Software Bill of Materials",
+		Action: dispatchOnly,
 		Commands: []*cli.Command{
 			sbomRepo(),
 			sbomOS(),
