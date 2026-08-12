@@ -112,6 +112,10 @@ printed — re-run with `--verbosity info` to see it.
 
 ## Shell completion
 
+**Homebrew, `.deb` and `.rpm` installs need no setup** — they drop bash, zsh and
+fish completions into the standard directories, active in the next shell. The
+rest of this section is for the tarball, `go install`, and powershell.
+
 `kunnus completion <shell>` prints a completion script for `bash`, `zsh`,
 `fish`, or `pwsh`. Install it once per shell:
 

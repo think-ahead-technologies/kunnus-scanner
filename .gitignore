@@ -1,5 +1,8 @@
 bin/
 dist/
+# Shell-completion scripts, generated into the release artifacts by a
+# goreleaser before-hook. Never edited by hand.
+completions/
 *.test
 *.out
 coverage.*
