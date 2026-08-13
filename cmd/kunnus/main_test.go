@@ -591,6 +591,17 @@ checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
   "Serilog":{"type":"Direct","requested":"[3.0.0, 4.0.0)","resolved":"3.1.1","contentHash":"y=="}
 }}}`)
 
+	// A VB.NET project, to prove dotnet/csproj reads the other two MSBuild
+	// flavours. Nothing resolves it, so its declared range is the only record of
+	// the dependency and must survive the suppression stage.
+	writeFile(t, filepath.Join(root, "vb", "App.vbproj"), `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="[2.0.0,3.0.0)" />
+  </ItemGroup>
+</Project>
+`)
+
 	// Python project: a constraint floor and a bare requirement, both pinned by
 	// the lock. sphinx is declared in a docs requirements file the lock does not
 	// resolve, so it must survive.
@@ -636,6 +647,8 @@ source = { registry = "https://pypi.org/simple" }
 		"pkg:cargo/libc@0.2.147",
 		"pkg:nuget/Newtonsoft.Json@13.0.1",
 		"pkg:nuget/Serilog@3.1.1",
+		// Declared in a .vbproj no lock resolves: the range is the only record.
+		"pkg:nuget/Dapper@%5B2.0.0%2C3.0.0%29",
 		"pkg:pypi/requests@2.32.3",
 		"pkg:pypi/urllib3@2.2.3",
 		// Declared where no lock resolves it: the only record of this dependency.

@@ -5,6 +5,7 @@ package ecosystem
 import (
 	"encoding/base64"
 	"testing"
+	"testing/fstest"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
@@ -12,6 +13,53 @@ import (
 // realisticH1 is a known-shape SHA-256 produced from arbitrary bytes —
 // the parser cares about format, not provenance against a real module.
 var realisticH1 = "h1:" + base64.StdEncoding.EncodeToString(make([]byte, 32))
+
+func TestHasGoVendorTree(t *testing.T) {
+	// The manifest a `go mod vendor` tree carries, and the two shapes that must
+	// not trigger the walk carve-out: a vendor directory from some other
+	// ecosystem (composer, bundler), and a bare Go module with no vendoring.
+	tests := []struct {
+		name string
+		fsys fstest.MapFS
+		want bool
+	}{
+		{
+			name: "vendored go module",
+			fsys: fstest.MapFS{
+				"go.mod":             &fstest.MapFile{Data: []byte("module example.com/x\n")},
+				"vendor/modules.txt": &fstest.MapFile{Data: []byte("# dario.cat/mergo v1.0.2\n")},
+			},
+			want: true,
+		},
+		{
+			name: "vendor directory of another ecosystem",
+			fsys: fstest.MapFS{
+				"composer.json":                  &fstest.MapFile{Data: []byte("{}")},
+				"vendor/autoload.php":            &fstest.MapFile{Data: []byte("<?php")},
+				"vendor/composer/installed.json": &fstest.MapFile{Data: []byte("{}")},
+			},
+			want: false,
+		},
+		{
+			name: "go module without vendoring",
+			fsys: fstest.MapFS{"go.mod": &fstest.MapFile{Data: []byte("module example.com/x\n")}},
+			want: false,
+		},
+		{
+			name: "modules.txt is a directory",
+			fsys: fstest.MapFS{"vendor/modules.txt/placeholder": &fstest.MapFile{Data: []byte("x")}},
+			want: false,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := HasGoVendorTree(tt.fsys); got != tt.want {
+				t.Errorf("HasGoVendorTree() = %v, want %v", got, tt.want)
+			}
+		})
+	}
+}
 
 func TestParseGoSum_ZipHashesKept(t *testing.T) {
 	content := `github.com/stretchr/testify v1.8.0 ` + realisticH1 + `

@@ -73,7 +73,7 @@ encoder; the scanner library does the extraction work.
 | `hashes` | shared `hashes.Map`/`Hash` types every hash-evidence source produces | scalibr, modes, CLI, encoding |
 | `apkchecksum` | recovers apk pull-checksums scalibr's apk extractor drops → `hashes.Map` | modes, CLI, encoding |
 | `vendored` | vendored C/C++ library-directory detection + per-file digests → `pkg:generic` components | scalibr, modes, CLI, encoding |
-| `fswalk` | the one list of directory names every walk skips | everything else |
+| `fswalk` | the one list of directory names every walk skips, and the per-name exceptions a caller may carve out of it | everything else |
 | `pluginset` | sorted, deduplicated unions of scalibr plugin-name lists | everything else |
 | `bom` | boundary types between planner (mode) and encoder (sbom) | scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
@@ -180,7 +180,7 @@ reaches** — not by preference:
 |---|---|---|
 | cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
 | dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
-| python | `*requirements*.txt` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock` | post scan, per path |
+| python | `*requirements*.txt`, `pyproject.toml` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml` | post scan, per path |
 
 - **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
   walk, subtracted in `mode/repo` *before* `ApplyOverrides` so `--enable
@@ -205,6 +205,39 @@ reaches** — not by preference:
   sphinx its project's lock does not resolve, and a conditional dependency the
   resolver never saw survives with its range and its unknown-info markers.
 
+NuGet has a second resolved file, `project.assets.json` — restore's own output,
+which always exists after a restore. `dotnet/projectassetsjson` is deliberately
+**not** enabled for it: alongside the resolved pins in `libraries`/`targets`, the
+extractor emits one package per entry of each package's `dependencies` map, using
+the *declared range* as the version, so a built tree reports
+`pkg:nuget/NETStandard.Library@%5B1.6.1%5D` beside the resolved `2.0.3`. That is
+the phantom this whole section exists to remove, and the suppression stage cannot
+reach it: both twins carry the same `project.assets.json` location, which is on
+the lock side of the rule. The dependency-map entries are redundant upstream —
+every package in the closure already has a `libraries` entry at its resolved
+version — so the fix belongs in scalibr. The cost of leaving it off is narrow:
+a restored-but-not-published tree with no `packages.lock.json` yields only its
+projects' direct declarations, since nothing else names the transitive closure
+(a published app's `.deps.json` still gives it).
+
+The wiring for turning it back on is in place. `project.assets.json` stays a
+detection marker and a `locks` entry, and NuGet writes the file into the
+project's intermediate output directory (`obj/` unless
+`BaseIntermediateOutputPath` says otherwise) — one level *below* the manifest it
+resolves — which `declaredRule.lockDirSpeaksForParent` carries, so a lock found
+in `obj/` also covers the directory above it. A project using a custom output
+path simply gets no suppression, which lists a dependency twice rather than
+losing one.
+
+Python has two declaring extractors, not one: `python/requirements` over any
+`*requirements*.txt` and `python/pyprojecttoml` over the PEP 621
+`[project.dependencies]` / `[project.optional-dependencies]` tables. Both report
+a constraint's floor as the version (`>=1.9.0` → `1.9.0`) or no version at all
+for a bare requirement, so both are manifests under the same rule. On the
+resolved side `pylock.toml` (PEP 751) joins the four tool-specific locks; it is a
+resolved lockfile like the others, so it both supersedes declarations in its own
+directory and contributes wheel digests through `HashParsers`.
+
 The other 20 ecosystems were audited and need nothing: their manifest-side
 extractor reports *installed state* rather than declared ranges
 (`javascript/packagejson` — dependency parsing is off by default;
@@ -218,6 +251,30 @@ Known gap: a mixed monorepo (one project locked, one not) keeps the phantoms for
 the *locked* cargo crates — the plan-time rule declines to fire rather than lose
 the unlocked crate's data. Moving cargo onto the post-scan stage would fix that
 at the cost of running an extractor whose output is thrown away.
+
+## Vendored Go modules (the one carve-out in the walk skip list)
+
+`go/vendormodules` reads `vendor/modules.txt` — the module list a `go mod
+vendor` tree carries — which sits inside the one directory name every kunnus
+walk skips. `fswalk` blanket-skips `vendor` because npm, composer and bundler
+install trees live there too, and walking those means re-reporting every
+transitive dependency from its unpacked copy.
+
+The exception is granted per scan, only where the Go manifest is actually
+present: `mode/repo` asks `ecosystem.HasGoVendorTree` (a single stat of
+`vendor/modules.txt` at the root) and, when it fires, builds `DirsToSkip` with
+`fswalk.AbsoluteSkipPathsExcept(abs, []string{"vendor"})`. A Go vendor tree holds
+dependency source and licences but no foreign manifests, so walking it surfaces
+the vendored modules and nothing else; a PHP or Ruby `vendor/` is still skipped.
+The stat lives in `internal/ecosystem/golang.go`, beside the plugin name it
+enables (architecture rule #1), which keeps mode/repo free of filesystem reads of
+its own (rule #4).
+
+Note the narrowness of the original gap: `DirsToSkip` holds *absolute* paths, so
+only a root-level `vendor/` was ever skipped — a nested `sub/vendor/modules.txt`
+in a monorepo was always reachable. `vendor/modules.txt` is deliberately not a
+detection marker: the survey walk skips `vendor` by name at every depth, and the
+`go.mod` that produced the tree already flags the ecosystem.
 
 ## ModusToolbox ecosystem (native extractor, no scalibr plugin)
 

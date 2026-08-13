@@ -24,11 +24,23 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
+// dotnet/csproj reads all three MSBuild project flavours — .csproj (C#),
+// .vbproj (VB.NET) and .fsproj (F#) — so all three are detection markers.
+//
+// project.assets.json stays a detection marker, but dotnet/projectassetsjson is
+// not enabled: besides the resolved pins it emits one package per entry of each
+// package's "dependencies" map, using the declared range as the version
+// (pkg:nuget/NETStandard.Library@%5B1.6.1%5D beside the resolved 2.0.3). The
+// declared-range stage cannot remove those — both twins carry the same
+// project.assets.json location, which is on the lock side of the rule.
 var dotnet = Ecosystem{
 	Name:             "dotnet",
 	Filenames:        []string{"packages.config", "packages.lock.json", "project.assets.json"},
-	FilenameSuffixes: []string{".csproj", ".deps.json"},
-	ScalibrPlugins:   []string{csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name, packageslockjson.Name, dotnetpe.Name},
+	FilenameSuffixes: []string{".csproj", ".vbproj", ".fsproj", ".deps.json"},
+	ScalibrPlugins: []string{
+		csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name,
+		packageslockjson.Name, dotnetpe.Name,
+	},
 	InstalledPlugins: []string{dotnetpe.Name},
 	HashParsers: []Parser{
 		{

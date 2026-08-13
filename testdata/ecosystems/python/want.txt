@@ -1,3 +1,56 @@
-# python — sourced from requirements.txt.
+# python — three files, three extractors.
+#
+#   requirements.txt      declared requirements, pinned by ==  (python/requirements)
+#   pyproject.toml        PEP 621 declared ranges              (python/pyprojecttoml)
+#   pylock/pylock.toml    PEP 751 resolved lockfile            (python/pylock)
+#
+# Fixture provenance — both new files are real, from the projects that generated
+# them:
+#   pylock/pylock.toml  pypa/pip's own build lockfile, build-project/pylock.toml
+#     at b457f5ad0323454ec9f834e8297923d336ab164a (MIT), verbatim. Its published
+#     wheel digests are what the pylock HashParser mines into component.hashes[].
+#   pyproject.toml      pallets/flask's pyproject.toml at
+#     6a2f545bfd8ed31e19066a299296917e034aca58 (BSD-3-Clause), trimmed to the
+#     [project], [project.optional-dependencies] and [build-system] tables — the
+#     tool-config tables the extractor never reads are dropped, the way the
+#     kernel fixture keeps only the head of its vmlinuz.
+#
+# The lockfile sits in a subdirectory on purpose. A lock's authority covers its
+# own directory and below (internal/sbom/declared.go), so keeping it out of the
+# fixture root leaves the root's declared requirements unsuppressed and all
+# three extractors observable in one fixture. The suppression itself — a
+# pyproject.toml whose deps its project's lock has already pinned — is unit
+# tested, since want.txt can assert presence but not absence.
 purl pkg:pypi/requests@2.31.0
 cpe  cpe:2.3:a:requests:requests:2.31.0:*:*:*:*:*:*:*
+
+# python/pylock — resolved pins, each carrying its wheel's SHA-256.
+purl pkg:pypi/build@1.5.0
+cpe  cpe:2.3:a:build:build:1.5.0:*:*:*:*:*:*:*
+purl pkg:pypi/flit-core@3.12.0
+cpe  cpe:2.3:a:flit-core:flit-core:3.12.0:*:*:*:*:*:*:*
+purl pkg:pypi/packaging@26.2
+cpe  cpe:2.3:a:packaging:packaging:26.2:*:*:*:*:*:*:*
+purl pkg:pypi/pyproject-hooks@1.2.0
+cpe  cpe:2.3:a:pyproject-hooks:pyproject-hooks:1.2.0:*:*:*:*:*:*:*
+
+# python/pyprojecttoml — [project.dependencies] reported at the lowest version
+# each constraint admits (">=1.9.0" becomes 1.9.0).
+purl pkg:pypi/blinker@1.9.0
+cpe  cpe:2.3:a:blinker:blinker:1.9.0:*:*:*:*:*:*:*
+purl pkg:pypi/click@8.1.3
+cpe  cpe:2.3:a:click:click:8.1.3:*:*:*:*:*:*:*
+purl pkg:pypi/itsdangerous@2.2.0
+cpe  cpe:2.3:a:itsdangerous:itsdangerous:2.2.0:*:*:*:*:*:*:*
+purl pkg:pypi/jinja2@3.1.2
+cpe  cpe:2.3:a:jinja2:jinja2:3.1.2:*:*:*:*:*:*:*
+purl pkg:pypi/markupsafe@2.1.1
+cpe  cpe:2.3:a:markupsafe:markupsafe:2.1.1:*:*:*:*:*:*:*
+purl pkg:pypi/werkzeug@3.1.0
+cpe  cpe:2.3:a:werkzeug:werkzeug:3.1.0:*:*:*:*:*:*:*
+# [project.optional-dependencies]: an extra's pinned floor, and a bare
+# requirement — which yields a versionless purl and a wildcard-version cpe.
+purl pkg:pypi/asgiref@3.2
+cpe  cpe:2.3:a:asgiref:asgiref:3.2:*:*:*:*:*:*:*
+purl pkg:pypi/python-dotenv
+cpe  cpe:2.3:a:python-dotenv:python-dotenv:*:*:*:*:*:*:*:*

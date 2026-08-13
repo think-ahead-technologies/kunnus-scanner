@@ -31,6 +31,11 @@ type declaredRule struct {
 	// requirements. It must accept exactly the files the declaring extractor
 	// reads, so a file kunnus cannot recognise is never mistaken for a manifest.
 	isManifest func(base string) bool
+	// lockDirSpeaksForParent names the directory basenames a lockfile may sit in
+	// while still resolving the manifests of the directory *above* it — for a
+	// build tool that writes its resolved output into a subdirectory of the
+	// project it belongs to. Empty for locks that sit beside their manifests.
+	lockDirSpeaksForParent []string
 }
 
 var declaredRules = []declaredRule{
@@ -40,7 +45,7 @@ var declaredRules = []declaredRule{
 		// (floating "13.0.*", ranges "[3.0.0,4.0.0)") that packages.lock.json
 		// resolves to a single pin.
 		purlType: "nuget",
-		locks:    []string{"packages.lock.json"},
+		locks:    []string{"packages.lock.json", "project.assets.json"},
 		isManifest: func(base string) bool {
 			switch path.Ext(base) {
 			case ".csproj", ".vbproj", ".fsproj":
@@ -48,15 +53,30 @@ var declaredRules = []declaredRule{
 			}
 			return base == "Directory.Packages.props" || base == "Directory.Build.props"
 		},
+		// NuGet restore writes project.assets.json into the project's
+		// intermediate output directory — obj/ unless BaseIntermediateOutputPath
+		// says otherwise — so the file that resolves ProjA/ProjA.csproj is
+		// ProjA/obj/project.assets.json. A custom output path simply means no
+		// suppression, which lists a dependency twice rather than losing one.
+		//
+		// dotnet/projectassetsjson is not currently enabled (see
+		// internal/ecosystem/dotnet.go), so no component carries such a location
+		// today; the rule is kept because it is what the file means.
+		lockDirSpeaksForParent: []string{"obj"},
 	},
 	{
-		// scalibr's python/requirements reads any *requirements*.txt and reports
-		// a constraint's floor as the version (">=2.0" becomes "2.0"), or no
-		// version at all for a bare requirement. Every python lockfile kunnus
-		// detects resolves those to real pins.
+		// scalibr's python/requirements reads any *requirements*.txt and
+		// python/pyprojecttoml the PEP 621 [project.dependencies] and
+		// [project.optional-dependencies] tables; both report a constraint's
+		// floor as the version (">=2.0" becomes "2.0"), or no version at all for
+		// a bare requirement. Every python lockfile kunnus detects resolves those
+		// to real pins.
 		purlType: "pypi",
-		locks:    []string{"uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock"},
+		locks:    []string{"uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock", "pylock.toml"},
 		isManifest: func(base string) bool {
+			if base == "pyproject.toml" {
+				return true
+			}
 			return path.Ext(base) == ".txt" && strings.Contains(base, "requirements")
 		},
 	},
@@ -125,7 +145,13 @@ func resolvedBy(comps []cyclonedx.Component, rule *declaredRule) (lockDirs map[s
 			if !containsFold(rule.locks, path.Base(loc)) {
 				continue
 			}
-			lockDirs[path.Dir(loc)] = true
+			dir := path.Dir(loc)
+			lockDirs[dir] = true
+			// A lock written into the project's build output directory resolves
+			// the manifests of the project itself, which sits one level up.
+			if containsFold(rule.lockDirSpeaksForParent, path.Base(dir)) {
+				lockDirs[path.Dir(dir)] = true
+			}
 			pinned[normalizePackageName(rule.purlType, comps[i].Name)] = true
 		}
 	}

@@ -216,6 +216,8 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 		"unknown.file":       "",
 		"":                   "",
 		"MyApp.csproj":       "dotnet",       // suffix match
+		"MyApp.vbproj":       "dotnet",       // VB.NET project: dotnet/csproj reads it too
+		"MyApp.fsproj":       "dotnet",       // F# project: likewise
 		"x.deps.json":        "dotnet",       // suffix match
 		"foo-1.0-1.rockspec": "lua",          // luarocks spec file
 		"my_gem.gemspec":     "ruby",         // ruby gem spec
@@ -252,7 +254,7 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 
 func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 	got := PluginsFor([]string{"go", "cargo"})
-	want := []string{"go/binary", "go/gomod", "rust/cargoauditable", "rust/cargolock", "rust/cargotoml"}
+	want := []string{"go/binary", "go/gomod", "go/vendormodules", "rust/cargoauditable", "rust/cargolock", "rust/cargotoml"}
 	if !slices.Equal(got, want) {
 		t.Errorf("PluginsFor(go,cargo) = %v, want %v", got, want)
 	}

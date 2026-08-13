@@ -1,0 +1,26 @@
+# cyphar.com/go-pathrs v0.2.4
+## explicit; go 1.18
+cyphar.com/go-pathrs
+cyphar.com/go-pathrs/internal/fdutils
+cyphar.com/go-pathrs/internal/libpathrs
+cyphar.com/go-pathrs/procfs
+# dario.cat/mergo v1.0.2
+## explicit; go 1.13
+dario.cat/mergo
+# github.com/AdaLogics/go-fuzz-headers v0.0.0-20240806141605-e8a1dd7889d6
+## explicit; go 1.20
+github.com/AdaLogics/go-fuzz-headers
+# github.com/Microsoft/go-winio v0.6.3-0.20251027160822-ad3df93bed29
+## explicit; go 1.23.0
+github.com/Microsoft/go-winio
+github.com/Microsoft/go-winio/backuptar
+github.com/Microsoft/go-winio/internal/fs
+github.com/Microsoft/go-winio/internal/socket
+github.com/Microsoft/go-winio/internal/stringbuffer
+github.com/Microsoft/go-winio/pkg/bindfilter
+github.com/Microsoft/go-winio/pkg/etw
+github.com/Microsoft/go-winio/pkg/etwlogrus
+github.com/Microsoft/go-winio/pkg/fs
+github.com/Microsoft/go-winio/pkg/guid
+github.com/Microsoft/go-winio/pkg/security
+github.com/Microsoft/go-winio/vhd
