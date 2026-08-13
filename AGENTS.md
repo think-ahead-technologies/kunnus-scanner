@@ -73,7 +73,7 @@ encoder; the scanner library does the extraction work.
 | `hashes` | shared `hashes.Map`/`Hash` types every hash-evidence source produces | scalibr, modes, CLI, encoding |
 | `apkchecksum` | recovers apk pull-checksums scalibr's apk extractor drops → `hashes.Map` | modes, CLI, encoding |
 | `vendored` | vendored C/C++ library-directory detection + per-file digests → `pkg:generic` components | scalibr, modes, CLI, encoding |
-| `fswalk` | the one list of directory names every walk skips | everything else |
+| `fswalk` | the one list of directory names every walk skips, and the per-name exceptions a caller may carve out of it | everything else |
 | `pluginset` | sorted, deduplicated unions of scalibr plugin-name lists | everything else |
 | `bom` | boundary types between planner (mode) and encoder (sbom) | scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
@@ -180,7 +180,7 @@ reaches** — not by preference:
 |---|---|---|
 | cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
 | dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
-| python | `*requirements*.txt` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock` | post scan, per path |
+| python | `*requirements*.txt`, `pyproject.toml` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml` | post scan, per path |
 
 - **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
   walk, subtracted in `mode/repo` *before* `ApplyOverrides` so `--enable
@@ -204,6 +204,15 @@ reaches** — not by preference:
   unlocked project keeps its declarations, `docs/requirements.txt` keeps the
   sphinx its project's lock does not resolve, and a conditional dependency the
   resolver never saw survives with its range and its unknown-info markers.
+
+Python has two declaring extractors, not one: `python/requirements` over any
+`*requirements*.txt` and `python/pyprojecttoml` over the PEP 621
+`[project.dependencies]` / `[project.optional-dependencies]` tables. Both report
+a constraint's floor as the version (`>=1.9.0` → `1.9.0`) or no version at all
+for a bare requirement, so both are manifests under the same rule. On the
+resolved side `pylock.toml` (PEP 751) joins the four tool-specific locks; it is a
+resolved lockfile like the others, so it both supersedes declarations in its own
+directory and contributes wheel digests through `HashParsers`.
 
 The other 20 ecosystems were audited and need nothing: their manifest-side
 extractor reports *installed state* rather than declared ranges

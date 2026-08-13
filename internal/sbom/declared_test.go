@@ -88,6 +88,45 @@ func TestSuppressResolvedDeclarations_Python(t *testing.T) {
 	)
 }
 
+// TestSuppressResolvedDeclarations_PythonPyprojectAndPylock covers the other two
+// python files that carry declared ranges and resolved pins: a PEP 621
+// pyproject.toml (whose [project.dependencies] the pyprojecttoml extractor
+// reports at its lowest satisfying version) and a PEP 751 pylock.toml.
+func TestSuppressResolvedDeclarations_PythonPyprojectAndPylock(t *testing.T) {
+	// A monorepo where app/ is locked with pylock.toml and lib/ is not.
+	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
+		{Name: "httpx", Version: "0.28.1", PackageURL: "pkg:pypi/httpx@0.28.1", Evidence: occs("app/pylock.toml")},
+		{Name: "anyio", Version: "4.8.0", PackageURL: "pkg:pypi/anyio@4.8.0", Evidence: occs("app/pylock.toml")},
+
+		// app/ declares what its lock resolved — the phantom pair, both dropped.
+		{Name: "httpx", Version: "0.27", PackageURL: "pkg:pypi/httpx@0.27", Evidence: occs("app/pyproject.toml")},
+		{Name: "anyio", PackageURL: "pkg:pypi/anyio", Evidence: occs("app/pyproject.toml")},
+
+		// An optional-dependency group the resolver never saw (the extra was not
+		// installed), so the declaration is the only record. Keep.
+		{Name: "pytest", Version: "8.0", PackageURL: "pkg:pypi/pytest@8.0", Evidence: occs("app/pyproject.toml")},
+
+		// lib/ has no lock of its own and app/'s lock does not speak for it,
+		// even though it pins the same name.
+		{Name: "httpx", Version: "0.20", PackageURL: "pkg:pypi/httpx@0.20", Evidence: occs("lib/pyproject.toml")},
+	}}
+
+	suppressResolvedDeclarations(bom)
+
+	assertPURLs(t, bom,
+		[]string{
+			"pkg:pypi/httpx@0.28.1",
+			"pkg:pypi/anyio@4.8.0",
+			"pkg:pypi/pytest@8.0",
+			"pkg:pypi/httpx@0.20",
+		},
+		[]string{
+			"pkg:pypi/httpx@0.27",
+			"pkg:pypi/anyio",
+		},
+	)
+}
+
 // TestSuppressResolvedDeclarations_LockOutsideManifestTree proves the path
 // signal is required: a lockfile in a sibling subtree does not license dropping
 // another project's declarations, even when the names match.

@@ -50,13 +50,18 @@ var declaredRules = []declaredRule{
 		},
 	},
 	{
-		// scalibr's python/requirements reads any *requirements*.txt and reports
-		// a constraint's floor as the version (">=2.0" becomes "2.0"), or no
-		// version at all for a bare requirement. Every python lockfile kunnus
-		// detects resolves those to real pins.
+		// scalibr's python/requirements reads any *requirements*.txt and
+		// python/pyprojecttoml the PEP 621 [project.dependencies] and
+		// [project.optional-dependencies] tables; both report a constraint's
+		// floor as the version (">=2.0" becomes "2.0"), or no version at all for
+		// a bare requirement. Every python lockfile kunnus detects resolves those
+		// to real pins.
 		purlType: "pypi",
-		locks:    []string{"uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock"},
+		locks:    []string{"uv.lock", "poetry.lock", "pdm.lock", "Pipfile.lock", "pylock.toml"},
 		isManifest: func(base string) bool {
+			if base == "pyproject.toml" {
+				return true
+			}
 			return path.Ext(base) == ".txt" && strings.Contains(base, "requirements")
 		},
 	},
