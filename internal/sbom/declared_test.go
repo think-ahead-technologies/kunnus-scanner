@@ -88,6 +88,39 @@ func TestSuppressResolvedDeclarations_Python(t *testing.T) {
 	)
 }
 
+// TestSuppressResolvedDeclarations_DotnetProjectAssets covers NuGet's other
+// resolved file: restore writes project.assets.json into the project's
+// intermediate output directory (obj/ by default), one level *below* the
+// .csproj whose declarations it resolves.
+func TestSuppressResolvedDeclarations_DotnetProjectAssets(t *testing.T) {
+	bom := &cyclonedx.BOM{Components: &[]cyclonedx.Component{
+		// Resolved pins, as restore wrote them under the project.
+		{Name: "Newtonsoft.Json", Version: "13.0.3", PackageURL: "pkg:nuget/Newtonsoft.Json@13.0.3", Evidence: occs("ProjA/obj/project.assets.json")},
+		{Name: "Serilog", Version: "3.1.1", PackageURL: "pkg:nuget/Serilog@3.1.1", Evidence: occs("ProjA/obj/project.assets.json")},
+
+		// The declarations that produced them, one directory up.
+		{Name: "Newtonsoft.Json", Version: "13.0.*", PackageURL: "pkg:nuget/Newtonsoft.Json@13.0.%2A", Evidence: occs("ProjA/ProjA.csproj")},
+		{Name: "Serilog", Version: "[3.0.0,4.0.0)", PackageURL: "pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29", Evidence: occs("ProjA/ProjA.fsproj")},
+
+		// A sibling project that was never restored keeps its declarations.
+		{Name: "Newtonsoft.Json", Version: "12.0.3", PackageURL: "pkg:nuget/Newtonsoft.Json@12.0.3", Evidence: occs("ProjB/ProjB.vbproj")},
+	}}
+
+	suppressResolvedDeclarations(bom)
+
+	assertPURLs(t, bom,
+		[]string{
+			"pkg:nuget/Newtonsoft.Json@13.0.3",
+			"pkg:nuget/Serilog@3.1.1",
+			"pkg:nuget/Newtonsoft.Json@12.0.3",
+		},
+		[]string{
+			"pkg:nuget/Newtonsoft.Json@13.0.%2A",
+			"pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29",
+		},
+	)
+}
+
 // TestSuppressResolvedDeclarations_PythonPyprojectAndPylock covers the other two
 // python files that carry declared ranges and resolved pins: a PEP 621
 // pyproject.toml (whose [project.dependencies] the pyprojecttoml extractor

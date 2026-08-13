@@ -591,6 +591,21 @@ checksum = "b4668fb0ea861c1df094127ac5f1da3409a82116a4ba74fca2e58ef927159bb3"
   "Serilog":{"type":"Direct","requested":"[3.0.0, 4.0.0)","resolved":"3.1.1","contentHash":"y=="}
 }}}`)
 
+	// A VB.NET project restored the other way: no packages.lock.json, but
+	// restore's project.assets.json in the project's obj/ directory. The
+	// resolved file sits one level *below* the manifest it resolves, which the
+	// suppression stage has to account for.
+	writeFile(t, filepath.Join(root, "vb", "App.vbproj"), `<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Dapper" Version="[2.0.0,3.0.0)" />
+  </ItemGroup>
+</Project>
+`)
+	writeFile(t, filepath.Join(root, "vb", "obj", "project.assets.json"), `{"version":3,
+  "targets":{"net8.0":{"Dapper/2.1.35":{"type":"package"}}},
+  "libraries":{"Dapper/2.1.35":{"type":"package"}}}`)
+
 	// Python project: a constraint floor and a bare requirement, both pinned by
 	// the lock. sphinx is declared in a docs requirements file the lock does not
 	// resolve, so it must survive.
@@ -636,6 +651,8 @@ source = { registry = "https://pypi.org/simple" }
 		"pkg:cargo/libc@0.2.147",
 		"pkg:nuget/Newtonsoft.Json@13.0.1",
 		"pkg:nuget/Serilog@3.1.1",
+		// Resolved by project.assets.json in the project's obj/ directory.
+		"pkg:nuget/Dapper@2.1.35",
 		"pkg:pypi/requests@2.32.3",
 		"pkg:pypi/urllib3@2.2.3",
 		// Declared where no lock resolves it: the only record of this dependency.
@@ -650,6 +667,8 @@ source = { registry = "https://pypi.org/simple" }
 		"pkg:cargo/libc@0.2",
 		"pkg:nuget/Newtonsoft.Json@13.0.%2A",
 		"pkg:nuget/Serilog@%5B3.0.0%2C4.0.0%29",
+		// The .vbproj range its obj/project.assets.json resolved.
+		"pkg:nuget/Dapper@%5B2.0.0%2C3.0.0%29",
 		"pkg:pypi/requests@2.0",
 		"pkg:pypi/urllib3",
 	} {

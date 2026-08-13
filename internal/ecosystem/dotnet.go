@@ -19,16 +19,29 @@ import (
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/nugetcpm"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/packagesconfig"
 	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/packageslockjson"
+	"github.com/google/osv-scalibr/extractor/filesystem/language/dotnet/projectassetsjson"
 
 	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
 
+// dotnet/csproj reads all three MSBuild project flavours — .csproj (C#),
+// .vbproj (VB.NET) and .fsproj (F#) — so all three are detection markers.
+//
+// project.assets.json is restore's resolved output. It is enabled for extraction
+// and treated as a lock by the declared-range stage, which knows to look one
+// directory up for the project file it resolves (NuGet writes it into the
+// project's intermediate output directory, obj/ by default). It stays out of
+// InstalledPlugins: it is a build-time intermediate, not installed state — a
+// published app's installed record is its .deps.json.
 var dotnet = Ecosystem{
 	Name:             "dotnet",
 	Filenames:        []string{"packages.config", "packages.lock.json", "project.assets.json"},
-	FilenameSuffixes: []string{".csproj", ".deps.json"},
-	ScalibrPlugins:   []string{csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name, packageslockjson.Name, dotnetpe.Name},
+	FilenameSuffixes: []string{".csproj", ".vbproj", ".fsproj", ".deps.json"},
+	ScalibrPlugins: []string{
+		csproj.Name, depsjson.Name, nugetcpm.Name, packagesconfig.Name,
+		packageslockjson.Name, projectassetsjson.Name, dotnetpe.Name,
+	},
 	InstalledPlugins: []string{dotnetpe.Name},
 	HashParsers: []Parser{
 		{

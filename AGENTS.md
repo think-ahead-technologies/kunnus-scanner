@@ -179,7 +179,7 @@ reaches** — not by preference:
 | Ecosystem | Manifest → lock | Mechanism |
 |---|---|---|
 | cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
-| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
+| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json`, `obj/project.assets.json` | post scan, per path |
 | python | `*requirements*.txt`, `pyproject.toml` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml` | post scan, per path |
 
 - **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
@@ -204,6 +204,17 @@ reaches** — not by preference:
   unlocked project keeps its declarations, `docs/requirements.txt` keeps the
   sphinx its project's lock does not resolve, and a conditional dependency the
   resolver never saw survives with its range and its unknown-info markers.
+
+NuGet has two resolved files. `packages.lock.json` is opt-in and sits beside the
+project file; `project.assets.json` is restore's own output and always exists
+after a restore, but NuGet writes it into the project's intermediate output
+directory (`obj/` unless `BaseIntermediateOutputPath` says otherwise) — one level
+*below* the manifest it resolves. `declaredRule.lockDirSpeaksForParent` carries
+that one fact, so a lock found in `obj/` also covers the directory above it.
+A project using a custom output path simply gets no suppression, which lists a
+dependency twice rather than losing one. Note the file is usually absent from a
+source checkout: `.gitignore` covers `obj/` and repo scans honour gitignore, so
+this mostly bites when scanning a built tree.
 
 Python has two declaring extractors, not one: `python/requirements` over any
 `*requirements*.txt` and `python/pyprojecttoml` over the PEP 621
