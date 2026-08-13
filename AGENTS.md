@@ -179,7 +179,7 @@ reaches** — not by preference:
 | Ecosystem | Manifest → lock | Mechanism |
 |---|---|---|
 | cargo | `Cargo.toml` → `Cargo.lock` | plan time: `rust/cargotoml` never enabled |
-| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json`, `obj/project.assets.json` | post scan, per path |
+| dotnet | `*.csproj`/`*.vbproj`/`*.fsproj`, `Directory.{Packages,Build}.props` → `packages.lock.json` | post scan, per path |
 | python | `*requirements*.txt`, `pyproject.toml` → `uv.lock`, `poetry.lock`, `pdm.lock`, `Pipfile.lock`, `pylock.toml` | post scan, per path |
 
 - **Plan time** (`ecosystem.Ecosystem.Supersedes`, evaluated in `Survey`'s single
@@ -205,16 +205,29 @@ reaches** — not by preference:
   sphinx its project's lock does not resolve, and a conditional dependency the
   resolver never saw survives with its range and its unknown-info markers.
 
-NuGet has two resolved files. `packages.lock.json` is opt-in and sits beside the
-project file; `project.assets.json` is restore's own output and always exists
-after a restore, but NuGet writes it into the project's intermediate output
-directory (`obj/` unless `BaseIntermediateOutputPath` says otherwise) — one level
-*below* the manifest it resolves. `declaredRule.lockDirSpeaksForParent` carries
-that one fact, so a lock found in `obj/` also covers the directory above it.
-A project using a custom output path simply gets no suppression, which lists a
-dependency twice rather than losing one. Note the file is usually absent from a
-source checkout: `.gitignore` covers `obj/` and repo scans honour gitignore, so
-this mostly bites when scanning a built tree.
+NuGet has a second resolved file, `project.assets.json` — restore's own output,
+which always exists after a restore. `dotnet/projectassetsjson` is deliberately
+**not** enabled for it: alongside the resolved pins in `libraries`/`targets`, the
+extractor emits one package per entry of each package's `dependencies` map, using
+the *declared range* as the version, so a built tree reports
+`pkg:nuget/NETStandard.Library@%5B1.6.1%5D` beside the resolved `2.0.3`. That is
+the phantom this whole section exists to remove, and the suppression stage cannot
+reach it: both twins carry the same `project.assets.json` location, which is on
+the lock side of the rule. The dependency-map entries are redundant upstream —
+every package in the closure already has a `libraries` entry at its resolved
+version — so the fix belongs in scalibr. The cost of leaving it off is narrow:
+a restored-but-not-published tree with no `packages.lock.json` yields only its
+projects' direct declarations, since nothing else names the transitive closure
+(a published app's `.deps.json` still gives it).
+
+The wiring for turning it back on is in place. `project.assets.json` stays a
+detection marker and a `locks` entry, and NuGet writes the file into the
+project's intermediate output directory (`obj/` unless
+`BaseIntermediateOutputPath` says otherwise) — one level *below* the manifest it
+resolves — which `declaredRule.lockDirSpeaksForParent` carries, so a lock found
+in `obj/` also covers the directory above it. A project using a custom output
+path simply gets no suppression, which lists a dependency twice rather than
+losing one.
 
 Python has two declaring extractors, not one: `python/requirements` over any
 `*requirements*.txt` and `python/pyprojecttoml` over the PEP 621

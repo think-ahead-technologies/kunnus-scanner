@@ -58,6 +58,10 @@ var declaredRules = []declaredRule{
 		// says otherwise — so the file that resolves ProjA/ProjA.csproj is
 		// ProjA/obj/project.assets.json. A custom output path simply means no
 		// suppression, which lists a dependency twice rather than losing one.
+		//
+		// dotnet/projectassetsjson is not currently enabled (see
+		// internal/ecosystem/dotnet.go), so no component carries such a location
+		// today; the rule is kept because it is what the file means.
 		lockDirSpeaksForParent: []string{"obj"},
 	},
 	{
