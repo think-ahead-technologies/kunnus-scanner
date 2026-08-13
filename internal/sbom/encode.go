@@ -18,33 +18,65 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
 
-// Encode converts the scan result into a CycloneDX 1.6 SBOM and writes JSON
-// to out. hashMap is an optional map of PURL → native digests (one or more
-// per package, typically populated from lockfiles); pass nil if unavailable.
-// licenseMap is an optional map of conventional PURL → raw licence strings
-// mined offline from lockfiles (e.g. composer.lock); pass nil if unavailable.
-// extras carries components scalibr did not produce — today, vendored C/C++
-// libraries surfaced by the kunnus walker. Their per-file hashes ride in
-// hashMap under the same PURL.
-// owned is the set of filesystem paths the scan root's OS package manager
-// records as owned; it drives binary-classifier overlap suppression. Pass nil
-// for scans with no OS package database (repo mode).
-// series identifies the document series for serial-number derivation; the
-// zero value yields a random serial per run (see bom.Series).
-// lifecycle is the generation context the mode declared (pre-build /
-// post-build); empty omits metadata.lifecycles.
-// author is the entity operating the scanner (CISA's SBOM Author element);
-// the zero value falls back to the kunnus creator identity.
-// graphMap is an optional map of purl → dependsOn purls mined offline from
-// lockfiles (Cargo.lock, composer.lock); pass nil if unavailable.
-func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series bom.Series, lifecycle bom.Lifecycle, author bom.Author, hashMap hashes.Map, licenseMap license.Map, graphMap graph.Map, extras []bom.ExtraComponent, owned ownership.Set) error {
-	componentType := comp.Type
+// Options carries everything Encode needs beyond the scan result itself. Every
+// field is optional: the zero Options produces a valid SBOM of the inventory
+// alone, and each field below documents what its absence costs.
+//
+// This is a struct rather than a parameter list because the set grows with
+// every source of SBOM evidence kunnus learns to mine, and a caller supplying
+// only two of them should not have to spell out the other seven as nil.
+type Options struct {
+	// Component identifies the root component the SBOM describes. An empty
+	// Type defaults to bom.ComponentTypeApplication.
+	Component bom.ComponentInfo
+
+	// Series identifies the document series for serial-number derivation. The
+	// zero value yields a random serial per run (see bom.Series).
+	Series bom.Series
+
+	// Lifecycle is the generation context the mode declared (pre-build /
+	// post-build). Empty omits metadata.lifecycles.
+	Lifecycle bom.Lifecycle
+
+	// Author is the entity operating the scanner (CISA's SBOM Author element).
+	// The zero value falls back to the kunnus creator identity.
+	Author bom.Author
+
+	// Hashes maps PURL → native digests (one or more per package, typically
+	// mined from lockfiles). nil when no digest source ran.
+	Hashes hashes.Map
+
+	// Licenses maps conventional PURL → raw licence strings mined offline from
+	// lockfiles (e.g. composer.lock). nil when no licence source ran; the
+	// enricher path is unaffected either way.
+	Licenses license.Map
+
+	// Graph maps purl → dependsOn purls mined offline from lockfiles
+	// (Cargo.lock, composer.lock, …). nil leaves the dependency graph at the
+	// root's presence claims alone.
+	Graph graph.Map
+
+	// Extras carries components scalibr did not produce — today, vendored
+	// C/C++ libraries surfaced by the kunnus walker. Their per-file hashes ride
+	// in Hashes under the same PURL.
+	Extras []bom.ExtraComponent
+
+	// OwnedFiles is the set of filesystem paths the scan root's OS package
+	// manager records as owned; it drives binary-classifier overlap
+	// suppression. nil for scans with no OS package database (repo mode).
+	OwnedFiles ownership.Set
+}
+
+// Encode converts the scan result into a CycloneDX 1.6 SBOM and writes JSON to
+// out. See Options for the evidence it can fold in.
+func Encode(out io.Writer, result *scan.Result, opts Options) error {
+	componentType := opts.Component.Type
 	if componentType == "" {
 		componentType = bom.ComponentTypeApplication
 	}
 	cfg := converter.CDXConfig{
-		ComponentName:    comp.Name,
-		ComponentVersion: comp.Version,
+		ComponentName:    opts.Component.Name,
+		ComponentVersion: opts.Component.Version,
 		ComponentType:    componentType,
 		Authors:          []string{"kunnus-" + version.Version},
 	}
@@ -83,7 +115,7 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// within their own PURL) and before every later stage: drop binary-classifier
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
-	suppressOSManagedBinaries(cdxBom, owned)
+	suppressOSManagedBinaries(cdxBom, opts.OwnedFiles)
 	// Same placement and reason as the stage above, for the other double-count a
 	// pair of extractors can produce: a dependency declared as a range in a
 	// manifest and pinned by a lockfile next to it. Dedup cannot collapse those
@@ -91,22 +123,22 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// here — before CPEs are synthesized for a version that is not one, and
 	// before the dep graph could reference it.
 	suppressResolvedDeclarations(cdxBom)
-	if err := enrichCDXMetadata(cdxBom, series, lifecycle, author); err != nil {
+	if err := enrichCDXMetadata(cdxBom, opts.Series, opts.Lifecycle, opts.Author); err != nil {
 		return fmt.Errorf("failed to derive serial number: %w", err)
 	}
 	enrichCDXComponents(cdxBom, result.Inventory)
-	injectLicensesCDX(cdxBom, result.Inventory, licenseMap)
+	injectLicensesCDX(cdxBom, result.Inventory, opts.Licenses)
 	injectCPEsCDX(cdxBom, result.Inventory)
 	// [enforced] Extras must be appended before injectHashesCDX so the hash
 	// injector sees them in its PURL index, and before injectDepGraphCDX so their
 	// BOMRefs participate in the dep graph.
-	appendExtraComponents(cdxBom, extras)
-	injectHashesCDX(cdxBom, hashMap)
+	appendExtraComponents(cdxBom, opts.Extras)
+	injectHashesCDX(cdxBom, opts.Hashes)
 	// After injectHashesCDX (its already-hashed guard must see the lockfile
 	// digests) and before normalizePURLsCDX (it joins on the original purl
 	// strings, like every inventory-keyed stage).
 	injectClassifierHashesCDX(cdxBom, result.Inventory)
-	injectDepGraphCDX(cdxBom, graphMap)
+	injectDepGraphCDX(cdxBom, opts.Graph)
 	normalizePURLsCDX(cdxBom)
 	// [enforced] Last: CISA's "explicitly identify unknown information" sweep
 	// judges the final state of every component, so every stage that can still

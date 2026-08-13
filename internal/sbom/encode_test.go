@@ -14,7 +14,9 @@ import (
 	"github.com/opencontainers/go-digest"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
+	"github.com/think-ahead/kunnus-scanner/internal/graph"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
+	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
@@ -34,7 +36,7 @@ func sampleResult() *scan.Result {
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{Name: "x", Type: "application"}}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -55,11 +57,11 @@ func TestEncode_HasCPE(t *testing.T) {
 
 func TestEncode_CycloneDX(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, sampleResult(), bom.ComponentInfo{
+	err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{
 		Name:    "my-os",
 		Version: "22.04",
 		Type:    "operating-system",
-	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil)
+	}})
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -133,8 +135,10 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	// metadata.lifecycles: the mode declares the phase (pre-build for source
 	// scans, post-build for built-artifact scans) and Encode records it.
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Lifecycle: bom.LifecyclePreBuild,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -154,8 +158,7 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 
 func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{Name: "x", Type: "application"}}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	if strings.Contains(buf.String(), "lifecycles") {
@@ -195,7 +198,7 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, result, Options{Component: bom.ComponentInfo{Name: "img", Type: "container"}}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -261,7 +264,11 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{
+		Component: bom.ComponentInfo{Name: "repo", Type: "application"},
+		Hashes:    hashMap,
+		Extras:    extras,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -318,8 +325,7 @@ func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
 	// No --author given: the document keeps the kunnus identity as SBOM
 	// author (BSI sbom_creator stays satisfied out of the box).
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{Name: "x", Type: "application"}}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -346,8 +352,7 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	// BOM).
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{Name: "x", Type: "application"}, Author: author}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -375,8 +380,7 @@ func TestEncode_ListsKunnusAsTool(t *testing.T) {
 	// explicit --author must not displace it.
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{Component: bom.ComponentInfo{Name: "x", Type: "application"}, Author: author}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -423,7 +427,11 @@ func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
+	if err := Encode(&buf, sampleResult(), Options{
+		Component: bom.ComponentInfo{Name: "repo", Type: "application"},
+		Hashes:    hashMap,
+		Extras:    extras,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -451,4 +459,78 @@ func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
 			t.Errorf("kunnus:unknown:%s set on testify, which has the field", field)
 		}
 	}
+}
+
+// Options.Graph and Options.OwnedFiles are the two fields no other Encode test
+// sets, so nothing but the compiler checked that they reach injectDepGraphCDX
+// and suppressOSManagedBinaries respectively. Both are wired straight into a
+// stage, and a mis-wiring would produce a valid-looking SBOM that silently
+// dropped every mined edge or every ownership-based suppression — so drive them
+// through the real encode here.
+func TestEncode_GraphAndOwnedFilesReachTheirStages(t *testing.T) {
+	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{
+		{Name: "serde", Version: "1.0.0", PURLType: "cargo", Plugins: []string{"rust/cargolock"}},
+		{Name: "serde_derive", Version: "1.0.0", PURLType: "cargo", Plugins: []string{"rust/cargolock"}},
+		// An OS package and the binary-classifier twin of the file it owns.
+		{Name: "xz-utils", Version: "5.8.1-1", PURLType: "deb", Plugins: []string{"os/dpkg"}},
+		{Name: "xz", Version: "5.8.1", PURLType: "generic", Plugins: []string{"kunnus/binclass"},
+			Location: extractor.LocationFromPath("usr/bin/xz")},
+	}}}
+
+	edges := graph.Map{}
+	edges.Add("pkg:cargo/serde@1.0.0", "pkg:cargo/serde_derive@1.0.0")
+
+	var buf bytes.Buffer
+	if err := Encode(&buf, result, Options{
+		Component:  bom.ComponentInfo{Name: "app", Type: "application"},
+		Graph:      edges,
+		OwnedFiles: ownership.Set{"usr/bin/xz": {}},
+	}); err != nil {
+		t.Fatalf("Encode: %v", err)
+	}
+
+	var doc struct {
+		Components []struct {
+			BOMRef     string `json:"bom-ref"`
+			PackageURL string `json:"purl"`
+		} `json:"components"`
+		Dependencies []struct {
+			Ref       string   `json:"ref"`
+			DependsOn []string `json:"dependsOn"`
+		} `json:"dependencies"`
+	}
+	if err := json.Unmarshal(buf.Bytes(), &doc); err != nil {
+		t.Fatalf("unmarshal: %v", err)
+	}
+
+	// OwnedFiles reached the suppression stage: the pkg:generic twin of a file
+	// owned by xz-utils is gone, the authoritative deb package stays.
+	refByPURL := map[string]string{}
+	for _, c := range doc.Components {
+		refByPURL[c.PackageURL] = c.BOMRef
+	}
+	if _, ok := refByPURL["pkg:generic/xz@5.8.1"]; ok {
+		t.Errorf("OwnedFiles did not reach suppressOSManagedBinaries: the owned pkg:generic twin survived")
+	}
+	if _, ok := refByPURL["pkg:deb/xz-utils@5.8.1-1"]; !ok {
+		t.Errorf("the authoritative OS package was dropped; components: %+v", doc.Components)
+	}
+
+	// Graph reached the dep-graph stage: the mined edge is an entry on serde,
+	// not merely the root's presence claim.
+	from, to := refByPURL["pkg:cargo/serde@1.0.0"], refByPURL["pkg:cargo/serde_derive@1.0.0"]
+	if from == "" || to == "" {
+		t.Fatalf("cargo components missing; components: %+v", doc.Components)
+	}
+	for _, d := range doc.Dependencies {
+		if d.Ref != from {
+			continue
+		}
+		for _, on := range d.DependsOn {
+			if on == to {
+				return
+			}
+		}
+	}
+	t.Errorf("Graph did not reach injectDepGraphCDX: no %s -> %s edge in %+v", from, to, doc.Dependencies)
 }

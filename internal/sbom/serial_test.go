@@ -165,7 +165,7 @@ func TestEncode_SeriesSetsSerialAndTimestampVersion(t *testing.T) {
 
 	encode := func() map[string]any {
 		var buf bytes.Buffer
-		if err := Encode(&buf, sampleResult(), comp, series, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		if err := Encode(&buf, sampleResult(), Options{Component: comp, Series: series}); err != nil {
 			t.Fatalf("Encode: %v", err)
 		}
 		var doc map[string]any
@@ -202,7 +202,7 @@ func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 
 	encode := func() map[string]any {
 		var buf bytes.Buffer
-		if err := Encode(&buf, sampleResult(), comp, bom.Series{Mode: "repo"}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		if err := Encode(&buf, sampleResult(), Options{Component: comp, Series: bom.Series{Mode: "repo"}}); err != nil {
 			t.Fatalf("Encode: %v", err)
 		}
 		var doc map[string]any
@@ -230,8 +230,10 @@ func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 
 func TestEncode_InvalidExplicitSerialErrors(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{Mode: "repo", Serial: "not-a-uuid"}, "", bom.Author{}, nil, nil, nil, nil, nil)
+	err := Encode(&buf, sampleResult(), Options{
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Series:    bom.Series{Mode: "repo", Serial: "not-a-uuid"},
+	})
 	if err == nil {
 		t.Fatal("want error for invalid explicit serial")
 	}
