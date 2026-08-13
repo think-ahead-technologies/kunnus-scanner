@@ -252,7 +252,7 @@ func TestForFile_KnownAndUnknown(t *testing.T) {
 
 func TestPluginsFor_UnionedAndSorted(t *testing.T) {
 	got := PluginsFor([]string{"go", "cargo"})
-	want := []string{"go/binary", "go/gomod", "rust/cargoauditable", "rust/cargolock", "rust/cargotoml"}
+	want := []string{"go/binary", "go/gomod", "go/vendormodules", "rust/cargoauditable", "rust/cargolock", "rust/cargotoml"}
 	if !slices.Equal(got, want) {
 		t.Errorf("PluginsFor(go,cargo) = %v, want %v", got, want)
 	}

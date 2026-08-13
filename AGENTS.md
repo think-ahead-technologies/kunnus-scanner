@@ -228,6 +228,30 @@ the *locked* cargo crates — the plan-time rule declines to fire rather than lo
 the unlocked crate's data. Moving cargo onto the post-scan stage would fix that
 at the cost of running an extractor whose output is thrown away.
 
+## Vendored Go modules (the one carve-out in the walk skip list)
+
+`go/vendormodules` reads `vendor/modules.txt` — the module list a `go mod
+vendor` tree carries — which sits inside the one directory name every kunnus
+walk skips. `fswalk` blanket-skips `vendor` because npm, composer and bundler
+install trees live there too, and walking those means re-reporting every
+transitive dependency from its unpacked copy.
+
+The exception is granted per scan, only where the Go manifest is actually
+present: `mode/repo` asks `ecosystem.HasGoVendorTree` (a single stat of
+`vendor/modules.txt` at the root) and, when it fires, builds `DirsToSkip` with
+`fswalk.AbsoluteSkipPathsExcept(abs, []string{"vendor"})`. A Go vendor tree holds
+dependency source and licences but no foreign manifests, so walking it surfaces
+the vendored modules and nothing else; a PHP or Ruby `vendor/` is still skipped.
+The stat lives in `internal/ecosystem/golang.go`, beside the plugin name it
+enables (architecture rule #1), which keeps mode/repo free of filesystem reads of
+its own (rule #4).
+
+Note the narrowness of the original gap: `DirsToSkip` holds *absolute* paths, so
+only a root-level `vendor/` was ever skipped — a nested `sub/vendor/modules.txt`
+in a monorepo was always reachable. `vendor/modules.txt` is deliberately not a
+detection marker: the survey walk skips `vendor` by name at every depth, and the
+`go.mod` that produced the tree already flags the ecosystem.
+
 ## ModusToolbox ecosystem (native extractor, no scalibr plugin)
 
 Infineon ModusToolbox firmware (PSE84 / Cortex-M projects) declares each

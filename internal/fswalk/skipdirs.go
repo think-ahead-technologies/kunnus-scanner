@@ -4,6 +4,7 @@ package fswalk
 
 import (
 	"path/filepath"
+	"slices"
 	"strings"
 )
 
@@ -68,8 +69,24 @@ func SkipDirForVendoredSearch(name string) bool {
 // scalibr's ScanConfig.DirsToSkip wants absolute paths rooted under a scan
 // root, not bare names.
 func AbsoluteSkipPaths(scanRoot string) []string {
+	return AbsoluteSkipPathsExcept(scanRoot, nil)
+}
+
+// AbsoluteSkipPathsExcept is AbsoluteSkipPaths minus the named directories — for
+// a caller that must let a scan reach inside one of the blanket-skipped names
+// because the only manifest for an ecosystem lives there. Today's one caller is
+// mode/repo keeping a Go vendor tree walkable so scalibr's go/vendormodules can
+// read vendor/modules.txt.
+//
+// The exception is per name, not a reset: every other skip still applies, and
+// the excepted directory is only reachable at the scan root (DirsToSkip holds
+// absolute paths, so a nested vendor/ was never skipped by this list anyway).
+func AbsoluteSkipPathsExcept(scanRoot string, keep []string) []string {
 	out := make([]string, 0, len(skipDirNames))
 	for _, n := range skipDirNames {
+		if slices.Contains(keep, n) {
+			continue
+		}
 		out = append(out, filepath.Join(scanRoot, n))
 	}
 	return out

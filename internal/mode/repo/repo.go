@@ -48,7 +48,8 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 		return nil, fmt.Errorf("resolve path: %w", err)
 	}
 
-	ecosystems, hashMap, licenseMap, graphMap, superseded := ecosystem.Survey(scalibrfs.DirFS(abs))
+	rootFS := scalibrfs.DirFS(abs)
+	ecosystems, hashMap, licenseMap, graphMap, superseded := ecosystem.Survey(rootFS)
 
 	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
 	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor
@@ -110,15 +111,25 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	// licence enrichers, mirroring how mode/os wires in binclass.
 	plugins = append(plugins, nativeExtractors...)
 
+	// A vendored Go module tree keeps its module list in vendor/modules.txt, the
+	// one directory every walk otherwise skips. Where that manifest is present the
+	// skip is lifted so scalibr's go/vendormodules can read it; elsewhere vendor/
+	// stays skipped, keeping npm, composer and bundler install trees out of the
+	// walk as before.
+	var keepDirs []string
+	if ecosystem.HasGoVendorTree(rootFS) {
+		keepDirs = append(keepDirs, "vendor")
+	}
+
 	cfg := &scalibr.ScanConfig{
 		ScanRoots: []*scalibrfs.ScanRoot{{
-			FS:   scalibrfs.DirFS(abs),
+			FS:   rootFS,
 			Path: abs,
 		}},
 		Plugins:      plugins,
 		Capabilities: caps,
 		UseGitignore: true,
-		DirsToSkip:   fswalk.AbsoluteSkipPaths(abs),
+		DirsToSkip:   fswalk.AbsoluteSkipPathsExcept(abs, keepDirs),
 	}
 
 	return &mode.Plan{

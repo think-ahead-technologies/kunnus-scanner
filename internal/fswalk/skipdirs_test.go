@@ -5,6 +5,7 @@ package fswalk
 import (
 	"path/filepath"
 	"runtime"
+	"slices"
 	"testing"
 )
 
@@ -71,6 +72,41 @@ func TestSkipDirForVendoredSearch_StillSkipsBuildAndVCS(t *testing.T) {
 		if !SkipDirForVendoredSearch(name) {
 			t.Errorf("SkipDirForVendoredSearch(%q) = false; non-vendored skips must still apply", name)
 		}
+	}
+}
+
+// TestAbsoluteSkipPathsExcept_KeepsNamedDirs covers the carve-out a caller needs
+// when one of the blanket-skipped directories holds the only manifest for an
+// ecosystem — a Go vendor tree's vendor/modules.txt.
+func TestAbsoluteSkipPathsExcept_KeepsNamedDirs(t *testing.T) {
+	root := "/tmp/scan"
+	if runtime.GOOS == "windows" {
+		root = `C:\scan`
+	}
+	got := AbsoluteSkipPathsExcept(root, []string{"vendor"})
+
+	for _, p := range got {
+		if p == filepath.Join(root, "vendor") {
+			t.Errorf("AbsoluteSkipPathsExcept kept %q; the exception must remove it\ngot: %v", p, got)
+		}
+	}
+	// Every other skip must survive: the exception is one name, not a reset.
+	want := filepath.Join(root, "node_modules")
+	if !slices.Contains(got, want) {
+		t.Errorf("AbsoluteSkipPathsExcept(%q) missing %q\ngot: %v", root, want, got)
+	}
+	if len(got) != len(AbsoluteSkipPaths(root))-1 {
+		t.Errorf("got %d paths, want exactly one fewer than the full set (%d)",
+			len(got), len(AbsoluteSkipPaths(root)))
+	}
+}
+
+// TestAbsoluteSkipPathsExcept_NoExceptionsMatchesFullSet pins the degenerate
+// case, since AbsoluteSkipPaths is defined in terms of this function.
+func TestAbsoluteSkipPathsExcept_NoExceptionsMatchesFullSet(t *testing.T) {
+	root := "/tmp/scan"
+	if !slices.Equal(AbsoluteSkipPathsExcept(root, nil), AbsoluteSkipPaths(root)) {
+		t.Error("AbsoluteSkipPathsExcept(root, nil) must equal AbsoluteSkipPaths(root)")
 	}
 }
 

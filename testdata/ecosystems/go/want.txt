@@ -1,3 +1,30 @@
-# go — sourced from the require directive in go.mod (go.sum supplies the hash).
+# go — two files, two extractors.
+#
+#   go.mod              the require directive (go.sum supplies the hash)
+#   vendor/modules.txt  the vendored module set (go/vendormodules)
+#
+# Fixture provenance: vendor/modules.txt is the first four module blocks of
+# containerd/containerd's vendor/modules.txt at
+# e01c004cc6edaf1c671d91dc303ec1e302373d95 (Apache-2.0). Real modules.txt files
+# run 40-95 KB; each module block is independent, so a head slice cut at a
+# module boundary is a valid file — the same treatment the kernel fixture gives
+# its vmlinuz. The four modules are deliberately the head of a real file rather
+# than the sibling go.mod's own dependency: the extractor reads modules.txt and
+# nothing else, and the slice covers the version shapes that matter (a plain
+# semver, a pseudo-version, and non-github module hosts).
+#
+# This fixture also exercises the vendor walk carve-out: fswalk skips "vendor"
+# on every walk, so a root-level Go vendor tree is only reachable because
+# mode/repo keeps it out of DirsToSkip when vendor/modules.txt is present.
 purl pkg:golang/github.com/stretchr/testify@1.8.0
 cpe  cpe:2.3:a:stretchr:testify:1.8.0:*:*:*:*:*:*:*
+
+# go/vendormodules — the vendored set, version taken from the module header
+# with go's "v" prefix dropped, as scalibr normalises it. Note the case: the
+# purl spec lowercases the golang namespace, so the module paths
+# "github.com/AdaLogics/..." and "github.com/Microsoft/..." are emitted
+# lowercased even though Go treats them as case-sensitive.
+purl pkg:golang/cyphar.com/go-pathrs@0.2.4
+purl pkg:golang/dario.cat/mergo@1.0.2
+purl pkg:golang/github.com/adalogics/go-fuzz-headers@0.0.0-20240806141605-e8a1dd7889d6
+purl pkg:golang/github.com/microsoft/go-winio@0.6.3-0.20251027160822-ad3df93bed29
