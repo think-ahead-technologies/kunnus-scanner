@@ -5,6 +5,7 @@ package osfamily
 import (
 	"bufio"
 	"io/fs"
+	"log/slog"
 	"regexp"
 	"strings"
 )
@@ -126,8 +127,18 @@ func parseOSReleaseIDs(fsys fs.FS) []string {
 	return ids
 }
 
+// maxOSReleaseLineBytes caps one os-release line. bufio.Scanner's 64 KiB
+// default is the wrong ceiling to hit silently here: a longer line ends the
+// parse, and an ID below it goes unread — which both callers read as "this root
+// declares no distro", the same answer a distroless image gives.
+const maxOSReleaseLineBytes = 1 << 20
+
 // parseOSRelease parses etc/os-release from fsys into its key/value pairs, with
 // surrounding quotes stripped from values. Returns nil when the file is absent.
+// A line past maxOSReleaseLineBytes ends the parse: the pairs read so far are
+// still returned (partial detection beats none), and the truncation is logged
+// rather than passed off as a complete read — neither caller has an error slot,
+// and the path is fixed, so nothing is lost by reporting it here.
 func parseOSRelease(fsys fs.FS) map[string]string {
 	f, err := fsys.Open("etc/os-release")
 	if err != nil {
@@ -137,6 +148,12 @@ func parseOSRelease(fsys fs.FS) map[string]string {
 
 	out := make(map[string]string)
 	scanner := bufio.NewScanner(f)
+	scanner.Buffer(make([]byte, 0, 64*1024), maxOSReleaseLineBytes)
+	defer func() {
+		if err := scanner.Err(); err != nil {
+			slog.Warn("etc/os-release truncated; distro detection may be incomplete", "err", err)
+		}
+	}()
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

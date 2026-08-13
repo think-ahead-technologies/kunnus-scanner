@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"log/slog"
 	"path"
 	"strings"
 
@@ -104,9 +105,16 @@ type pkgSpec struct {
 // vendored library and returns it as a component, or nil when no name is
 // declared. Only name and version are read; the rest (author, sentence,
 // architectures, depends) is either display metadata or deliberately skipped.
+//
+// The scanner's token size matches the whole-file bound rather than taking
+// bufio's 64 KiB default: the fields are unordered, so a long "paragraph" value
+// above version would otherwise end the parse and leave the library silently
+// versionless. Sizing the two bounds together means no line inside an
+// acceptable file can be too long to read.
 func parseLibraryProperties(r io.Reader) *pkgSpec {
 	var spec pkgSpec
 	sc := bufio.NewScanner(io.LimitReader(r, maxFileBytes))
+	sc.Buffer(make([]byte, 0, 4096), maxFileBytes)
 	for sc.Scan() {
 		line := strings.TrimSpace(sc.Text())
 		if line == "" || strings.HasPrefix(line, "#") {
@@ -122,6 +130,11 @@ func parseLibraryProperties(r io.Reader) *pkgSpec {
 		case "version":
 			spec.version = strings.TrimSpace(value)
 		}
+	}
+	// No line inside an acceptable file can overrun the buffer, so this is a
+	// read error rather than a truncation — the spec is partial either way.
+	if err := sc.Err(); err != nil {
+		slog.Warn("arduino library.properties read failed; metadata may be incomplete", "err", err)
 	}
 	if spec.name == "" {
 		return nil

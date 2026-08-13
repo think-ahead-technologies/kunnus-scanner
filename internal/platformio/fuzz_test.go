@@ -26,7 +26,8 @@ func FuzzParseINI(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data string) {
-		for _, e := range parseINI(strings.NewReader(data)) {
+		entries, _ := parseINI(strings.NewReader(data))
+		for _, e := range entries {
 			if strings.TrimSpace(e) == "" {
 				t.Fatalf("parseINI(%q) returned blank entry", data)
 			}

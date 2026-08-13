@@ -4,6 +4,7 @@ package ecosystem
 
 import (
 	"encoding/base64"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -124,5 +125,21 @@ github.com/ok/pkg v0.1.0 ` + realisticH1 + `
 	got, _ := parseGoSum(fixtureReader(t, "go.sum", content))
 	if _, ok := got["pkg:golang/github.com/ok/pkg@0.1.0"]; !ok {
 		t.Error("valid line lost when surrounded by garbage")
+	}
+}
+
+// A go.sum line past bufio.Scanner's 64 KiB default token size must not end the
+// scan: every module hash after it would be lost, and the digests simply go
+// missing from the SBOM with no error anywhere.
+func TestParseGoSum_LongLineDoesNotTruncate(t *testing.T) {
+	long := strings.Repeat("x", 100*1024)
+	got, err := parseGoSum(strings.NewReader(
+		"example.com/" + long + " v1.0.0 h1:bogus\n" +
+			"github.com/google/uuid v1.6.0 h1:NIvaJDMOsjHA8n1jAhLSgzrAzy1Hgr+hNrb57e+94F0=\n"))
+	if err != nil {
+		t.Fatalf("parseGoSum: %v", err)
+	}
+	if _, ok := got["pkg:golang/github.com/google/uuid@1.6.0"]; !ok {
+		t.Errorf("hash after an over-long line was dropped: %v", got)
 	}
 }

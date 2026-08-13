@@ -3,8 +3,11 @@
 package debiancopyright
 
 import (
+	"bytes"
 	"context"
+	"log/slog"
 	"reflect"
+	"strings"
 	"testing"
 	"testing/fstest"
 
@@ -176,5 +179,52 @@ func TestEnrich_KeepsExistingAndMissingFileSafe(t *testing.T) {
 	enrich(t, fstest.MapFS{}, pkg2)
 	if pkg2.Licenses != nil {
 		t.Errorf("Licenses = %v, want nil when copyright is absent", pkg2.Licenses)
+	}
+}
+
+// A copyright-file line past bufio.Scanner's 64 KiB default token size must not
+// end the DEP-5 scan: the License fields below it would go unread, and the
+// package silently falls through to the probabilistic classifier (or to no
+// licence at all) despite declaring one in machine-readable form.
+func TestParseDEP5_LongLineDoesNotTruncate(t *testing.T) {
+	data := []byte("Format: https://www.debian.org/doc/packaging-manuals/copyright-format/1.0/\n" +
+		"Comment: " + strings.Repeat("x", 100*1024) + "\n" +
+		"\nFiles: *\nLicense: GPL-2\n")
+
+	got := parseDEP5(data)
+
+	if want := []string{"GPL-2.0-only"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("parseDEP5 = %v, want %v — fields after an over-long line were dropped", got, want)
+	}
+}
+
+// captureSlog installs a buffer-backed slog.Default for one test and returns
+// the buffer plus a restore func.
+func captureSlog(t *testing.T) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	return buf, func() { slog.SetDefault(prev) }
+}
+
+// Past the token cap the DEP-5 scan stops. The licences read so far are kept,
+// but the stop must be reported: silently, a truncated copyright is
+// indistinguishable from one that declared nothing, and the package quietly
+// falls through to the probabilistic classifier.
+func TestParseDEP5_TruncationIsLogged(t *testing.T) {
+	data := []byte("Files: *\nLicense: GPL-2\n" +
+		"Comment: " + strings.Repeat("x", (1<<20)+1) + "\n" +
+		"Files: src/*\nLicense: MIT\n")
+	logBuf, restore := captureSlog(t)
+	defer restore()
+
+	got := parseDEP5(data)
+
+	if want := []string{"GPL-2.0-only"}; !reflect.DeepEqual(got, want) {
+		t.Errorf("parseDEP5 = %v, want the licences read before truncation %v", got, want)
+	}
+	if !strings.Contains(logBuf.String(), "truncated") {
+		t.Errorf("expected a truncation warning, got %q", logBuf.String())
 	}
 }
