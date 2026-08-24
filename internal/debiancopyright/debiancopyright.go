@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"context"
 	"io"
+	"log/slog"
 	"regexp"
 	"strings"
 
@@ -175,6 +176,13 @@ func parseDEP5(data []byte) []string {
 		}
 		seen[id] = true
 		out = append(out, id)
+	}
+	// A line past the token cap ends the scan. Any License field below it goes
+	// unread and licensesFromCopyright falls through to the probabilistic
+	// classifier, which looks identical to a copyright that declared nothing —
+	// so record that the structured read was cut short.
+	if err := sc.Err(); err != nil {
+		slog.Warn("debian copyright truncated; declared licences may be missing", "err", err)
 	}
 	return out
 }

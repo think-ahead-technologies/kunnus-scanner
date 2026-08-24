@@ -63,6 +63,7 @@ func HasGoVendorTree(fsys fs.FS) bool {
 func parseGoSum(r io.Reader) (hashes.Map, error) {
 	out := make(hashes.Map)
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	for scanner.Scan() {
 		line := strings.TrimSpace(scanner.Text())
 		if line == "" || strings.HasPrefix(line, "#") {

@@ -6,6 +6,7 @@ import (
 	"bufio"
 	"context"
 	"io"
+	"log/slog"
 	"net/url"
 	"path"
 	"strings"
@@ -67,7 +68,11 @@ func (*Extractor) FileRequired(api filesystem.FileAPI) bool {
 // (and no error): a single bad platformio.ini must not fail the scan.
 func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inventory.Inventory, error) {
 	var pkgs []*extractor.Package
-	for _, entry := range parseINI(input.Reader) {
+	entries, err := parseINI(input.Reader)
+	if err != nil {
+		slog.Warn("platformio config truncated; some lib_deps entries will be missing", "path", input.Path, "err", err)
+	}
+	for _, entry := range entries {
 		p := parseEntry(entry)
 		if p == nil {
 			continue
@@ -87,7 +92,11 @@ func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inven
 // continues a value on indented lines, so a "lib_deps =" key collects entries
 // until the next non-indented line; the single-line "lib_deps = x" form yields
 // its value directly. Comment lines (";", "#") are skipped.
-func parseINI(r io.Reader) []string {
+//
+// A line past maxLineBytes ends the scan. The entries read so far are still
+// returned — a partial dependency list beats none — and the error goes back to
+// Extract, which logs it rather than dropping the remaining sections silently.
+func parseINI(r io.Reader) ([]string, error) {
 	var entries []string
 	inLibDeps := false
 	sc := bufio.NewScanner(io.LimitReader(r, maxConfigBytes))
@@ -119,7 +128,7 @@ func parseINI(r io.Reader) []string {
 			entries = append(entries, v)
 		}
 	}
-	return entries
+	return entries, sc.Err()
 }
 
 // pkgSpec is one parsed lib_deps entry: the PURL type, the (possibly

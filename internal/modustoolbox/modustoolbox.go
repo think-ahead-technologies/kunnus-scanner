@@ -5,6 +5,7 @@ package modustoolbox
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"net/url"
 	"path"
 	"strings"
@@ -59,6 +60,11 @@ func (*Extractor) FileRequired(api filesystem.FileAPI) bool {
 // Extract reads the manifest's single line and, if it names a GitHub repo at a
 // git ref, emits one pkg:github package. A malformed or non-github manifest
 // yields no package (and no error): a single bad .mtb must not fail the scan.
+//
+// Running past maxLineBytes without finding a manifest line is the one case
+// that does return an error. It is not a malformed manifest but an unread one —
+// the file was cut off rather than understood — and scalibr surfaces that as a
+// per-plugin status instead of letting it read as "this .mtb declares nothing".
 func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inventory.Inventory, error) {
 	sc := bufio.NewScanner(input.Reader)
 	sc.Buffer(make([]byte, 0, 4096), maxLineBytes)
@@ -73,6 +79,9 @@ func (*Extractor) Extract(_ context.Context, input *filesystem.ScanInput) (inven
 			PURLType: "github",
 			Location: extractor.LocationFromPath(input.Path),
 		}}}, nil
+	}
+	if err := sc.Err(); err != nil {
+		return inventory.Inventory{}, fmt.Errorf("read %s: %w", input.Path, err)
 	}
 	return inventory.Inventory{}, nil
 }
