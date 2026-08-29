@@ -14,7 +14,6 @@ import (
 	"github.com/google/osv-scalibr/inventory"
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
-	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
 func TestInjectCPEsCDX_KernelModuleWithPURLGetsNoCPE(t *testing.T) {
@@ -46,7 +45,7 @@ func TestEncode_KernelModuleGetsPURLNoCPE(t *testing.T) {
 	// with a purl (CISA Component Identifiers requires at least one
 	// machine-processable identifier) and still no CPE; the kernel image keeps
 	// the inverse — CPE, no purl.
-	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{
+	inv := inventory.Inventory{Packages: []*extractor.Package{
 		{
 			Name:     "intel_oaktrail",
 			Version:  "0.4ac1",
@@ -60,11 +59,13 @@ func TestEncode_KernelModuleGetsPURLNoCPE(t *testing.T) {
 			Metadata: &vmlinuzmeta.Metadata{Name: "Linux Kernel", Version: "6.8.0-49-generic"},
 			Plugins:  []string{"os/kernel/vmlinuz"},
 		},
-	}}}
+	}}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "fw", Type: "firmware"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: inv,
+		Component: bom.ComponentInfo{Name: "fw", Type: "firmware"},
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {

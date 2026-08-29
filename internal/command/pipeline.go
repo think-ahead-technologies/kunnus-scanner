@@ -133,7 +133,18 @@ func encodeResult(cmd *cli.Command, result *scan.Result, component bom.Component
 		}
 	}()
 
-	if err := sbom.Encode(sink.w, result, component, series, lifecycle, author, h, lic, edges, extras, owned); err != nil {
+	if err := sbom.Encode(sink.w, sbom.Options{
+		Inventory: result.Inventory,
+		Component: component,
+		Series:    series,
+		Lifecycle: lifecycle,
+		Author:    author,
+		Hashes:    h,
+		Licenses:  lic,
+		Graph:     edges,
+		Extras:    extras,
+		Owned:     owned,
+	}); err != nil {
 		return fmt.Errorf("encode sbom: %w", err)
 	}
 	if err := sink.commit(); err != nil {

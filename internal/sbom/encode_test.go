@@ -15,26 +15,24 @@ import (
 
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
-	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
-func sampleResult() *scan.Result {
+func sampleInventory() inventory.Inventory {
 	pkg := &extractor.Package{
 		Name:     "github.com/stretchr/testify",
 		Version:  "1.8.0",
 		PURLType: "golang",
 		Plugins:  []string{"go/gomod"},
 	}
-	return &scan.Result{
-		Inventory: inventory.Inventory{
-			Packages: []*extractor.Package{pkg},
-		},
-	}
+	return inventory.Inventory{Packages: []*extractor.Package{pkg}}
 }
 
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -55,11 +53,14 @@ func TestEncode_HasCPE(t *testing.T) {
 
 func TestEncode_CycloneDX(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, sampleResult(), bom.ComponentInfo{
-		Name:    "my-os",
-		Version: "22.04",
-		Type:    "operating-system",
-	}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil)
+	err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{
+			Name:    "my-os",
+			Version: "22.04",
+			Type:    "operating-system",
+		},
+	})
 	if err != nil {
 		t.Fatalf("Encode CycloneDX: %v", err)
 	}
@@ -133,8 +134,11 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	// metadata.lifecycles: the mode declares the phase (pre-build for source
 	// scans, post-build for built-artifact scans) and Encode records it.
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, bom.LifecyclePreBuild, bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Lifecycle: bom.LifecyclePreBuild,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -154,8 +158,10 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 
 func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	if strings.Contains(buf.String(), "lifecycles") {
@@ -185,17 +191,18 @@ func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 			},
 		}
 	}
-	result := &scan.Result{
-		Inventory: inventory.Inventory{
-			Packages: []*extractor.Package{
-				mk(0, "sha256:aaaa", "ADD base /", "lib/apk/db/installed"),
-				mk(3, "sha256:bbbb", "RUN apk add musl", "usr/lib/libc.musl-x86_64.so.1"),
-			},
+	inv := inventory.Inventory{
+		Packages: []*extractor.Package{
+			mk(0, "sha256:aaaa", "ADD base /", "lib/apk/db/installed"),
+			mk(3, "sha256:bbbb", "RUN apk add musl", "usr/lib/libc.musl-x86_64.so.1"),
 		},
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, bom.ComponentInfo{Name: "img", Type: "container"}, bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: inv,
+		Component: bom.ComponentInfo{Name: "img", Type: "container"},
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -261,7 +268,12 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "repo", Type: "application"},
+		Hashes:    hashMap,
+		Extras:    extras,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
@@ -318,8 +330,10 @@ func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
 	// No --author given: the document keeps the kunnus identity as SBOM
 	// author (BSI sbom_creator stays satisfied out of the box).
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -346,8 +360,11 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	// BOM).
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Author:    author,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -375,8 +392,11 @@ func TestEncode_ListsKunnusAsTool(t *testing.T) {
 	// explicit --author must not displace it.
 	var buf bytes.Buffer
 	author := bom.Author{Name: "ACME GmbH", Email: "psirt@acme.example"}
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{}, "", author, nil, nil, nil, nil, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Author:    author,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc struct {
@@ -423,7 +443,12 @@ func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
 	}
 
 	var buf bytes.Buffer
-	if err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "repo", Type: "application"}, bom.Series{}, "", bom.Author{}, hashMap, nil, nil, extras, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "repo", Type: "application"},
+		Hashes:    hashMap,
+		Extras:    extras,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 
