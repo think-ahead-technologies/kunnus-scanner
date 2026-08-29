@@ -27,14 +27,14 @@ func TestSerialNamespacePinned(t *testing.T) {
 
 func TestDeriveSerial_DeterministicForSameSeries(t *testing.T) {
 	s := bom.Series{Mode: "repo", ID: "acme/widget", Version: "1.2.3"}
-	first, det, err := deriveSerial(s)
+	first, det, err := deriveSerial(s, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
 	if !det {
 		t.Error("identity-derived serial must report deterministic")
 	}
-	second, _, err := deriveSerial(s)
+	second, _, err := deriveSerial(s, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
@@ -58,7 +58,7 @@ func TestDeriveSerial_DeterministicForSameSeries(t *testing.T) {
 
 func TestDeriveSerial_KeyFieldsSplitSeries(t *testing.T) {
 	base := bom.Series{Mode: "repo", ID: "acme/widget", Version: "1.2.3"}
-	baseSerial, _, err := deriveSerial(base)
+	baseSerial, _, err := deriveSerial(base, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
@@ -69,7 +69,7 @@ func TestDeriveSerial_KeyFieldsSplitSeries(t *testing.T) {
 		"version": {Mode: "repo", ID: "acme/widget", Version: "1.2.4"},
 	}
 	for field, s := range variants {
-		got, _, err := deriveSerial(s)
+		got, _, err := deriveSerial(s, randomSerial)
 		if err != nil {
 			t.Fatalf("deriveSerial(%s variant): %v", field, err)
 		}
@@ -81,14 +81,14 @@ func TestDeriveSerial_KeyFieldsSplitSeries(t *testing.T) {
 
 func TestDeriveSerial_NoIdentityIsRandom(t *testing.T) {
 	s := bom.Series{Mode: "repo"}
-	first, det, err := deriveSerial(s)
+	first, det, err := deriveSerial(s, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
 	if det {
 		t.Error("serial without identity must not report deterministic")
 	}
-	second, _, err := deriveSerial(s)
+	second, _, err := deriveSerial(s, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
@@ -103,7 +103,7 @@ func TestDeriveSerial_ExplicitOverrideWins(t *testing.T) {
 		ID:     "acme/widget",
 		Serial: "b3c5bd21-1e46-4a44-9b62-8dcbcafb54b7",
 	}
-	got, det, err := deriveSerial(s)
+	got, det, err := deriveSerial(s, randomSerial)
 	if err != nil {
 		t.Fatalf("deriveSerial: %v", err)
 	}
@@ -165,7 +165,11 @@ func TestEncode_SeriesSetsSerialAndTimestampVersion(t *testing.T) {
 
 	encode := func() map[string]any {
 		var buf bytes.Buffer
-		if err := Encode(&buf, sampleResult(), comp, series, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		if err := Encode(&buf, Options{
+			Inventory: sampleInventory(),
+			Component: comp,
+			Series:    series,
+		}); err != nil {
 			t.Fatalf("Encode: %v", err)
 		}
 		var doc map[string]any
@@ -202,7 +206,11 @@ func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 
 	encode := func() map[string]any {
 		var buf bytes.Buffer
-		if err := Encode(&buf, sampleResult(), comp, bom.Series{Mode: "repo"}, "", bom.Author{}, nil, nil, nil, nil, nil); err != nil {
+		if err := Encode(&buf, Options{
+			Inventory: sampleInventory(),
+			Component: comp,
+			Series:    bom.Series{Mode: "repo"},
+		}); err != nil {
 			t.Fatalf("Encode: %v", err)
 		}
 		var doc map[string]any
@@ -230,8 +238,11 @@ func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 
 func TestEncode_InvalidExplicitSerialErrors(t *testing.T) {
 	var buf bytes.Buffer
-	err := Encode(&buf, sampleResult(), bom.ComponentInfo{Name: "x", Type: "application"},
-		bom.Series{Mode: "repo", Serial: "not-a-uuid"}, "", bom.Author{}, nil, nil, nil, nil, nil)
+	err := Encode(&buf, Options{
+		Inventory: sampleInventory(),
+		Component: bom.ComponentInfo{Name: "x", Type: "application"},
+		Series:    bom.Series{Mode: "repo", Serial: "not-a-uuid"},
+	})
 	if err == nil {
 		t.Fatal("want error for invalid explicit serial")
 	}
