@@ -1,6 +1,6 @@
 // ABOUTME: Drift guard: every Fuzz* target in the tree must be listed in the Makefile's FUZZ_TARGETS.
 // ABOUTME: A hand-maintained list silently stops covering new parsers; this is what catches that.
-package main
+package main_test
 
 import (
 	"os"
