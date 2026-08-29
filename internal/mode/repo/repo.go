@@ -55,7 +55,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor
 	// directories. Hashes merge directly into the same map so the SBOM injector
 	// picks them up without a second code path.
-	vendoredHits, vendoredHashes := vendored.Survey(abs)
+	vendoredHits, vendoredHashes := vendored.Survey(rootFS)
 	hashMap.Merge(vendoredHashes)
 	extras := make([]bom.ExtraComponent, 0, len(vendoredHits))
 	for _, hit := range vendoredHits {
@@ -63,7 +63,7 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 			PURL:   hit.PURL,
 			Name:   hit.Name,
 			Type:   bom.ComponentTypeLibrary,
-			BomRef: "vendored:" + filepath.ToSlash(hit.RelPath),
+			BomRef: "vendored:" + hit.RelPath,
 		})
 	}
 
