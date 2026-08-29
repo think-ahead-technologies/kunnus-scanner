@@ -50,9 +50,9 @@ type Options struct {
 	// container's OS). Their hashes ride in Hashes under the same PURL.
 	Extras []bom.ExtraComponent
 
-	// Owned is the set of OS-package-manager-owned paths driving binary
+	// OwnedFiles is the set of OS-package-manager-owned paths driving binary
 	// classifier overlap suppression. Nil for repo scans.
-	Owned ownership.Set
+	OwnedFiles ownership.Set
 
 	// Now supplies the wall clock, the encoder's only reading of the current
 	// time. Nil means time.Now.
