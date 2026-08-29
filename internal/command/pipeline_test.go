@@ -1,15 +1,12 @@
-// ABOUTME: Tests for the shared pipeline helpers: atomic output sinks and per-plugin failure detection.
-// ABOUTME: Covers commit/abort semantics for file output and the exit-code path for partial scan failures.
+// ABOUTME: Tests for the CLI-side pipeline helpers: atomic output sinks and the partial-failure error.
+// ABOUTME: The scan orchestration they used to wrap now lives in internal/app and is tested there.
 package command
 
 import (
 	"os"
 	"path/filepath"
-	"slices"
 	"strings"
 	"testing"
-
-	"github.com/google/osv-scalibr/plugin"
 )
 
 func TestOpenOutput_StdoutCommitIsNoop(t *testing.T) {
@@ -103,54 +100,6 @@ func TestOpenOutput_FileMissingParentDirErrors(t *testing.T) {
 	bad := filepath.Join(t.TempDir(), "does-not-exist", "sbom.json")
 	if _, err := openOutput(bad); err == nil {
 		t.Fatal("expected error for missing parent dir")
-	}
-}
-
-func TestFailedPlugins_FiltersByFailureReason(t *testing.T) {
-	cases := []struct {
-		name     string
-		statuses []*plugin.Status
-		want     []string
-	}{
-		{
-			name:     "empty",
-			statuses: nil,
-			want:     nil,
-		},
-		{
-			name: "all succeeded",
-			statuses: []*plugin.Status{
-				{Name: "go/gomod", Status: &plugin.ScanStatus{Status: plugin.ScanStatusSucceeded}},
-				{Name: "python/requirements", Status: &plugin.ScanStatus{Status: plugin.ScanStatusSucceeded}},
-			},
-			want: nil,
-		},
-		{
-			name: "one failed",
-			statuses: []*plugin.Status{
-				{Name: "go/gomod", Status: &plugin.ScanStatus{Status: plugin.ScanStatusSucceeded}},
-				{Name: "ruby/gemfilelock", Status: &plugin.ScanStatus{Status: plugin.ScanStatusFailed, FailureReason: "boom"}},
-			},
-			want: []string{"ruby/gemfilelock"},
-		},
-		{
-			name: "nil entries skipped",
-			statuses: []*plugin.Status{
-				nil,
-				{Name: "x"}, // nil Status
-				{Name: "y", Status: &plugin.ScanStatus{}}, // empty FailureReason
-				{Name: "z", Status: &plugin.ScanStatus{Status: plugin.ScanStatusFailed, FailureReason: "broken"}},
-			},
-			want: []string{"z"},
-		},
-	}
-	for _, c := range cases {
-		t.Run(c.name, func(t *testing.T) {
-			got := failedPlugins(c.statuses)
-			if !slices.Equal(got, c.want) {
-				t.Errorf("failedPlugins = %v, want %v", got, c.want)
-			}
-		})
 	}
 }
 

@@ -21,8 +21,15 @@ encoder; the scanner library does the extraction work.
 2. `internal/scan/` is the **only** package that calls a scalibr scan —
    `scalibr.New().Scan()` (filesystem) and `.ScanContainer()` (container image).
    Every other package operates on `scan.Result` instead.
-3. `internal/command/` is the **only** package that imports `urfave/cli/v3`.
-   Modes don't know they're being invoked from a CLI.
+3. `internal/command/` is the **only** package that imports `urfave/cli/v3`,
+   and it does nothing but translate: flags in, `app.Request` out, plus the
+   atomic output sink and the exit code. Modes don't know they're being
+   invoked from a CLI. The scan-and-encode use case itself is
+   `internal/app/`, which takes a plain `app.Request` — so it is invocable
+   from a test, or any future front end, with no `*cli.Command` in sight.
+   A request field the use case rejects comes back as a typed
+   `app.InvalidRequestError` naming that field; the CLI maps it to the flag
+   the value arrived on rather than matching on message text.
 4. Each `internal/mode/<x>/` package builds a `*scalibr.ScanConfig` from a path
    plus `mode.Overrides`. Its only I/O is calls into `detect`, `ecosystem`, or
    `osfamily` — no raw filesystem reads of its own.
@@ -31,11 +38,11 @@ encoder; the scanner library does the extraction work.
    `Plan` just takes an image reference instead of a filesystem path, opens the
    image (pulling it for a remote reference), and builds the union of every
    ecosystem and Linux OS-family plugin filtered to Linux capabilities. It
-   signals a container scan by setting `Plan.Image`; the shared `runScan` calls
+   signals a container scan by setting `Plan.Image`; `app.GenerateSBOM` calls
    `scan.RunContainer` when `Plan.Image` is non-nil and `scan.Run` otherwise, so
    all three subcommands are the same `runScan(ctx, cmd, mode, target, ov)`
    one-liner and `internal/scan` stays free of mode types (the dispatch lives in
-   `command`, which may know both). Plugin selection skips detection: the union
+   `app`, which may know both). Plugin selection skips detection: the union
    is enabled and scalibr's per-extractor `FileRequired` decides what the image
    matches.
    Digests that are only knowable after the scan ride on `Plan.PostScanHashes`,
@@ -47,7 +54,8 @@ encoder; the scanner library does the extraction work.
 
 | Package | Knows about | Does NOT know about |
 |---|---|---|
-| `command` | flags, modes, scan, sbom, upload | scalibr internals |
+| `command` | urfave/cli, flag→request translation, the output sink, exit codes | scan, sbom, scalibr internals |
+| `app` | the one use case: mode → scan → sbom; the clock and serial ports | urfave/cli, flags, output files |
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
@@ -66,17 +74,35 @@ encoder; the scanner library does the extraction work.
 | `cmake` | thin `filesystem.Extractor` shell over `cmakedecl` | grammar details (owned by cmakedecl), modes, CLI, encoding |
 | `ownership` | dpkg/apk/rpm/chisel database file-list parsing → set of OS-owned paths | scalibr, modes, CLI, binclass |
 | `scan` | scalibr (`Scan` + `ScanContainer`, with per-package layer tracing) | modes, CLI, encoding |
-| `sbom` | scalibr inventory + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
+| `sbom` | `sbom.Options` (a scalibr inventory, never a `scan.Result`) + converter, container layer attribution, binary/OS overlap suppression (by ownership + name), declared-range suppression (by manifest path + pinned name), binclass CPE templates | modes, CLI, scanning |
 | `license` | license identification → SPDX: normalize a declared string, or classify licence text (BSI §6.1) | CycloneDX, scalibr, modes, CLI |
 | `manifestlicense` | offline licence enricher over installed packages' own manifests; parsing delegated to `ecosystem` (keyed by scalibr extractor name) | CycloneDX, modes, CLI |
 | `debiancopyright` | offline licence enricher: DEP-5 / common-licenses / classifier over `usr/share/doc/<pkg>/copyright` | CycloneDX, modes, CLI, ecosystem registry |
 | `hashes` | shared `hashes.Map`/`Hash` types every hash-evidence source produces | scalibr, modes, CLI, encoding |
 | `apkchecksum` | recovers apk pull-checksums scalibr's apk extractor drops → `hashes.Map` | modes, CLI, encoding |
-| `vendored` | vendored C/C++ library-directory detection + per-file digests → `pkg:generic` components | scalibr, modes, CLI, encoding |
+| `vendored` | vendored C/C++ library-directory detection over an `fs.FS` + per-file digests → `pkg:generic` components | scalibr, modes, CLI, encoding, the host filesystem |
 | `fswalk` | the one list of directory names every walk skips, and the per-name exceptions a caller may carve out of it | everything else |
 | `pluginset` | sorted, deduplicated unions of scalibr plugin-name lists | everything else |
 | `bom` | boundary types between planner (mode) and encoder (sbom) | scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
+
+## Encoder inputs (why `sbom.Options`, not `scan.Result`)
+
+`sbom.Encode` takes one `Options` struct carrying the scalibr
+`inventory.Inventory` directly, rather than the `*scan.Result` it used to take
+as the first of eleven positional arguments. The encoder is an output adapter:
+having it import `internal/scan` made one adapter depend on another purely to
+reach a single field. Two ambient dependencies are ports on the same struct —
+`Options.Now` (the metadata stage's clock) and `Options.NewSerial` (the source
+for an identity-less document's serial). Both default to the real thing when
+nil, so a caller that ignores them gets the previous behaviour, and a test that
+sets them gets a reproducible document.
+
+Note what this does **not** do: `Options` still carries scalibr's inventory, and
+the `sbom` stages still read `*extractor.Package` and its metadata types. Owning
+a domain model and mapping scalibr into it is a separate, much larger change,
+worth doing when a second output format or a second scan engine actually
+arrives — not before.
 
 ## Licence pipeline
 
@@ -468,7 +494,7 @@ kunnus.tech), pinned by test — with the document `version` set to the
 generation timestamp in epoch seconds so series members stay strictly ordered
 without scanner state (the platform owns pretty revision numbers, at ingest).
 The identity is never invented: `--component-id`/`--component-version` flags
-(`bom.Series`, built in `command/runScan` from the *final* component values so
+(`bom.Series`, built in `app.GenerateSBOM` from the *final* component values so
 key and root component can't disagree), or container mode's mode-native
 identity (registry repo path + tag via `seriesIdentity`; tarballs get none).
 No identity → random serial, version 1, honest series-of-one. `--serial-number`
@@ -493,7 +519,7 @@ explicit about the distinction). `--author "Name <email>"` / `KUNNUS_AUTHOR`
 `metadata.authors` and `metadata.manufacturer` (CycloneDX 1.6: the org that
 created the BOM). Unset, both keep the kunnus creator identity so BSI
 `sbom_creator` stays satisfied out of the box — correct when think-ahead
-operates the scan, a placeholder otherwise, so `runScan` warns when the flag
+operates the scan, a placeholder otherwise, so `app.GenerateSBOM` warns when it
 is missing (making it required is a candidate for the next major version).
 Kunnus and SCALIBR are always recorded in `metadata.tools.components`
 regardless.
@@ -544,6 +570,14 @@ withholds data, so a marker always means unknown, never redacted.
 
 ## Things we deliberately did NOT build
 
+- **Ports as interfaces.** `app` calls `scan.Run`, `sbom.Encode` and
+  `upload.Do` as concrete package functions rather than through interfaces it
+  declares. Defining them would be mechanical, but the payoff is swapping
+  implementations, and the testing rule below (real fixtures, no mocks) means
+  we would not swap them. Revisit alongside the domain model, not before.
+- **A domain model of our own.** scalibr's `inventory.Inventory` is the
+  currency from `scan` through `sbom`. See *Encoder inputs* above for why an
+  anti-corruption layer waits for a second output format or scan engine.
 - Plugin registry / factory pattern — two modes don't justify it.
 - Config file support — flags only. Add YAML later if customers ask.
 - DI container — package-level functions are fine.
@@ -612,6 +646,12 @@ the fast/narrow ones:
   `osFamiliesWithoutFixture`) turns the suite red. Container scanning is proven
   here against a synthetic multi-layer image built in-memory with
   `go-containerregistry`, asserting per-layer attribution.
+- **Use-case tests** (`internal/app/*_test.go`). Drive `app.GenerateSBOM` with
+  a plain `app.Request` and the real repo mode over the shared fixture corpus —
+  no CLI, and no mocks: the extraction is only worth anything if the use case
+  actually runs without a `*cli.Command`, so the tests prove exactly that.
+  `Request.Now` / `Request.NewSerial` pin the two fields that would otherwise
+  drift between runs.
 - **Binary e2e** (`cmd/kunnus/*_test.go`). Build the real binary once, then
   drive subcommands with real flags: a kitchen-sink `sbom repo` over every
   ecosystem at once, `sbom os --target-os linux` per family, and `sbom
