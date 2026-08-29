@@ -16,18 +16,12 @@ import (
 // runScan builds the request for m from the parsed flags, runs the use case,
 // and writes the SBOM to the requested output.
 //
-// Output is written atomically: file targets stage to a sibling temp file that
-// is fsync'd and renamed only after generation succeeds. If the process is
-// killed or encoding fails mid-write, the final path either stays absent or
-// keeps its pre-existing contents.
-//
-// When the scan finishes but some plugins reported failures, the SBOM still
-// lands at the requested output and a non-nil error names the failed plugins
-// so the CLI exits non-zero. Callers that only care about partial success can
-// inspect this via errors.As(err, &partialScanError{}).
+// File output is atomic: a sibling temp file is fsync'd and renamed only once
+// generation succeeds, so a killed process leaves the final path absent or
+// untouched. A scan whose plugins partly failed still writes, and returns a
+// partialScanError so the CLI exits non-zero.
 func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, ov mode.Overrides) error {
-	// A malformed author must fail before the scan; the rest of the request is
-	// validated by the use case itself.
+	// The use case validates the rest of the request itself.
 	author, err := parseAuthor(cmd.String("author"))
 	if err != nil {
 		return fmt.Errorf("--author: %w", err)
@@ -56,8 +50,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 
 	res, err := app.GenerateSBOM(ctx, sink.w, req)
 	if err != nil {
-		// A rejected request names the field it came from; report it as the
-		// flag the user actually typed.
+		// Report a rejected field as the flag the user typed.
 		var invalid *app.InvalidRequestError
 		if errors.As(err, &invalid) {
 			if flag, ok := flagForRequestField[invalid.Field]; ok {

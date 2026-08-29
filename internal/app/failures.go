@@ -4,10 +4,9 @@ package app
 
 import "github.com/google/osv-scalibr/plugin"
 
-// failedPlugins returns the names of plugins whose ScanStatus carries a
-// non-empty FailureReason. scan.Run already logs these at WARN; this is the
-// caller-facing list, which the CLI turns into a non-zero exit so CI can tell
-// a clean scan from a degraded one.
+// failedPlugins names the plugins whose ScanStatus carries a FailureReason.
+// scan.Run already logs these at WARN; this is the caller-facing list, which
+// the CLI turns into a non-zero exit.
 func failedPlugins(statuses []*plugin.Status) []string {
 	var failed []string
 	for _, ps := range statuses {
