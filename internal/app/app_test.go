@@ -28,7 +28,7 @@ func npmFixture(t *testing.T) string {
 func decode(t *testing.T, req app.Request) (map[string]any, *app.Result) {
 	t.Helper()
 	var buf bytes.Buffer
-	res, err := app.GenerateSBOM(context.Background(), &buf, req)
+	res, err := app.New().GenerateSBOM(context.Background(), &buf, req)
 	if err != nil {
 		t.Fatalf("GenerateSBOM: %v", err)
 	}
@@ -113,7 +113,7 @@ func TestGenerateSBOM_AuthorReachesTheDocument(t *testing.T) {
 // scan is the expensive half.
 func TestGenerateSBOM_InvalidSerialFailsBeforeScanning(t *testing.T) {
 	var buf bytes.Buffer
-	_, err := app.GenerateSBOM(context.Background(), &buf, app.Request{
+	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{
 		Mode:         repomode.New(),
 		Target:       npmFixture(t),
 		SerialNumber: "not-a-uuid",
@@ -145,8 +145,8 @@ func TestGenerateSBOM_ExplicitSerialOverridesDerivation(t *testing.T) {
 }
 
 // The clock and serial source are Request fields, so a caller can pin the two
-// fields that would otherwise drift between runs.
-func TestGenerateSBOM_PortsArePinnable(t *testing.T) {
+// values that would otherwise drift between runs.
+func TestGenerateSBOM_ClockAndSerialArePinnable(t *testing.T) {
 	const fixed = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 
@@ -166,7 +166,7 @@ func TestGenerateSBOM_PortsArePinnable(t *testing.T) {
 
 func TestGenerateSBOM_PlanFailureIsReportedAgainstTheMode(t *testing.T) {
 	var buf bytes.Buffer
-	_, err := app.GenerateSBOM(context.Background(), &buf, app.Request{
+	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{
 		Mode:   repomode.New(),
 		Target: filepath.Join(t.TempDir(), "no-such-directory"),
 	})
@@ -180,7 +180,7 @@ func TestGenerateSBOM_PlanFailureIsReportedAgainstTheMode(t *testing.T) {
 
 func TestGenerateSBOM_RequiresAMode(t *testing.T) {
 	var buf bytes.Buffer
-	_, err := app.GenerateSBOM(context.Background(), &buf, app.Request{Target: "."})
+	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{Target: "."})
 	if err == nil {
 		t.Fatal("want an error when no mode is set on the request")
 	}
@@ -191,7 +191,7 @@ func TestGenerateSBOM_RequiresAMode(t *testing.T) {
 // error rather than an empty document.
 func TestGenerateSBOM_OverridesReachThePlanner(t *testing.T) {
 	var buf bytes.Buffer
-	_, err := app.GenerateSBOM(context.Background(), &buf, app.Request{
+	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{
 		Mode:      repomode.New(),
 		Target:    npmFixture(t),
 		Overrides: mode.Overrides{Ecosystems: []string{"cargo"}},
