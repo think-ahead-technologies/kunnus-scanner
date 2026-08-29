@@ -55,7 +55,7 @@ encoder; the scanner library does the extraction work.
 | Package | Knows about | Does NOT know about |
 |---|---|---|
 | `command` | urfave/cli, flag→request translation, the output sink, exit codes | scan, sbom, scalibr internals |
-| `app` | the one use case: mode → scan → sbom; the clock and serial ports | urfave/cli, flags, output files |
+| `app` | the one use case: mode → scan → sbom; the Scanner/Encoder ports it declares; the clock and serial ports | urfave/cli, flags, output files |
 | `mode` | detect, ecosystem, osfamily, scalibr plugin names + capabilities | encoding, uploading, CLI flags |
 | `mode/container` | image sources (registry/tarball/docker), the installed-state extractors + OS families, scalibr image opening | encoding, uploading, CLI flags |
 | `detect` | runtime.GOOS — host introspection only | scalibr, modes, scan-root inspection |
@@ -85,6 +85,32 @@ encoder; the scanner library does the extraction work.
 | `pluginset` | sorted, deduplicated unions of scalibr plugin-name lists | everything else |
 | `bom` | boundary types between planner (mode) and encoder (sbom) | scalibr, modes, CLI |
 | `upload` | http, file IO | everything else |
+
+## Driven ports
+
+`app.Service` binds the two things the use case needs from the outside, as
+interfaces `app` declares itself (`internal/app/ports.go`):
+
+| Port | Method(s) | Production adapter |
+|---|---|---|
+| `Scanner` | `Run`, `RunContainer` | `scan.Scanner` |
+| `Encoder` | `Encode` | `sbom.Encoder` |
+
+The zero `Service` uses the production adapters, so `app.Service{}` and
+`app.New()` behave identically; `internal/command` calls `app.New()` as the
+composition root. The two-method `Scanner` is deliberate: the choice between
+them keys off `Plan.Image`, and keeping that branch in `app` is what lets
+`internal/scan` stay free of mode types (rule 5).
+
+The output sink needs no port of its own — it is `io.Writer`, and
+`command`'s atomic temp-file-then-rename sink already satisfies it.
+`internal/upload` gets none either: nothing in `app` calls it, and an
+interface with no consumer in the core is decoration. Give it one when an
+upload use case actually lands in `app`.
+
+What this does **not** buy: `app` still imports `scan` and `sbom`, because
+`scan.Result` and `sbom.Options` appear in the port signatures. Inverting that
+needs core-owned types, which is the domain model below.
 
 ## Encoder inputs (why `sbom.Options`, not `scan.Result`)
 
@@ -570,11 +596,6 @@ withholds data, so a marker always means unknown, never redacted.
 
 ## Things we deliberately did NOT build
 
-- **Ports as interfaces.** `app` calls `scan.Run`, `sbom.Encode` and
-  `upload.Do` as concrete package functions rather than through interfaces it
-  declares. Defining them would be mechanical, but the payoff is swapping
-  implementations, and the testing rule below (real fixtures, no mocks) means
-  we would not swap them. Revisit alongside the domain model, not before.
 - **A domain model of our own.** scalibr's `inventory.Inventory` is the
   currency from `scan` through `sbom`. See *Encoder inputs* above for why an
   anti-corruption layer waits for a second output format or scan engine.
@@ -646,12 +667,17 @@ the fast/narrow ones:
   `osFamiliesWithoutFixture`) turns the suite red. Container scanning is proven
   here against a synthetic multi-layer image built in-memory with
   `go-containerregistry`, asserting per-layer attribution.
-- **Use-case tests** (`internal/app/*_test.go`). Drive `app.GenerateSBOM` with
-  a plain `app.Request` and the real repo mode over the shared fixture corpus —
-  no CLI, and no mocks: the extraction is only worth anything if the use case
-  actually runs without a `*cli.Command`, so the tests prove exactly that.
-  `Request.Now` / `Request.NewSerial` pin the two fields that would otherwise
-  drift between runs.
+- **Use-case tests** (`internal/app/*_test.go`). Drive
+  `app.Service.GenerateSBOM` with a plain `app.Request` and the real repo mode
+  over the shared fixture corpus — no CLI: the extraction is only worth
+  anything if the use case actually runs without a `*cli.Command`, so the tests
+  prove exactly that. `Request.Now` / `Request.NewSerial` pin the two values
+  that would otherwise drift between runs.
+  The **one** exception to the no-mocks rule lives in `ports_test.go`: a
+  recording `Encoder` proves the port is a real seam and lets the assembled
+  `sbom.Options` be asserted directly (lifecycle, series, mined hashes) rather
+  than inferred from the encoded document. Behavioural tests still drive the
+  real encoder.
 - **Binary e2e** (`cmd/kunnus/*_test.go`). Build the real binary once, then
   drive subcommands with real flags: a kitchen-sink `sbom repo` over every
   ecosystem at once, `sbom os --target-os linux` per family, and `sbom
