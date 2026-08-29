@@ -1,7 +1,7 @@
 # python — three files, three extractors.
 #
 #   requirements.txt      declared requirements, pinned by ==  (python/requirements)
-#   pyproject.toml        PEP 621 declared ranges              (python/pyprojecttoml)
+#   pyproject.toml        the project's own identity           (python/pyprojecttoml)
 #   pylock/pylock.toml    PEP 751 resolved lockfile            (python/pylock)
 #
 # Fixture provenance — both new files are real, from the projects that generated
@@ -14,6 +14,14 @@
 #     [project], [project.optional-dependencies] and [build-system] tables — the
 #     tool-config tables the extractor never reads are dropped, the way the
 #     kernel fixture keeps only the head of its vmlinuz.
+#
+# scalibr 87a1418f (2026-08-28) rewrote python/pyprojecttoml: it now emits only
+# the project named in [project], carrying its declared dependencies as
+# extractor metadata instead of as packages of their own (upstream 0419e25a then
+# 73d42b53, "Align it with manifest-based extraction"). The eight declared-range
+# components this fixture used to assert — blinker, click, itsdangerous, jinja2,
+# markupsafe, werkzeug, asgiref, python-dotenv — are therefore no longer emitted
+# by anything, and the project itself appears instead.
 #
 # The lockfile sits in a subdirectory on purpose. A lock's authority covers its
 # own directory and below (internal/sbom/declared.go), so keeping it out of the
@@ -34,23 +42,8 @@ cpe  cpe:2.3:a:packaging:packaging:26.2:*:*:*:*:*:*:*
 purl pkg:pypi/pyproject-hooks@1.2.0
 cpe  cpe:2.3:a:pyproject-hooks:pyproject-hooks:1.2.0:*:*:*:*:*:*:*
 
-# python/pyprojecttoml — [project.dependencies] reported at the lowest version
-# each constraint admits (">=1.9.0" becomes 1.9.0).
-purl pkg:pypi/blinker@1.9.0
-cpe  cpe:2.3:a:blinker:blinker:1.9.0:*:*:*:*:*:*:*
-purl pkg:pypi/click@8.1.3
-cpe  cpe:2.3:a:click:click:8.1.3:*:*:*:*:*:*:*
-purl pkg:pypi/itsdangerous@2.2.0
-cpe  cpe:2.3:a:itsdangerous:itsdangerous:2.2.0:*:*:*:*:*:*:*
-purl pkg:pypi/jinja2@3.1.2
-cpe  cpe:2.3:a:jinja2:jinja2:3.1.2:*:*:*:*:*:*:*
-purl pkg:pypi/markupsafe@2.1.1
-cpe  cpe:2.3:a:markupsafe:markupsafe:2.1.1:*:*:*:*:*:*:*
-purl pkg:pypi/werkzeug@3.1.0
-cpe  cpe:2.3:a:werkzeug:werkzeug:3.1.0:*:*:*:*:*:*:*
-# [project.optional-dependencies]: an extra's pinned floor, and a bare
-# requirement — which yields a versionless purl and a wildcard-version cpe.
-purl pkg:pypi/asgiref@3.2
-cpe  cpe:2.3:a:asgiref:asgiref:3.2:*:*:*:*:*:*:*
-purl pkg:pypi/python-dotenv
-cpe  cpe:2.3:a:python-dotenv:python-dotenv:*:*:*:*:*:*:*:*
+# python/pyprojecttoml — the [project] table's own name and version. Its
+# declared dependencies now ride on the extractor's Metadata rather than
+# becoming components, so nothing here asserts them.
+purl pkg:pypi/flask@3.2.0.dev
+cpe  cpe:2.3:a:flask:flask:3.2.0.dev:*:*:*:*:*:*:*

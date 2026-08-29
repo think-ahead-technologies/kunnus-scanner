@@ -229,14 +229,28 @@ in `obj/` also covers the directory above it. A project using a custom output
 path simply gets no suppression, which lists a dependency twice rather than
 losing one.
 
-Python has two declaring extractors, not one: `python/requirements` over any
-`*requirements*.txt` and `python/pyprojecttoml` over the PEP 621
-`[project.dependencies]` / `[project.optional-dependencies]` tables. Both report
-a constraint's floor as the version (`>=1.9.0` → `1.9.0`) or no version at all
-for a bare requirement, so both are manifests under the same rule. On the
+Python's declaring extractor is `python/requirements`, over any
+`*requirements*.txt`: it reports a constraint's floor as the version
+(`>=1.9.0` → `1.9.0`) or no version at all for a bare requirement. On the
 resolved side `pylock.toml` (PEP 751) joins the four tool-specific locks; it is a
 resolved lockfile like the others, so it both supersedes declarations in its own
 directory and contributes wheel digests through `HashParsers`.
+
+`python/pyprojecttoml` used to be a second declaring extractor over the PEP 621
+`[project.dependencies]` / `[project.optional-dependencies]` tables. As of
+scalibr 87a1418f (2026-08-28) it emits only the project named in `[project]`,
+carrying those declarations as extractor metadata instead. Two consequences are
+open questions rather than settled design:
+
+- A pyproject-only project (no requirements file, no lock) now yields no
+  dependency components at all — declared ranges were the only signal we had
+  for it.
+- The one component it does emit is the scanned project itself, which
+  duplicates `metadata.component`. That is the same trait that disqualified
+  `misc/gitrepo` (see the git-submodule section). `declared.go` still treats
+  `pyproject.toml` as a python manifest, so a lock beside it that pins the
+  project's own name would now suppress the project component rather than a
+  phantom range.
 
 The other 20 ecosystems were audited and need nothing: their manifest-side
 extractor reports *installed state* rather than declared ranges
