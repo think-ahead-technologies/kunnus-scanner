@@ -11,6 +11,11 @@ type InvalidRequestError struct {
 	Err   error
 }
 
+// Error reports the underlying validation failure. The field name is carried
+// separately so the message stays in the vocabulary of whoever supplied the
+// value, not this package's.
 func (e *InvalidRequestError) Error() string { return e.Err.Error() }
 
+// Unwrap exposes the validation error underneath, so errors.Is and errors.As
+// reach it.
 func (e *InvalidRequestError) Unwrap() error { return e.Err }
