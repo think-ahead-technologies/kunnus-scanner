@@ -62,7 +62,7 @@ func Encode(out io.Writer, opts Options) error {
 	// within their own PURL) and before every later stage: drop binary-classifier
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
-	suppressOSManagedBinaries(cdxBom, opts.Owned)
+	suppressOSManagedBinaries(cdxBom, opts.OwnedFiles)
 	// Same placement and reason as the stage above, for the other double-count a
 	// pair of extractors can produce: a dependency declared as a range in a
 	// manifest and pinned by a lockfile next to it. Dedup cannot collapse those
