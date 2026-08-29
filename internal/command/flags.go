@@ -83,3 +83,10 @@ func parseAuthor(s string) (bom.Author, error) {
 	}
 	return bom.Author{Name: name, Email: email}, nil
 }
+
+// flagForRequestField maps an app.Request field the use case can reject to the
+// flag that carried its value, so a validation failure is reported in the
+// user's vocabulary rather than the application service's.
+var flagForRequestField = map[string]string{
+	"SerialNumber": "serial-number",
+}

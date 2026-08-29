@@ -5,23 +5,7 @@ package command
 import (
 	"fmt"
 	"strings"
-
-	"github.com/google/osv-scalibr/plugin"
 )
-
-// failedPlugins returns the names of plugins whose ScanStatus carries a
-// non-empty FailureReason. scan.Run already logs these at WARN; this is the
-// caller-facing list that drives the process exit code.
-func failedPlugins(statuses []*plugin.Status) []string {
-	var failed []string
-	for _, ps := range statuses {
-		if ps == nil || ps.Status == nil || ps.Status.FailureReason == "" {
-			continue
-		}
-		failed = append(failed, ps.Name)
-	}
-	return failed
-}
 
 // partialScanError reports that the scan finished but one or more plugins
 // failed. The SBOM has already been written to disk; the caller treats this
