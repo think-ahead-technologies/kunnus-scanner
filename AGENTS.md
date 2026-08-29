@@ -239,18 +239,24 @@ directory and contributes wheel digests through `HashParsers`.
 `python/pyprojecttoml` used to be a second declaring extractor over the PEP 621
 `[project.dependencies]` / `[project.optional-dependencies]` tables. As of
 scalibr 87a1418f (2026-08-28) it emits only the project named in `[project]`,
-carrying those declarations as extractor metadata instead. Two consequences are
-open questions rather than settled design:
+carrying those declarations as extractor metadata instead.
 
-- A pyproject-only project (no requirements file, no lock) now yields no
-  dependency components at all — declared ranges were the only signal we had
-  for it.
-- The one component it does emit is the scanned project itself, which
-  duplicates `metadata.component`. That is the same trait that disqualified
-  `misc/gitrepo` (see the git-submodule section). `declared.go` still treats
-  `pyproject.toml` as a python manifest, so a lock beside it that pins the
-  project's own name would now suppress the project component rather than a
-  phantom range.
+The one component it emits is the scanned project itself, which duplicates
+`metadata.component` — the trait that disqualified `misc/gitrepo` (see the
+git-submodule section). `sbom.suppressManifestSelfComponents` drops it
+(`internal/sbom/selfcomponent.go`), running before
+`suppressResolvedDeclarations` so that stage never mistakes the project for a
+declared range and suppresses it because a lock beside it pins the same name.
+The plugin stays **enabled**: its `Metadata` is now the only record of what a
+pyproject.toml declares.
+
+Accepted consequence: a pyproject-only project (no requirements file, no lock)
+yields no dependency components. What was lost was a constraint's *floor*
+reported as if it were the version (`>=1.9.0` → a component at `1.9.0`) — the
+same fabricated pin this section exists to remove elsewhere. Recovering it
+honestly means reading `pyprojecttoml.Metadata.Dependencies` and emitting
+versionless components with the `kunnus:unknown:version` marker; worth doing
+when an unlocked-library scan actually needs it, not before.
 
 The other 20 ecosystems were audited and need nothing: their manifest-side
 extractor reports *installed state* rather than declared ranges

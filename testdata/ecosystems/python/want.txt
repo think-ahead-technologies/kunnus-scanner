@@ -1,7 +1,7 @@
 # python — three files, three extractors.
 #
 #   requirements.txt      declared requirements, pinned by ==  (python/requirements)
-#   pyproject.toml        the project's own identity           (python/pyprojecttoml)
+#   pyproject.toml        the project's own identity, dropped  (python/pyprojecttoml)
 #   pylock/pylock.toml    PEP 751 resolved lockfile            (python/pylock)
 #
 # Fixture provenance — both new files are real, from the projects that generated
@@ -42,8 +42,9 @@ cpe  cpe:2.3:a:packaging:packaging:26.2:*:*:*:*:*:*:*
 purl pkg:pypi/pyproject-hooks@1.2.0
 cpe  cpe:2.3:a:pyproject-hooks:pyproject-hooks:1.2.0:*:*:*:*:*:*:*
 
-# python/pyprojecttoml — the [project] table's own name and version. Its
-# declared dependencies now ride on the extractor's Metadata rather than
-# becoming components, so nothing here asserts them.
-purl pkg:pypi/flask@3.2.0.dev
-cpe  cpe:2.3:a:flask:flask:3.2.0.dev:*:*:*:*:*:*:*
+# python/pyprojecttoml contributes nothing assertable here. Its only package is
+# the project the manifest describes, which internal/sbom/selfcomponent.go drops
+# (it is already metadata.component), and its declared dependencies now ride on
+# the extractor's Metadata rather than becoming components. The plugin stays
+# enabled for that Metadata; the suppression is unit tested, since want.txt can
+# assert presence but not absence.

@@ -84,6 +84,11 @@ func Encode(out io.Writer, result *scan.Result, comp bom.ComponentInfo, series b
 	// pkg:generic twins of OS-managed packages so enrichment, CPEs and the dep
 	// graph never see the redundant components.
 	suppressOSManagedBinaries(cdxBom, owned)
+	// Before suppressResolvedDeclarations: a pyproject.toml's only component is
+	// now the project itself, and that stage would otherwise treat it as a
+	// declared dependency — suppressing the project because a lock beside it
+	// happens to pin its name, rather than because it is a phantom range.
+	suppressManifestSelfComponents(cdxBom, result.Inventory)
 	// Same placement and reason as the stage above, for the other double-count a
 	// pair of extractors can produce: a dependency declared as a range in a
 	// manifest and pinned by a lockfile next to it. Dedup cannot collapse those
