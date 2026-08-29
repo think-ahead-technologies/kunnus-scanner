@@ -17,6 +17,35 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
+// Service is the use case with its driven ports bound. The zero value works
+// and uses the production adapters, so a caller wanting the real thing need
+// not name them; New is the same thing said explicitly.
+type Service struct {
+	Scanner Scanner
+	Encoder Encoder
+}
+
+// New returns a Service wired to the production adapters.
+func New() Service {
+	return Service{Scanner: scan.Scanner{}, Encoder: sbom.Encoder{}}
+}
+
+// scanner returns the bound scanner, defaulting to the production adapter.
+func (s Service) scanner() Scanner {
+	if s.Scanner != nil {
+		return s.Scanner
+	}
+	return scan.Scanner{}
+}
+
+// encoder returns the bound encoder, defaulting to the production adapter.
+func (s Service) encoder() Encoder {
+	if s.Encoder != nil {
+		return s.Encoder
+	}
+	return sbom.Encoder{}
+}
+
 // Request is one SBOM generation. Every field is plain data or a port, so the
 // use case runs from a CLI, a test, or any future front end alike.
 type Request struct {
@@ -56,14 +85,15 @@ type Result struct {
 	FailedPlugins []string
 }
 
-// GenerateSBOM plans the scan described by req, runs it, and writes the
+// GenerateSBOM plans the scan described by req, runs it through the bound
+// ports, and writes the
 // CycloneDX document to out. It errors only when no usable document was
 // produced; a scan whose extractors partly failed still writes, and names them
 // in Result.FailedPlugins.
 //
 // A failure partway through encoding can leave bytes on out, so callers writing
 // somewhere durable should stage through a sink they can abort (internal/command).
-func GenerateSBOM(ctx context.Context, out io.Writer, req Request) (*Result, error) {
+func (s Service) GenerateSBOM(ctx context.Context, out io.Writer, req Request) (*Result, error) {
 	if req.Mode == nil {
 		return nil, errors.New("no scan mode set on the request")
 	}
@@ -88,7 +118,7 @@ func GenerateSBOM(ctx context.Context, out io.Writer, req Request) (*Result, err
 		return nil, fmt.Errorf("plan %s scan: %w", req.Mode.Name(), err)
 	}
 
-	result, err := runPlan(ctx, plan)
+	result, err := s.runPlan(ctx, plan)
 	if err != nil {
 		return nil, fmt.Errorf("run %s scan: %w", req.Mode.Name(), err)
 	}
@@ -108,7 +138,7 @@ func GenerateSBOM(ctx context.Context, out io.Writer, req Request) (*Result, err
 		component.Version = req.ComponentVersion
 	}
 
-	err = sbom.Encode(out, sbom.Options{
+	err = s.encoder().Encode(out, sbom.Options{
 		Inventory: result.Inventory,
 		Component: component,
 		Series: bom.Series{
@@ -137,11 +167,11 @@ func GenerateSBOM(ctx context.Context, out io.Writer, req Request) (*Result, err
 // runPlan dispatches to the matching scalibr scan: a container scan when the
 // mode opened an image, a filesystem scan otherwise. Keeping the branch here
 // lets internal/scan stay free of mode types.
-func runPlan(ctx context.Context, plan *mode.Plan) (*scan.Result, error) {
+func (s Service) runPlan(ctx context.Context, plan *mode.Plan) (*scan.Result, error) {
 	if plan.Image != nil {
-		return scan.RunContainer(ctx, plan.Image, plan.Config)
+		return s.scanner().RunContainer(ctx, plan.Image, plan.Config)
 	}
-	return scan.Run(ctx, plan.Config)
+	return s.scanner().Run(ctx, plan.Config)
 }
 
 // mergeHashMaps folds extra into base, tolerating nil on either side.
