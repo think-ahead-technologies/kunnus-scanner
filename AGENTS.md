@@ -618,6 +618,23 @@ the fast/narrow ones:
   container` over a synthetic image tarball — each asserting purls **and** cpes
   in the CycloneDX output (plus layer properties for containers).
 
+**Fuzzing runs nightly, not on pull requests** (`.github/workflows/fuzz-nightly.yml`).
+The regression half already gates merges without a PR job: `go test ./...` runs
+each target's seed corpus as an ordinary test, so a committed crasher under
+`testdata/fuzz/` still blocks a merge. What moved to the schedule is the *search*
+for new inputs, which a PR job could not do well — nothing cached the generated
+corpus, so every run re-explored the same shallow region from the seeds and
+discarded it. The nightly caches `GOCACHE/fuzz`, so each sweep resumes from a
+corpus that has been growing, and `make fuzz-sweep` runs every target rather
+than stopping at the first failure, so one crasher cannot hide the rest.
+
+`FUZZ_TARGETS` in the `Makefile` is hand-maintained and had fallen 14 targets
+behind — every recently-added embedded parser (arduino, cmsis, espidf,
+gitsubmodule, platformio, vcpkg, zephyr, cmakedecl, chisel) was never actively
+fuzzed. `cmd/kunnus/fuzztargets_test.go` is the drift guard: it fails when a
+`func Fuzz*` in the tree is missing from the list, or when the list names one
+that no longer exists.
+
 Not in-tree fixturable, by design: rpm-based OS families (binary sqlite/bdb
 DB), `cos` (image-specific), and the registry-pull / local-docker container
 sources (need a network registry or a docker daemon). These are documented
