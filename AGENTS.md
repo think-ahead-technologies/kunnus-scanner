@@ -229,14 +229,34 @@ in `obj/` also covers the directory above it. A project using a custom output
 path simply gets no suppression, which lists a dependency twice rather than
 losing one.
 
-Python has two declaring extractors, not one: `python/requirements` over any
-`*requirements*.txt` and `python/pyprojecttoml` over the PEP 621
-`[project.dependencies]` / `[project.optional-dependencies]` tables. Both report
-a constraint's floor as the version (`>=1.9.0` → `1.9.0`) or no version at all
-for a bare requirement, so both are manifests under the same rule. On the
+Python's declaring extractor is `python/requirements`, over any
+`*requirements*.txt`: it reports a constraint's floor as the version
+(`>=1.9.0` → `1.9.0`) or no version at all for a bare requirement. On the
 resolved side `pylock.toml` (PEP 751) joins the four tool-specific locks; it is a
 resolved lockfile like the others, so it both supersedes declarations in its own
 directory and contributes wheel digests through `HashParsers`.
+
+`python/pyprojecttoml` used to be a second declaring extractor over the PEP 621
+`[project.dependencies]` / `[project.optional-dependencies]` tables. As of
+scalibr 87a1418f (2026-08-28) it emits only the project named in `[project]`,
+carrying those declarations as extractor metadata instead.
+
+The one component it emits is the scanned project itself, which duplicates
+`metadata.component` — the trait that disqualified `misc/gitrepo` (see the
+git-submodule section). `sbom.suppressManifestSelfComponents` drops it
+(`internal/sbom/selfcomponent.go`), running before
+`suppressResolvedDeclarations` so that stage never mistakes the project for a
+declared range and suppresses it because a lock beside it pins the same name.
+The plugin stays **enabled**: its `Metadata` is now the only record of what a
+pyproject.toml declares.
+
+Accepted consequence: a pyproject-only project (no requirements file, no lock)
+yields no dependency components. What was lost was a constraint's *floor*
+reported as if it were the version (`>=1.9.0` → a component at `1.9.0`) — the
+same fabricated pin this section exists to remove elsewhere. Recovering it
+honestly means reading `pyprojecttoml.Metadata.Dependencies` and emitting
+versionless components with the `kunnus:unknown:version` marker; worth doing
+when an unlocked-library scan actually needs it, not before.
 
 The other 20 ecosystems were audited and need nothing: their manifest-side
 extractor reports *installed state* rather than declared ranges
