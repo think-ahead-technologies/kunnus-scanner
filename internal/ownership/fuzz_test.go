@@ -19,7 +19,8 @@ func FuzzParseDpkgList(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data string) {
-		for _, p := range parseDpkgList([]byte(data)) {
+		paths, _ := parseDpkgList([]byte(data))
+		for _, p := range paths {
 			if p == "" {
 				t.Fatalf("parseDpkgList(%q) yielded an empty path", data)
 			}
@@ -43,7 +44,7 @@ func FuzzParseApkInstalled(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data string) {
-		_ = parseApkInstalled([]byte(data))
+		_, _ = parseApkInstalled([]byte(data))
 	})
 }
 
@@ -63,7 +64,8 @@ func FuzzParseChiselManifest(f *testing.F) {
 	}
 
 	f.Fuzz(func(t *testing.T, data string) {
-		for _, p := range parseChiselManifest([]byte(data)) {
+		paths, _ := parseChiselManifest([]byte(data))
+		for _, p := range paths {
 			if p == "" {
 				t.Fatalf("parseChiselManifest(%q) yielded an empty path", data)
 			}
