@@ -102,6 +102,12 @@ func parseDigests(fsys fs.FS, path string) map[string]string {
 			out[rec.Name] = rec.SHA256
 		}
 	}
+	// A record past the token cap ends the scan; the digests read so far are
+	// still returned, but the packages below it silently lose their checksum, so
+	// say so rather than report a short map as a complete one.
+	if err := sc.Err(); err != nil {
+		slog.Warn("chisel checksum: manifest truncated", "path", path, "err", err)
+	}
 	return out
 }
 

@@ -213,3 +213,18 @@ func writeFile(t *testing.T, path, data string) {
 		t.Fatal(err)
 	}
 }
+
+// A library.properties line past bufio.Scanner's 64 KiB default token size must
+// not end the parse. The fields are unordered, so a long "sentence" or
+// "paragraph" value above version leaves the library versionless — silently, and
+// a versionless component matches no advisory.
+func TestParseLibraryProperties_LongLineDoesNotTruncate(t *testing.T) {
+	got := parseLibraryProperties(strings.NewReader(
+		"name=ArduinoJson\nparagraph=" + strings.Repeat("x", 100*1024) + "\nversion=7.2.0\n"))
+	if got == nil {
+		t.Fatal("parseLibraryProperties = nil, want a spec")
+	}
+	if got.name != "ArduinoJson" || got.version != "7.2.0" {
+		t.Errorf("parseLibraryProperties = %+v, want name=ArduinoJson version=7.2.0 — fields after an over-long line were dropped", *got)
+	}
+}

@@ -3,14 +3,18 @@
 package chiselchecksum
 
 import (
+	"bytes"
+	"log/slog"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"testing/fstest"
 
 	"github.com/google/osv-scalibr/extractor"
 	"github.com/google/osv-scalibr/inventory"
 	"github.com/google/osv-scalibr/purl"
+	"github.com/klauspost/compress/zstd"
 
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
 )
@@ -90,5 +94,50 @@ func TestValidSHA256(t *testing.T) {
 				t.Errorf("validSHA256(%q) = %v, want %v", tc.field, got, tc.ok)
 			}
 		})
+	}
+}
+
+// captureSlog installs a buffer-backed slog.Default for one test and returns
+// the buffer plus a restore func.
+func captureSlog(t *testing.T) (*bytes.Buffer, func()) {
+	t.Helper()
+	buf := &bytes.Buffer{}
+	prev := slog.Default()
+	slog.SetDefault(slog.New(slog.NewTextHandler(buf, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	return buf, func() { slog.SetDefault(prev) }
+}
+
+// A jsonwall record past the token cap ends the scan. The digests read so far
+// are kept, but every package below the long record silently loses its
+// checksum — an SBOM-visible gap that must not pass as a complete read.
+func TestParseDigests_TruncationIsLogged(t *testing.T) {
+	var wall bytes.Buffer
+	wall.WriteString(`{"kind":"package","name":"openssl","sha256":"00f9"}` + "\n")
+	wall.WriteString(`{"kind":"package","name":"` + strings.Repeat("x", 1024*1024) + `","sha256":"ab12"}` + "\n")
+	wall.WriteString(`{"kind":"package","name":"libssl3t64","sha256":"cd34"}` + "\n")
+
+	var compressed bytes.Buffer
+	enc, err := zstd.NewWriter(&compressed)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := enc.Write(wall.Bytes()); err != nil {
+		t.Fatal(err)
+	}
+	if err := enc.Close(); err != nil {
+		t.Fatal(err)
+	}
+
+	fsys := fstest.MapFS{manifestPath: &fstest.MapFile{Data: compressed.Bytes()}}
+	logBuf, restore := captureSlog(t)
+	defer restore()
+
+	got := parseDigests(fsys, manifestPath)
+
+	if got["openssl"] != "00f9" {
+		t.Errorf("digests before the truncation were lost: %v", got)
+	}
+	if !strings.Contains(logBuf.String(), "truncated") {
+		t.Errorf("expected a truncation warning, got %q", logBuf.String())
 	}
 }
