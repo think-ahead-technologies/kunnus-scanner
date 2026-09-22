@@ -14,7 +14,6 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/binclass"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/hashes"
-	"github.com/think-ahead/kunnus-scanner/internal/scan"
 )
 
 // Encode (see internal/sbom/encode.go) runs ten mutation stages whose order is
@@ -68,9 +67,9 @@ func TestEncode_Ordering_LicenseJoinBeforePURLNormalize(t *testing.T) {
 		Plugins:  []string{"javascript/packagelockjson"},
 		Licenses: []string{"ISC"},
 	}
-	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{pkg}}}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
 
-	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
+	doc := ordEncodeDoc(t, inv, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
 
 	c := ordFindComponent(doc, func(c map[string]any) bool {
 		purl, _ := c["purl"].(string)
@@ -111,9 +110,9 @@ func TestEncode_ClassifierCPETemplatesSurviveEncode(t *testing.T) {
 			"cpe:2.3:a:python:python:*:*:*:*:*:*:*:*",
 		}},
 	}
-	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{pkg}}}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
 
-	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
+	doc := ordEncodeDoc(t, inv, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
 
 	c := ordFindComponent(doc, func(c map[string]any) bool { return c["name"] == "python" })
 	if c == nil {
@@ -146,9 +145,9 @@ func TestEncode_Ordering_ExtrasBeforeHashesAndDepGraph(t *testing.T) {
 		BomRef: extraRef,
 	}}
 	h := hashes.Map{extraPURL: {{Algorithm: hashes.AlgSHA256, Hex: "abc123"}}}
-	result := &scan.Result{Inventory: inventory.Inventory{}}
+	inv := inventory.Inventory{}
 
-	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, h, extras)
+	doc := ordEncodeDoc(t, inv, bom.ComponentInfo{Name: "app", Type: "application"}, h, extras)
 
 	z := ordFindComponent(doc, func(c map[string]any) bool { return c["name"] == "zlib" })
 	if z == nil {
@@ -167,7 +166,7 @@ func TestEncode_Ordering_ExtrasBeforeHashesAndDepGraph(t *testing.T) {
 //
 // NOTE: this asserts the dedup *output*, not the dedup-before-enrich *order*.
 // Mutation testing showed that ordering is defensive, not output-observable:
-// enrichCDXComponents indexes result.Inventory (the scalibr packages), never
+// enrichCDXComponents indexes opts.Inventory (the scalibr packages), never
 // the CDX component slice, so component dedup cannot change what enrichment
 // aggregates. Running enrich on the duplicates and then deduping yields the
 // same single enriched component as deduping first. The ordering is kept for
@@ -184,12 +183,12 @@ func TestEncode_DedupCollapsesSharedPURL(t *testing.T) {
 			Plugins:  []string{"javascript/packagelockjson"},
 		}
 	}
-	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{
+	inv := inventory.Inventory{Packages: []*extractor.Package{
 		mk("a/package-lock.json"),
 		mk("b/package-lock.json"),
-	}}}
+	}}
 
-	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
+	doc := ordEncodeDoc(t, inv, bom.ComponentInfo{Name: "app", Type: "application"}, nil, nil)
 
 	if n := ordCountComponents(doc, func(c map[string]any) bool { return c["name"] == "left-pad" }); n != 1 {
 		t.Fatalf("left-pad component count = %d, want 1 (dedup must collapse the duplicate)", n)
@@ -228,9 +227,9 @@ func TestEncode_RootDependsOnAllComponents(t *testing.T) {
 		Type:   bom.ComponentTypeLibrary,
 		BomRef: extraRef,
 	}}
-	result := &scan.Result{Inventory: inventory.Inventory{Packages: []*extractor.Package{pkg}}}
+	inv := inventory.Inventory{Packages: []*extractor.Package{pkg}}
 
-	doc := ordEncodeDoc(t, result, bom.ComponentInfo{Name: "app", Type: "application"}, nil, extras)
+	doc := ordEncodeDoc(t, inv, bom.ComponentInfo{Name: "app", Type: "application"}, nil, extras)
 
 	rootRef := ordRootBomRef(doc)
 	if rootRef == "" {
@@ -247,10 +246,15 @@ func TestEncode_RootDependsOnAllComponents(t *testing.T) {
 
 // --- helpers (ord-prefixed to avoid clashing with sibling _test.go files) ---
 
-func ordEncodeDoc(t *testing.T, result *scan.Result, comp bom.ComponentInfo, h hashes.Map, extras []bom.ExtraComponent) map[string]any {
+func ordEncodeDoc(t *testing.T, inv inventory.Inventory, comp bom.ComponentInfo, h hashes.Map, extras []bom.ExtraComponent) map[string]any {
 	t.Helper()
 	var buf bytes.Buffer
-	if err := Encode(&buf, result, comp, bom.Series{}, "", bom.Author{}, h, nil, nil, extras, nil); err != nil {
+	if err := Encode(&buf, Options{
+		Inventory: inv,
+		Component: comp,
+		Hashes:    h,
+		Extras:    extras,
+	}); err != nil {
 		t.Fatalf("Encode: %v", err)
 	}
 	var doc map[string]any

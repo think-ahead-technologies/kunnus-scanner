@@ -3,11 +3,8 @@
 package sbom
 
 import (
-	"time"
-
 	cyclonedx "github.com/CycloneDX/cyclonedx-go"
 
-	"github.com/think-ahead/kunnus-scanner/internal/bom"
 	"github.com/think-ahead/kunnus-scanner/internal/version"
 )
 
@@ -33,12 +30,15 @@ const (
 //     and CISA's SBOM Author element: the operating entity when one was given
 //     on the command line, the kunnus identity otherwise
 //   - a kunnus tool entry next to SCALIBR — additional creator signal
-func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.Lifecycle, author bom.Author) error {
+//
+// It reads the series, lifecycle and author from opts, and takes the current
+// time and the identity-less serial from opts' injectable ports.
+func enrichCDXMetadata(cdxBom *cyclonedx.BOM, opts Options) error {
 	if cdxBom == nil {
 		return nil
 	}
 	if cdxBom.SerialNumber == "" {
-		serial, deterministic, err := deriveSerial(series)
+		serial, deterministic, err := deriveSerial(opts.Series, opts.newSerial)
 		if err != nil {
 			return err
 		}
@@ -48,16 +48,16 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 			if cdxBom.Metadata != nil {
 				ts = cdxBom.Metadata.Timestamp
 			}
-			cdxBom.Version = bomVersion(ts, time.Now().UTC())
+			cdxBom.Version = bomVersion(ts, opts.now().UTC())
 		}
 	}
 	if cdxBom.Metadata == nil {
 		cdxBom.Metadata = &cyclonedx.Metadata{}
 	}
 
-	if lifecycle != "" {
+	if opts.Lifecycle != "" {
 		cdxBom.Metadata.Lifecycles = &[]cyclonedx.Lifecycle{{
-			Phase: cyclonedx.LifecyclePhase(lifecycle),
+			Phase: cyclonedx.LifecyclePhase(opts.Lifecycle),
 		}}
 	}
 
@@ -67,8 +67,8 @@ func enrichCDXMetadata(cdxBom *cyclonedx.BOM, series bom.Series, lifecycle bom.L
 	// recorded under metadata.tools below.
 	authorName, authorEmail := creatorName, creatorEmail
 	authorURLs := &[]string{creatorURL}
-	if !author.IsZero() {
-		authorName, authorEmail = author.Name, author.Email
+	if !opts.Author.IsZero() {
+		authorName, authorEmail = opts.Author.Name, opts.Author.Email
 		authorURLs = nil
 	}
 	authors := []cyclonedx.OrganizationalContact{{

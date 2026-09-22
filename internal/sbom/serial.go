@@ -34,9 +34,11 @@ const serialKeySep = "\x1f"
 // deriveSerial returns the serialNumber for a document in the given series
 // and whether that serial is deterministic (i.e. the document belongs to a
 // series that future scans can rejoin). Precedence: the explicit override,
-// then identity-based derivation, then a random UUID for documents with no
-// stable identity.
-func deriveSerial(s bom.Series) (serial string, deterministic bool, err error) {
+// then identity-based derivation, then newSerial for documents with no stable
+// identity — the injection point that lets a test pin an otherwise random
+// document. newSerial must return a bare UUID; the urn:uuid prefix is added
+// here.
+func deriveSerial(s bom.Series, newSerial func() string) (serial string, deterministic bool, err error) {
 	if s.Serial != "" {
 		norm, err := NormalizeSerial(s.Serial)
 		if err != nil {
@@ -45,7 +47,7 @@ func deriveSerial(s bom.Series) (serial string, deterministic bool, err error) {
 		return norm, true, nil
 	}
 	if s.ID == "" {
-		return "urn:uuid:" + uuid.New().String(), false, nil
+		return "urn:uuid:" + newSerial(), false, nil
 	}
 	key := strings.Join([]string{serialScheme, s.Mode, s.ID, s.Version}, serialKeySep)
 	// UUIDv8 (RFC 9562 custom) from a SHA-256 of namespace+key: deterministic

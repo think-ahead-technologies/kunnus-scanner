@@ -83,3 +83,9 @@ func parseAuthor(s string) (bom.Author, error) {
 	}
 	return bom.Author{Name: name, Email: email}, nil
 }
+
+// flagForRequestField maps a rejected app.Request field to the flag that
+// carried its value.
+var flagForRequestField = map[string]string{
+	"SerialNumber": "serial-number",
+}
