@@ -1,0 +1,106 @@
+name: Fuzz nightly
+
+# Active fuzzing lives here rather than on pull requests. Two reasons:
+#
+#   * On a PR it could not accumulate. Nothing cached the generated corpus, so
+#     every run re-explored the same shallow region from the committed seeds and
+#     threw the result away. Here the corpus is cached, so each night resumes
+#     from a corpus that has been growing.
+#   * The regression half of fuzzing already runs on every PR without this job:
+#     `go test ./...` executes each target's seed corpus as an ordinary test, so
+#     a previously-found crasher committed under testdata/fuzz/ still gates
+#     merges. What moved here is the search for *new* inputs.
+#
+# The trade is attribution: a crasher found here belongs to a day of commits
+# rather than one PR. That is worth it — the search is the part that finds bugs,
+# and a false alarm on an unattended nightly costs nothing, where the same
+# flake on a PR gate cost a re-run (golang/go#48157).
+on:
+  schedule:
+    # work days, offset from the nightly image build so they do not contend
+    - cron: "0 2 * * 2-6"
+  workflow_dispatch:
+    inputs:
+      fuzztime:
+        description: "Per-target fuzzing budget (Go duration, e.g. 60s, 5m)"
+        required: false
+        default: "5m"
+        type: string
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+# Restrict jobs in this workflow to have no permissions by default; permissions
+# should be granted per job as needed using a dedicated `permissions` block
+permissions: {}
+
+jobs:
+  fuzz:
+    permissions:
+      contents: read
+    name: Fuzz sweep
+    runs-on: ubuntu-latest
+    # 41 targets at the scheduled budget, plus per-target compile overhead.
+    timeout-minutes: 180
+    steps:
+      - name: Check out code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: "go.mod"
+          check-latest: true
+
+      - name: Locate the fuzz corpus
+        id: corpus
+        shell: bash
+        run: echo "dir=$(go env GOCACHE)/fuzz" >> "$GITHUB_OUTPUT"
+
+      # Go keeps the inputs it discovers under GOCACHE/fuzz. Restoring it is the
+      # whole point of a scheduled sweep: without it every run starts cold from
+      # the committed seeds and re-treads the same ground.
+      - name: Restore fuzz corpus
+        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.corpus.outputs.dir }}
+          key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}
+          restore-keys: |
+            fuzz-corpus-${{ runner.os }}-
+
+      - name: Run the sweep
+        shell: bash
+        env:
+          # A dispatch may ask for longer; the schedule stays modest so a
+          # nightly is ~40 minutes of runner time rather than a few hours.
+          FUZZTIME: ${{ inputs.fuzztime || '60s' }}
+        run: make fuzz-sweep FUZZTIME="$FUZZTIME"
+
+      # A crasher makes Go write the failing input into the package's
+      # testdata/fuzz/<Target>/ directory. Committing that file turns the find
+      # into a permanent regression test, caught from then on by the ordinary
+      # test job — so it has to survive the runner.
+      - name: Collect reproducers
+        if: failure()
+        shell: bash
+        run: |
+          if git status --porcelain -- '*testdata/fuzz/*' | grep -q .; then
+            echo "New reproducers:"
+            git status --porcelain -- '*testdata/fuzz/*'
+          else
+            echo "No reproducer was written."
+            echo "A bare 'context deadline exceeded' with no failing input is the"
+            echo "known deadline-straddle flake (golang/go#48157), not a crasher."
+          fi
+
+      - name: Upload reproducers
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: fuzz-reproducers
+          path: internal/**/testdata/fuzz/**
+          if-no-files-found: ignore
+          retention-days: 30
