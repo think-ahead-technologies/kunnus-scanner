@@ -1,7 +1,7 @@
 BINARY := bin/kunnus
 PKG := ./...
 
-.PHONY: all build test cover compliance fuzz lint fmt vet tidy clean
+.PHONY: all build test cover compliance fuzz fuzz-sweep lint fmt vet tidy clean
 
 SBOMQS_VERSION ?= v1.3.0
 
@@ -9,8 +9,11 @@ SBOMQS_VERSION ?= v1.3.0
 # bound; run `make fuzz FUZZTIME=5m` locally to hunt harder.
 FUZZTIME ?= 30s
 
-# Every Fuzz* target, as "<package> <FuzzName>" pairs. `go test -fuzz` runs one
-# target at a time, so each is invoked separately. Add new targets here.
+# Every Fuzz* target, as "<package>:<FuzzName>" pairs. `go test -fuzz` runs one
+# target at a time, so each is invoked separately. Add new targets here — the
+# drift guard in cmd/kunnus/fuzztargets_test.go fails if you forget, because a
+# target missing from this list is never actually fuzzed (only its seed corpus
+# runs, as part of the normal test job).
 FUZZ_TARGETS := \
 	./internal/modustoolbox:FuzzParseLine \
 	./internal/apkchecksum:FuzzDecodeQ1 \
@@ -38,7 +41,21 @@ FUZZ_TARGETS := \
 	./internal/ecosystem:FuzzParseWheelMetadataLicense \
 	./internal/ecosystem:FuzzParseRockspecLicense \
 	./internal/ecosystem:FuzzParseGemspecLicense \
-	./internal/ecosystem:FuzzParseJavaArchiveLicense
+	./internal/ecosystem:FuzzParseJavaArchiveLicense \
+	./internal/ownership:FuzzParseChiselManifest \
+	./internal/arduino:FuzzParseLibraryProperties \
+	./internal/arduino:FuzzParseSketch \
+	./internal/cmakedecl:FuzzParse \
+	./internal/cmsis:FuzzParsePackSpec \
+	./internal/cmsis:FuzzParseSolution \
+	./internal/espidf:FuzzParseLock \
+	./internal/espidf:FuzzParseManifest \
+	./internal/gitsubmodule:FuzzClassifyURL \
+	./internal/gitsubmodule:FuzzParseGitmodules \
+	./internal/platformio:FuzzParseEntry \
+	./internal/platformio:FuzzParseINI \
+	./internal/vcpkg:FuzzParseManifest \
+	./internal/zephyr:FuzzParseManifest
 
 all: fmt vet lint test build
 
@@ -73,12 +90,28 @@ compliance: build
 # shrinks inputs for human readability, and left at its 60s default it can
 # straddle the -fuzztime deadline, failing the target with a spurious
 # "context deadline exceeded" (golang/go#48157).
+#
+# fuzz stops at the first failure — the right shape for a gate you are waiting
+# on. fuzz-sweep runs all of them and reports every failure at the end, which is
+# what the nightly hunt wants: one crasher must not hide the rest of the sweep.
 fuzz:
 	@for target in $(FUZZ_TARGETS); do \
 		pkg=$${target%%:*}; name=$${target##*:}; \
 		echo "== fuzzing $$name in $$pkg for $(FUZZTIME) =="; \
 		go test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) -fuzzminimizetime=1x $$pkg || exit 1; \
 	done
+
+fuzz-sweep:
+	@failed=""; \
+	for target in $(FUZZ_TARGETS); do \
+		pkg=$${target%%:*}; name=$${target##*:}; \
+		echo "== fuzzing $$name in $$pkg for $(FUZZTIME) =="; \
+		go test -run='^$$' -fuzz="^$$name$$" -fuzztime=$(FUZZTIME) -fuzzminimizetime=1x $$pkg \
+			|| failed="$$failed $$pkg:$$name"; \
+	done; \
+	if [ -n "$$failed" ]; then \
+		echo; echo "fuzz-sweep: failing targets:$$failed"; exit 1; \
+	fi
 
 lint:
 	golangci-lint run $(PKG)
