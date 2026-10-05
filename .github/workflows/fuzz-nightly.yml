@@ -64,7 +64,7 @@ jobs:
       # whole point of a scheduled sweep: without it every run starts cold from
       # the committed seeds and re-treads the same ground.
       - name: Restore fuzz corpus
-        uses: actions/cache@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        uses: actions/cache/restore@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
         with:
           path: ${{ steps.corpus.outputs.dir }}
           key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}
@@ -78,6 +78,18 @@ jobs:
           # nightly is ~40 minutes of runner time rather than a few hours.
           FUZZTIME: ${{ inputs.fuzztime || '60s' }}
         run: make fuzz-sweep FUZZTIME="$FUZZTIME"
+
+      # Saved as its own step rather than by actions/cache's post-job hook,
+      # which runs only when the job succeeds. The sweep fails exactly when it
+      # finds a crasher, so that night's corpus growth — from the failing target
+      # and every target that passed — has to be kept regardless. The run_id key
+      # never hits on restore, so every run writes a fresh archive.
+      - name: Save fuzz corpus
+        if: always() && steps.corpus.outputs.dir != ''
+        uses: actions/cache/save@0057852bfaa89a56745cba8c7296529d2fc39830 # v4.3.0
+        with:
+          path: ${{ steps.corpus.outputs.dir }}
+          key: fuzz-corpus-${{ runner.os }}-${{ github.run_id }}
 
       # A crasher makes Go write the failing input into the package's
       # testdata/fuzz/<Target>/ directory. Committing that file turns the find
