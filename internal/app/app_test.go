@@ -9,7 +9,6 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
-	"time"
 
 	"github.com/think-ahead/kunnus-scanner/internal/app"
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
@@ -148,16 +147,14 @@ func TestGenerateSBOM_ExplicitSerialOverridesDerivation(t *testing.T) {
 	}
 }
 
-// The clock and serial source are Request fields, so a caller can pin the two
-// values that would otherwise drift between runs.
-func TestGenerateSBOM_ClockAndSerialArePinnable(t *testing.T) {
+// The serial source is a Request field, so a caller can pin the serial even
+// when no component identity is provided.
+func TestGenerateSBOM_IdentitylessSerialIsPinnable(t *testing.T) {
 	const fixed = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
-	now := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 
 	doc, _ := decode(t, app.Request{
 		Mode:      repomode.New(),
 		Target:    npmFixture(t),
-		Now:       func() time.Time { return now },
 		NewSerial: func() string { return fixed },
 	})
 
