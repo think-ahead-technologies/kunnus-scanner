@@ -225,6 +225,8 @@ func hashLib(fsys fs.FS, libDir string) ([]hashes.Hash, bool) {
 	return out, hasCpp
 }
 
+// md5File returns the lowercase hexadecimal MD5 fingerprint of p in fsys. It closes the
+// file after reading and propagates open or read errors.
 func md5File(fsys fs.FS, p string) (string, error) {
 	f, err := fsys.Open(p)
 	if err != nil {

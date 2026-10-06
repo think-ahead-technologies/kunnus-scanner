@@ -9,6 +9,8 @@ import (
 	"github.com/google/osv-scalibr/plugin"
 )
 
+// TestFailedPlugins_FiltersByFailureReason checks that only plugins with failure reasons
+// are reported, ignoring nil statuses.
 func TestFailedPlugins_FiltersByFailureReason(t *testing.T) {
 	cases := []struct {
 		name     string

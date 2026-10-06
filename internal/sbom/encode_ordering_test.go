@@ -246,6 +246,8 @@ func TestEncode_RootDependsOnAllComponents(t *testing.T) {
 
 // --- helpers (ord-prefixed to avoid clashing with sibling _test.go files) ---
 
+// ordEncodeDoc encodes the supplied inventory and enrichment inputs, then parses the JSON
+// for pipeline ordering assertions. It fails the test on encoding or decoding errors.
 func ordEncodeDoc(t *testing.T, inv inventory.Inventory, comp bom.ComponentInfo, h hashes.Map, extras []bom.ExtraComponent) map[string]any {
 	t.Helper()
 	var buf bytes.Buffer

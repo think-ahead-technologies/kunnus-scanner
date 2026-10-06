@@ -19,6 +19,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/ownership"
 )
 
+// sampleInventory returns a single Go package with a fixed version for encoder tests.
 func sampleInventory() inventory.Inventory {
 	pkg := &extractor.Package{
 		Name:     "github.com/stretchr/testify",
@@ -29,6 +30,7 @@ func sampleInventory() inventory.Inventory {
 	return inventory.Inventory{Packages: []*extractor.Package{pkg}}
 }
 
+// TestEncode_HasCPE checks that encoding adds the expected CPE to a Go package.
 func TestEncode_HasCPE(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Encode(&buf, Options{
@@ -53,6 +55,8 @@ func TestEncode_HasCPE(t *testing.T) {
 	}
 }
 
+// TestEncode_CycloneDX checks that the output is CycloneDX JSON containing the root
+// component and scanned package.
 func TestEncode_CycloneDX(t *testing.T) {
 	var buf bytes.Buffer
 	err := Encode(&buf, Options{
@@ -131,6 +135,8 @@ func TestBackfillScalibrToolVersion(t *testing.T) {
 	backfillScalibrToolVersion(&cyclonedx.BOM{}, "v0.4.5")
 }
 
+// TestEncode_GenerationContextLifecycle checks that the requested lifecycle reaches
+// document metadata.
 func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	// CISA's "generation context" minimum element rides on CycloneDX
 	// metadata.lifecycles: the mode declares the phase (pre-build for source
@@ -158,6 +164,8 @@ func TestEncode_GenerationContextLifecycle(t *testing.T) {
 	}
 }
 
+// TestEncode_NoLifecycleOmitsField checks that an empty lifecycle omits the metadata
+// field.
 func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	var buf bytes.Buffer
 	if err := Encode(&buf, Options{
@@ -171,6 +179,8 @@ func TestEncode_NoLifecycleOmitsField(t *testing.T) {
 	}
 }
 
+// TestEncode_MultiLayerSamePURL_PreservesEveryLayer checks that deduplicating a package
+// retains all layer indices and digests.
 func TestEncode_MultiLayerSamePURL_PreservesEveryLayer(t *testing.T) {
 	// The same package version can be present in more than one layer of an
 	// image (installed in a base layer, then re-written or re-installed by a
@@ -250,6 +260,8 @@ func componentProperties(t *testing.T, doc map[string]any, purl string) map[stri
 	return nil
 }
 
+// TestEncode_VendoredExtraComponentAppended checks that vendored extras retain their
+// identity, hashes, and per-file properties.
 func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	// Vendored hits must appear as library components in the BOM, alongside
 	// scalibr's own components, and carry both the standard component.hashes[]
@@ -328,6 +340,8 @@ func TestEncode_VendoredExtraComponentAppended(t *testing.T) {
 	}
 }
 
+// TestEncode_AuthorDefaultsToKunnus checks that an unset author uses Kunnus for the author
+// and manufacturer.
 func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
 	// No --author given: the document keeps the kunnus identity as SBOM
 	// author (BSI sbom_creator stays satisfied out of the box).
@@ -355,6 +369,8 @@ func TestEncode_AuthorDefaultsToKunnus(t *testing.T) {
 	}
 }
 
+// TestEncode_AuthorOverride checks that an explicit author replaces the default author and
+// manufacturer.
 func TestEncode_AuthorOverride(t *testing.T) {
 	// CISA's SBOM Author element names the entity *operating* the tool, not
 	// the tool itself. An explicit author replaces the kunnus identity in
@@ -389,6 +405,8 @@ func TestEncode_AuthorOverride(t *testing.T) {
 	}
 }
 
+// TestEncode_ListsKunnusAsTool checks that an explicit author preserves Kunnus in the tool
+// list.
 func TestEncode_ListsKunnusAsTool(t *testing.T) {
 	// The scanner belongs in metadata.tools, whoever the author is: an
 	// explicit --author must not displace it.
@@ -426,6 +444,8 @@ func TestEncode_ListsKunnusAsTool(t *testing.T) {
 	}
 }
 
+// TestEncode_UnknownInfoMarkersEndToEnd checks that unknown markers reflect the final
+// enriched component fields.
 func TestEncode_UnknownInfoMarkersEndToEnd(t *testing.T) {
 	// The unknown-info sweep must judge the *final* component state: a hash
 	// arriving via hashMap (injectHashesCDX) suppresses kunnus:unknown:hash —
