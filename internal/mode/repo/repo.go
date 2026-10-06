@@ -26,7 +26,6 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/platformio"
 	"github.com/think-ahead/kunnus-scanner/internal/pluginset"
 	"github.com/think-ahead/kunnus-scanner/internal/vcpkg"
-	"github.com/think-ahead/kunnus-scanner/internal/vendored"
 	"github.com/think-ahead/kunnus-scanner/internal/zephyr"
 )
 
@@ -52,10 +51,10 @@ func (*Mode) Plan(_ context.Context, path string, ov mode.Overrides) (*mode.Plan
 	ecosystems, hashMap, licenseMap, graphMap, superseded := ecosystem.Survey(rootFS)
 
 	// Vendored C/C++ libraries are surfaced unconditionally — the C/C++ source
-	// check inside vendored.Survey keeps it quiet for Go/Python/JS-only vendor
+	// check inside ecosystem.SurveyVendored keeps it quiet for Go/Python/JS-only vendor
 	// directories. Hashes merge directly into the same map so the SBOM injector
 	// picks them up without a second code path.
-	vendoredHits, vendoredHashes := vendored.Survey(rootFS)
+	vendoredHits, vendoredHashes := ecosystem.SurveyVendored(rootFS)
 	hashMap.Merge(vendoredHashes)
 	extras := make([]bom.ExtraComponent, 0, len(vendoredHits))
 	for _, hit := range vendoredHits {
