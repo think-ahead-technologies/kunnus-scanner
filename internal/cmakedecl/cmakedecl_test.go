@@ -159,6 +159,7 @@ CPMAddPackage("gh:nlohmann/json@3.11.3")`,
 			[]string{"github fmtlib/fmt@10.2.1", "github nlohmann/json@3.11.3"},
 		},
 		{"empty input", "", nil},
+		{"empty quoted content name dropped", `FetchContent_Declare("" URL https://zlib.net/zlib-1.3.1.tar.gz)`, nil},
 		{"unterminated invocation", "FetchContent_Declare(fmt GIT_REPOSITORY https://github.com/fmtlib/fmt", nil},
 	}
 
