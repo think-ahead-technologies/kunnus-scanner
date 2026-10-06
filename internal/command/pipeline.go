@@ -48,7 +48,7 @@ func runScan(ctx context.Context, cmd *cli.Command, m mode.Mode, target string, 
 		}
 	}()
 
-	res, err := app.GenerateSBOM(ctx, sink.w, req)
+	res, err := app.New().GenerateSBOM(ctx, sink.w, req)
 	if err != nil {
 		// Report a rejected field as the flag the user typed.
 		var invalid *app.InvalidRequestError
