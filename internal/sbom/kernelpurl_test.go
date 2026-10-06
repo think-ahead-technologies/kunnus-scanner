@@ -39,6 +39,8 @@ func TestInjectCPEsCDX_KernelModuleWithPURLGetsNoCPE(t *testing.T) {
 	}
 }
 
+// TestEncode_KernelModuleGetsPURLNoCPE checks that modules retain their PURL without a
+// CPE, while kernel images receive a CPE without a PURL.
 func TestEncode_KernelModuleGetsPURLNoCPE(t *testing.T) {
 	// Through Encode with the post-scan inventory shape (internal/scan has
 	// already backfilled the module's pkg:generic PURLType): the module lands

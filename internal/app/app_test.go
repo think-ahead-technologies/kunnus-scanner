@@ -91,6 +91,8 @@ func TestGenerateSBOM_RequestIdentityReachesRootComponentAndSeries(t *testing.T)
 	}
 }
 
+// TestGenerateSBOM_AuthorReachesTheDocument checks that the request author is recorded in
+// document metadata.
 func TestGenerateSBOM_AuthorReachesTheDocument(t *testing.T) {
 	doc, _ := decode(t, app.Request{
 		Mode:   repomode.New(),
@@ -129,6 +131,8 @@ func TestGenerateSBOM_InvalidSerialFailsBeforeScanning(t *testing.T) {
 	}
 }
 
+// TestGenerateSBOM_ExplicitSerialOverridesDerivation checks that an explicit serial takes
+// precedence over the component identity.
 func TestGenerateSBOM_ExplicitSerialOverridesDerivation(t *testing.T) {
 	const want = "urn:uuid:6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 
@@ -164,6 +168,8 @@ func TestGenerateSBOM_ClockAndSerialArePinnable(t *testing.T) {
 	}
 }
 
+// TestGenerateSBOM_PlanFailureIsReportedAgainstTheMode checks that a planning error
+// identifies the failing mode.
 func TestGenerateSBOM_PlanFailureIsReportedAgainstTheMode(t *testing.T) {
 	var buf bytes.Buffer
 	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{
@@ -178,6 +184,7 @@ func TestGenerateSBOM_PlanFailureIsReportedAgainstTheMode(t *testing.T) {
 	}
 }
 
+// TestGenerateSBOM_RequiresAMode checks that a request without a mode is rejected.
 func TestGenerateSBOM_RequiresAMode(t *testing.T) {
 	var buf bytes.Buffer
 	_, err := app.New().GenerateSBOM(context.Background(), &buf, app.Request{Target: "."})

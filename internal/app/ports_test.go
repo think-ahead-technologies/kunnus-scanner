@@ -26,6 +26,8 @@ type recordingEncoder struct {
 	opts   sbom.Options
 }
 
+// Encode records the supplied options and writes an empty JSON object, returning any write
+// error.
 func (e *recordingEncoder) Encode(out io.Writer, opts sbom.Options) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -35,6 +37,8 @@ func (e *recordingEncoder) Encode(out io.Writer, opts sbom.Options) error {
 	return err
 }
 
+// TestNew_WiresProductionAdapters checks that New supplies both scanner and encoder
+// adapters.
 func TestNew_WiresProductionAdapters(t *testing.T) {
 	svc := app.New()
 	if svc.Scanner == nil {
@@ -61,6 +65,8 @@ func TestService_ZeroValueUsesProductionAdapters(t *testing.T) {
 	}
 }
 
+// TestService_UsesInjectedEncoder checks that the service passes scan inventory and
+// request metadata to its encoder and uses its output.
 func TestService_UsesInjectedEncoder(t *testing.T) {
 	enc := &recordingEncoder{}
 	svc := app.Service{Encoder: enc}
@@ -119,4 +125,5 @@ func TestService_EncoderErrorPropagates(t *testing.T) {
 
 type failingEncoder struct{}
 
+// Encode returns a fixed error to exercise encoder failure propagation.
 func (failingEncoder) Encode(io.Writer, sbom.Options) error { return errors.New("encoder said no") }

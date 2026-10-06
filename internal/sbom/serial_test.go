@@ -25,6 +25,8 @@ func TestSerialNamespacePinned(t *testing.T) {
 	}
 }
 
+// TestDeriveSerial_DeterministicForSameSeries checks that a stable identity yields a
+// repeatable UUIDv8 serial with the RFC variant.
 func TestDeriveSerial_DeterministicForSameSeries(t *testing.T) {
 	s := bom.Series{Mode: "repo", ID: "acme/widget", Version: "1.2.3"}
 	first, det, err := deriveSerial(s, randomSerial)
@@ -56,6 +58,8 @@ func TestDeriveSerial_DeterministicForSameSeries(t *testing.T) {
 	}
 }
 
+// TestDeriveSerial_KeyFieldsSplitSeries checks that changing the mode, ID, or version
+// changes the derived serial.
 func TestDeriveSerial_KeyFieldsSplitSeries(t *testing.T) {
 	base := bom.Series{Mode: "repo", ID: "acme/widget", Version: "1.2.3"}
 	baseSerial, _, err := deriveSerial(base, randomSerial)
@@ -79,6 +83,8 @@ func TestDeriveSerial_KeyFieldsSplitSeries(t *testing.T) {
 	}
 }
 
+// TestDeriveSerial_NoIdentityIsRandom checks that missing identity produces distinct
+// serials marked as nondeterministic.
 func TestDeriveSerial_NoIdentityIsRandom(t *testing.T) {
 	s := bom.Series{Mode: "repo"}
 	first, det, err := deriveSerial(s, randomSerial)
@@ -97,6 +103,8 @@ func TestDeriveSerial_NoIdentityIsRandom(t *testing.T) {
 	}
 }
 
+// TestDeriveSerial_ExplicitOverrideWins checks that an explicit UUID overrides identity
+// derivation and gains the URN prefix.
 func TestDeriveSerial_ExplicitOverrideWins(t *testing.T) {
 	s := bom.Series{
 		Mode:   "repo",
@@ -159,6 +167,8 @@ func TestBOMVersion(t *testing.T) {
 	}
 }
 
+// TestEncode_SeriesSetsSerialAndTimestampVersion checks that a series retains its serial
+// across encodes and uses the metadata timestamp as its document version.
 func TestEncode_SeriesSetsSerialAndTimestampVersion(t *testing.T) {
 	series := bom.Series{Mode: "repo", ID: "acme/widget", Version: "1.2.3"}
 	comp := bom.ComponentInfo{Name: "widget", Version: "1.2.3", Type: "application"}
@@ -201,6 +211,8 @@ func TestEncode_SeriesSetsSerialAndTimestampVersion(t *testing.T) {
 	}
 }
 
+// TestEncode_NoSeriesKeepsRandomSerialAndVersionOne checks that documents without an
+// identity get distinct serials and version one.
 func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 	comp := bom.ComponentInfo{Name: "x", Type: "application"}
 
@@ -236,6 +248,8 @@ func TestEncode_NoSeriesKeepsRandomSerialAndVersionOne(t *testing.T) {
 	}
 }
 
+// TestEncode_InvalidExplicitSerialErrors checks that encoding rejects a malformed explicit
+// serial.
 func TestEncode_InvalidExplicitSerialErrors(t *testing.T) {
 	var buf bytes.Buffer
 	err := Encode(&buf, Options{

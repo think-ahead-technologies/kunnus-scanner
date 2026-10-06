@@ -13,6 +13,7 @@ import (
 	"github.com/think-ahead/kunnus-scanner/internal/bom"
 )
 
+// TestOptions_NowDefaultsToWallClock checks that an unset clock reads the current time.
 func TestOptions_NowDefaultsToWallClock(t *testing.T) {
 	before := time.Now()
 	got := Options{}.now()
@@ -23,6 +24,8 @@ func TestOptions_NowDefaultsToWallClock(t *testing.T) {
 	}
 }
 
+// TestOptions_NowUsesInjectedClock checks that the configured clock supplies the
+// timestamp.
 func TestOptions_NowUsesInjectedClock(t *testing.T) {
 	want := time.Date(2026, 7, 30, 12, 0, 0, 0, time.UTC)
 	got := Options{Now: func() time.Time { return want }}.now()
@@ -32,6 +35,8 @@ func TestOptions_NowUsesInjectedClock(t *testing.T) {
 	}
 }
 
+// TestOptions_NewSerialDefaultsToDistinctRandomUUIDs checks that the default serial source
+// produces distinct values with valid UUID syntax.
 func TestOptions_NewSerialDefaultsToDistinctRandomUUIDs(t *testing.T) {
 	o := Options{}
 	first, second := o.newSerial(), o.newSerial()
@@ -48,6 +53,8 @@ func TestOptions_NewSerialDefaultsToDistinctRandomUUIDs(t *testing.T) {
 	}
 }
 
+// TestOptions_NewSerialUsesInjectedSource checks that the configured serial source
+// supplies the value unchanged.
 func TestOptions_NewSerialUsesInjectedSource(t *testing.T) {
 	const want = "6ba7b810-9dad-11d1-80b4-00c04fd430c8"
 	got := Options{NewSerial: func() string { return want }}.newSerial()

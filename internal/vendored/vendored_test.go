@@ -37,6 +37,8 @@ func writeAt(t *testing.T, root, rel, content string) {
 	}
 }
 
+// TestSurvey_BasicCppTree checks that a vendored C/C++ library yields its path-qualified
+// PURL and per-file MD5 fingerprints.
 func TestSurvey_BasicCppTree(t *testing.T) {
 	root := t.TempDir()
 	writeAt(t, root, "third_party/zlib/deflate.c", "// deflate impl\n")
@@ -80,6 +82,8 @@ func TestSurvey_BasicCppTree(t *testing.T) {
 	}
 }
 
+// TestSurvey_NoCppFilesSkipsDir checks that a vendor tree without C/C++ sources produces
+// no components or hashes.
 func TestSurvey_NoCppFilesSkipsDir(t *testing.T) {
 	// "vendor" directory exists but contains only non-C/C++ files. This is the
 	// common Go / Python case and must NOT produce a vendored component.
@@ -97,6 +101,8 @@ func TestSurvey_NoCppFilesSkipsDir(t *testing.T) {
 	}
 }
 
+// TestSurvey_NestedVendoredCollapses checks that a nested vendored library is counted only
+// within its enclosing library.
 func TestSurvey_NestedVendoredCollapses(t *testing.T) {
 	// A vendored lib that itself ships a vendored sub-tree must not produce a
 	// second component — duplicate matches across layered scanning is a known
@@ -115,6 +121,8 @@ func TestSurvey_NestedVendoredCollapses(t *testing.T) {
 	}
 }
 
+// TestSurvey_GitInsideVendoredLibSkipped checks that Git metadata does not appear in
+// library fingerprints.
 func TestSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	// Vendored libs sometimes ship a .git/ pseudo-checkout. We skip them to
 	// avoid double-counting against any future git scanning we ever do, and to
@@ -135,6 +143,8 @@ func TestSurvey_GitInsideVendoredLibSkipped(t *testing.T) {
 	}
 }
 
+// TestSurvey_NonCppFilesIgnored checks that non-C/C++ files in a vendored library are
+// excluded from its fingerprints.
 func TestSurvey_NonCppFilesIgnored(t *testing.T) {
 	// .py / .go / .md inside an otherwise valid C++ vendored lib are skipped —
 	// only the C/C++ source counts toward the fingerprint.
@@ -155,6 +165,8 @@ func TestSurvey_NonCppFilesIgnored(t *testing.T) {
 	}
 }
 
+// TestSurvey_AllDirNameVariants checks that all supported vendored directory names produce
+// library hits.
 func TestSurvey_AllDirNameVariants(t *testing.T) {
 	// Every vendored-family name in fswalk must trigger the scan. Drift here
 	// silently shrinks coverage, so we lock the full list in one test.
@@ -181,6 +193,8 @@ func TestSurvey_AllDirNameVariants(t *testing.T) {
 	}
 }
 
+// TestSurvey_AllExtVariants checks that every supported C/C++ extension contributes a file
+// hash.
 func TestSurvey_AllExtVariants(t *testing.T) {
 	// Lock the file-extension list. Same drift concern as TestAllDirNameVariants.
 	root := t.TempDir()
@@ -197,6 +211,8 @@ func TestSurvey_AllExtVariants(t *testing.T) {
 	}
 }
 
+// TestSurvey_WorksOnAnyFSNotJustDisk checks that an in-memory filesystem produces library
+// hits and file hashes.
 func TestSurvey_WorksOnAnyFSNotJustDisk(t *testing.T) {
 	// The parameter is an fs.FS, so an in-memory tree must survey exactly like
 	// a real directory. That is what lets a caller hand Survey the scan root it
@@ -219,6 +235,8 @@ func TestSurvey_WorksOnAnyFSNotJustDisk(t *testing.T) {
 	}
 }
 
+// TestSurvey_RelPathIsAlwaysSlashSeparated checks that library paths use stable slash
+// separators across platforms.
 func TestSurvey_RelPathIsAlwaysSlashSeparated(t *testing.T) {
 	// RelPath feeds the vendored_path PURL qualifier and the component's
 	// bom-ref, so it has to read the same on every platform.
