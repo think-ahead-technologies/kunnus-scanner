@@ -5,12 +5,12 @@ go 1.26.3
 require (
 	github.com/BurntSushi/toml v1.6.0
 	github.com/CycloneDX/cyclonedx-go v0.12.0
-	github.com/erikvarga/go-rpmdb v0.0.0-20250523120114-a15a62cd4593
+	github.com/erikvarga/go-rpmdb v0.0.0-20261001143808-1a11b79cbdd3
 	github.com/github/go-spdx/v2 v2.7.0
 	github.com/go-git/go-git/v5 v5.19.2
 	github.com/google/go-containerregistry v0.22.1
 	github.com/google/licensecheck v0.3.1
-	github.com/google/osv-scalibr v0.5.3-0.20260817050914-b91454108ed1
+	github.com/google/osv-scalibr v0.5.4-0.20261002042032-484c657b8ae9
 	github.com/google/uuid v1.6.0
 	github.com/klauspost/compress v1.20.0
 	github.com/opencontainers/go-digest v1.0.0
@@ -26,7 +26,7 @@ require (
 	dario.cat/mergo v1.0.1 // indirect
 	deps.dev/api/v3 v3.0.0-20260422013440-90c27f84dd6f // indirect
 	deps.dev/api/v3alpha v0.0.0-20260422013440-90c27f84dd6f // indirect
-	deps.dev/util/maven v0.0.0-20260528042559-b92437de09fd // indirect
+	deps.dev/util/maven v0.0.0-20260928000106-0e158e8db197 // indirect
 	deps.dev/util/pypi v0.0.0-20260422013440-90c27f84dd6f // indirect
 	deps.dev/util/resolve v0.0.0-20260422013440-90c27f84dd6f // indirect
 	deps.dev/util/semver v0.0.0-20260529052642-cf1e78d92744 // indirect
@@ -90,7 +90,7 @@ require (
 	github.com/ncruces/go-strftime v1.0.0 // indirect
 	github.com/opencontainers/image-spec v1.1.1 // indirect
 	github.com/ossf/osv-schema/bindings/go v0.0.0-20260424063704-83285ce2a866 // indirect
-	github.com/package-url/packageurl-go v0.1.5 // indirect
+	github.com/package-url/packageurl-go v0.1.6 // indirect
 	github.com/pierrec/lz4/v4 v4.1.26 // indirect
 	github.com/pjbgf/sha1cd v0.6.0 // indirect
 	github.com/pkg/errors v0.9.1 // indirect
