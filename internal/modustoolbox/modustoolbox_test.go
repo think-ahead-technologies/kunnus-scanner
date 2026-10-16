@@ -6,6 +6,7 @@ import (
 	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/google/osv-scalibr/extractor/filesystem"
@@ -123,5 +124,29 @@ func writeFile(t *testing.T, path, data string) {
 	}
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A .mtb whose line runs past maxLineBytes was not understood, it was cut off.
+// Extract returns an error for that (unlike a malformed manifest, which yields
+// no package and no error) so scalibr records a plugin status instead of the
+// file reading as "declares no dependency".
+func TestExtract_TruncatedManifestIsReported(t *testing.T) {
+	root := t.TempDir()
+	writeFile(t, filepath.Join(root, "huge.mtb"), strings.Repeat("x", maxLineBytes+1)+"\n")
+
+	f, err := os.Open(filepath.Join(root, "huge.mtb"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer func() { _ = f.Close() }()
+
+	inv, err := New().Extract(context.Background(), &filesystem.ScanInput{Path: "huge.mtb", Reader: f})
+
+	if err == nil {
+		t.Fatal("Extract: want an error for a manifest past maxLineBytes, got nil")
+	}
+	if len(inv.Packages) != 0 {
+		t.Errorf("Extract returned %d packages for a truncated manifest, want 0", len(inv.Packages))
 	}
 }

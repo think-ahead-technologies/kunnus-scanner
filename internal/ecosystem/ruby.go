@@ -47,6 +47,7 @@ var gemChecksumLineRe = regexp.MustCompile(`^(\S+) \(([^-)]*)(?:-[^)]*)?\) (.+)$
 func parseGemfileLockChecksums(r io.Reader) (hashes.Map, error) {
 	out := make(hashes.Map)
 	scanner := bufio.NewScanner(r)
+	scanner.Buffer(make([]byte, 0, 64*1024), 1024*1024)
 	inChecksums := false
 	for scanner.Scan() {
 		line := scanner.Text()

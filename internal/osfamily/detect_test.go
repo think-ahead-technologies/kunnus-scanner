@@ -7,7 +7,9 @@ import (
 	"path/filepath"
 	"reflect"
 	"slices"
+	"strings"
 	"testing"
+	"testing/fstest"
 
 	"github.com/think-ahead/kunnus-scanner/internal/osfamily"
 )
@@ -206,5 +208,24 @@ func TestLinuxOSRelease(t *testing.T) {
 				t.Errorf("version = %q, want %q", version, tc.wantVersion)
 			}
 		})
+	}
+}
+
+// A line in etc/os-release past bufio.Scanner's 64 KiB default token size must
+// not end the parse. Everything below it — potentially ID itself — would go
+// unread, and the caller cannot tell a truncated file from a distroless root:
+// both look like "no ID", which silently drops the operating-system component
+// and every distro plugin with it.
+func TestLinuxOSRelease_LongLineDoesNotTruncate(t *testing.T) {
+	fsys := fstest.MapFS{
+		"etc/os-release": &fstest.MapFile{Data: []byte(
+			"PRETTY_NAME=\"" + strings.Repeat("x", 100*1024) + "\"\n" +
+				"ID=debian\nVERSION_ID=\"12\"\n")},
+	}
+
+	id, version, ok := osfamily.LinuxOSRelease(fsys)
+
+	if !ok || id != "debian" || version != "12" {
+		t.Errorf("LinuxOSRelease = (%q, %q, %v), want (debian, 12, true) — fields after an over-long line were dropped", id, version, ok)
 	}
 }

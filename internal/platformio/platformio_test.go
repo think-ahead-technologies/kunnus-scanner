@@ -167,7 +167,10 @@ func TestParseINI(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			got := parseINI(strings.NewReader(tc.ini))
+			got, err := parseINI(strings.NewReader(tc.ini))
+			if err != nil {
+				t.Fatalf("parseINI: %v", err)
+			}
 			if len(got) != len(tc.want) {
 				t.Fatalf("parseINI = %v, want %v", got, tc.want)
 			}
@@ -200,5 +203,23 @@ func writeFile(t *testing.T, path, data string) {
 	}
 	if err := os.WriteFile(path, []byte(data), 0o644); err != nil {
 		t.Fatal(err)
+	}
+}
+
+// A config line past maxLineBytes ends the scan. parseINI must hand that back
+// rather than let Extract report a half-read config as a complete one — the
+// lib_deps of every section below the long line are simply absent otherwise.
+func TestParseINI_TruncationIsReported(t *testing.T) {
+	cfg := "[env:a]\nlib_deps = bblanchon/ArduinoJson@6.21.3\n" +
+		"; " + strings.Repeat("x", maxLineBytes+1) + "\n" +
+		"[env:b]\nlib_deps = knolleary/PubSubClient@2.8\n"
+
+	got, err := parseINI(strings.NewReader(cfg))
+
+	if err == nil {
+		t.Fatal("parseINI: want an error on a line past maxLineBytes, got nil")
+	}
+	if want := []string{"bblanchon/ArduinoJson@6.21.3"}; len(got) != 1 || got[0] != want[0] {
+		t.Errorf("parseINI = %v, want the entries read before truncation %v", got, want)
 	}
 }

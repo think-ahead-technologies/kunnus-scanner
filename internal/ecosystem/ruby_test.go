@@ -165,3 +165,19 @@ BUNDLED WITH
 		t.Errorf("want empty map for pre-2.6 lockfile, got %v", got)
 	}
 }
+
+// A CHECKSUMS line past bufio.Scanner's 64 KiB default token size must not end
+// the scan: everything after it would go unhashed, and a lockfile is one file
+// where a long line (a gem with many platform variants) is plausible.
+func TestParseGemfileLockChecksums_LongLineDoesNotTruncate(t *testing.T) {
+	long := strings.Repeat("x", 100*1024)
+	const sum = "ddc6f9cc94d67c0e21aaf7eda3a010fd3af78ebf6e096aa6e2e13c79749cce4f"
+	got, err := parseGemfileLockChecksums(strings.NewReader(
+		"CHECKSUMS\n  bloat (1.0.0) sha256=" + long + "\n  rake (13.2.1) sha256=" + sum + "\n"))
+	if err != nil {
+		t.Fatalf("parseGemfileLockChecksums: %v", err)
+	}
+	if _, ok := got["pkg:gem/rake@13.2.1"]; !ok {
+		t.Errorf("checksum after an over-long line was dropped: %v", got)
+	}
+}
