@@ -1,0 +1,2 @@
+go test fuzz v1
+string("FetchContent_Declare(\"\" URL https://x)")

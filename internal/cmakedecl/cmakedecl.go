@@ -231,9 +231,10 @@ var declareKeywords = map[string]bool{
 // a content name followed by keyword arguments. A git source is classified by
 // host; a tarball URL yields a generic package named after the declare, with a
 // best-effort version from the URL and any URL_HASH digest attached. A declare
-// with neither source (SOURCE_DIR-only, or variable-driven) yields nothing.
+// with neither source (SOURCE_DIR-only, or variable-driven) yields nothing,
+// as does one with an empty content name (`""`, which CMake itself rejects).
 func interpretDeclare(args []string) *Decl {
-	if len(args) == 0 || hasVar(args[0]) {
+	if len(args) == 0 || args[0] == "" || hasVar(args[0]) {
 		return nil
 	}
 	name := args[0]
