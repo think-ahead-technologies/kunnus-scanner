@@ -5,11 +5,15 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"strings"
 	"testing"
 )
 
 func TestParseDpkgList(t *testing.T) {
-	got := parseDpkgList([]byte("/.\n/usr\n/usr/bin/xz\n\n  /usr/bin/xzcat  \n"))
+	got, err := parseDpkgList([]byte("/.\n/usr\n/usr/bin/xz\n\n  /usr/bin/xzcat  \n"))
+	if err != nil {
+		t.Fatalf("parseDpkgList: %v", err)
+	}
 	want := []string{".", "usr", "usr/bin/xz", "usr/bin/xzcat"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parseDpkgList = %q, want %q", got, want)
@@ -17,15 +21,103 @@ func TestParseDpkgList(t *testing.T) {
 }
 
 func TestParseApkInstalled(t *testing.T) {
-	got := parseApkInstalled([]byte("P:busybox\nV:1.37.0-r30\nF:bin\nR:busybox\nR:busybox.suid\nF:usr/sbin\nR:ssl_client\n"))
+	got, err := parseApkInstalled([]byte("P:busybox\nV:1.37.0-r30\nF:bin\nR:busybox\nR:busybox.suid\nF:usr/sbin\nR:ssl_client\n"))
+	if err != nil {
+		t.Fatalf("parseApkInstalled: %v", err)
+	}
 	want := []string{"bin/busybox", "bin/busybox.suid", "usr/sbin/ssl_client"}
 	if !reflect.DeepEqual(got, want) {
 		t.Errorf("parseApkInstalled = %q, want %q", got, want)
 	}
 }
 
+// longPath builds an absolute path whose single line is n bytes long, the shape
+// a pathological (or hostile) package database uses to overrun a scanner's
+// token buffer.
+func longPath(n int) string {
+	return "/" + strings.Repeat("a", n-1)
+}
+
+// The three record parsers must read past bufio.Scanner's 64 KiB default token
+// size: a line longer than that used to end the scan silently, and every path
+// after it went unrecorded — which reads to the suppression stage as "no package
+// owns this file" and ships a pkg:generic twin of a packaged binary.
+func TestParseRecords_LineOverScannerDefaultIsRead(t *testing.T) {
+	long := longPath(100 * 1024)
+
+	t.Run("dpkg", func(t *testing.T) {
+		got, err := parseDpkgList([]byte(long + "\n/usr/bin/xz\n"))
+		if err != nil {
+			t.Fatalf("parseDpkgList: %v", err)
+		}
+		want := []string{strings.TrimPrefix(long, "/"), "usr/bin/xz"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("parseDpkgList dropped records: got %d paths, want %d", len(got), len(want))
+		}
+	})
+
+	t.Run("apk", func(t *testing.T) {
+		got, err := parseApkInstalled([]byte("F:bin\nR:" + strings.Repeat("a", 100*1024) + "\nR:busybox\n"))
+		if err != nil {
+			t.Fatalf("parseApkInstalled: %v", err)
+		}
+		if len(got) != 2 || got[1] != "bin/busybox" {
+			t.Errorf("parseApkInstalled dropped records: got %d paths, want 2 ending in bin/busybox", len(got))
+		}
+	})
+
+	t.Run("chisel", func(t *testing.T) {
+		big := `{"kind":"path","path":"` + long + `"}`
+		got, err := parseChiselManifest([]byte(big + "\n" + `{"kind":"path","path":"/usr/bin/openssl"}` + "\n"))
+		if err != nil {
+			t.Fatalf("parseChiselManifest: %v", err)
+		}
+		want := []string{strings.TrimPrefix(long, "/"), "usr/bin/openssl"}
+		if !reflect.DeepEqual(got, want) {
+			t.Errorf("parseChiselManifest dropped records: got %d paths, want %d", len(got), len(want))
+		}
+	})
+}
+
+// Past the hard cap the scan genuinely cannot continue. The records read so far
+// are still returned — partial ownership data suppresses more twins than none —
+// but the truncation is reported rather than passed off as a complete read.
+func TestParseRecords_LineOverHardCapIsReported(t *testing.T) {
+	huge := longPath(maxRecordBytes + 1)
+
+	t.Run("dpkg", func(t *testing.T) {
+		got, err := parseDpkgList([]byte("/usr/bin/xz\n" + huge + "\n"))
+		if err == nil {
+			t.Fatal("parseDpkgList: want error on a line past the cap, got nil")
+		}
+		if want := []string{"usr/bin/xz"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("parseDpkgList = %q, want the records read before truncation %q", got, want)
+		}
+	})
+
+	t.Run("apk", func(t *testing.T) {
+		got, err := parseApkInstalled([]byte("F:bin\nR:busybox\nR:" + strings.Repeat("a", maxRecordBytes+1) + "\n"))
+		if err == nil {
+			t.Fatal("parseApkInstalled: want error on a line past the cap, got nil")
+		}
+		if want := []string{"bin/busybox"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("parseApkInstalled = %q, want the records read before truncation %q", got, want)
+		}
+	})
+
+	t.Run("chisel", func(t *testing.T) {
+		got, err := parseChiselManifest([]byte(`{"kind":"path","path":"/usr/bin/openssl"}` + "\n" + `{"kind":"path","path":"` + huge + `"}` + "\n"))
+		if err == nil {
+			t.Fatal("parseChiselManifest: want error on a line past the cap, got nil")
+		}
+		if want := []string{"usr/bin/openssl"}; !reflect.DeepEqual(got, want) {
+			t.Errorf("parseChiselManifest = %q, want the records read before truncation %q", got, want)
+		}
+	})
+}
+
 func TestParseChiselManifest(t *testing.T) {
-	got := parseChiselManifest([]byte(`{"jsonwall":"1.0","schema":"1.0","count":6}
+	got, err := parseChiselManifest([]byte(`{"jsonwall":"1.0","schema":"1.0","count":6}
 {"kind":"content","slice":"openssl_bins","path":"/usr/bin/openssl"}
 {"kind":"package","name":"openssl","version":"3.0.13-0ubuntu3.5","sha256":"00f9","arch":"amd64"}
 {"kind":"path","path":"/etc/","mode":"0755","slices":["base-files_etc"]}
@@ -34,6 +126,9 @@ func TestParseChiselManifest(t *testing.T) {
 not json at all
 {"kind":"slice","name":"openssl_bins"}
 `))
+	if err != nil {
+		t.Fatalf("parseChiselManifest: %v", err)
+	}
 	// Only kind=path records own their path: content records duplicate them,
 	// package/slice records carry no path, and unparseable lines are skipped.
 	want := []string{"etc/", "usr/bin/openssl", "bin"}

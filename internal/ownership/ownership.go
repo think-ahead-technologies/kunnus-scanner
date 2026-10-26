@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"io"
 	"io/fs"
+	"log/slog"
 	"os"
 	"path"
 	"strings"
@@ -16,6 +17,22 @@ import (
 	"github.com/klauspost/compress/zstd"
 	_ "modernc.org/sqlite" // sqlite driver for reading rpmdb.sqlite databases
 )
+
+// maxRecordBytes caps one line of a package database. bufio.Scanner's 64 KiB
+// default is too small a ceiling to fail silently against: a longer line ends
+// the scan, every path after it goes unrecorded, and the suppression stage
+// reads that as "no package owns this file". Real records are short — a path,
+// or one jsonwall object — so 1 MiB is headroom, not a target.
+const maxRecordBytes = 1 << 20
+
+// newRecordScanner returns a line scanner over data with the record cap in
+// place. Shared by the three database parsers, whose token-size needs are the
+// same and whose failure mode when it is missed is the same.
+func newRecordScanner(data []byte) *bufio.Scanner {
+	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc.Buffer(make([]byte, 0, 64*1024), maxRecordBytes)
+	return sc
+}
 
 // Set is the set of root-relative file paths (no leading slash, matching
 // scalibr's location convention) owned by an OS package manager.
@@ -57,11 +74,16 @@ func scanDpkg(fsys fs.FS, s Set) {
 		if e.IsDir() || !strings.HasSuffix(e.Name(), ".list") {
 			continue
 		}
-		data, err := fs.ReadFile(fsys, path.Join(dir, e.Name()))
+		name := path.Join(dir, e.Name())
+		data, err := fs.ReadFile(fsys, name)
 		if err != nil {
 			continue
 		}
-		for _, p := range parseDpkgList(data) {
+		paths, err := parseDpkgList(data)
+		if err != nil {
+			slog.Warn("dpkg file list truncated; some owned paths will be missing", "path", name, "err", err)
+		}
+		for _, p := range paths {
 			s[p] = struct{}{}
 		}
 	}
@@ -71,15 +93,19 @@ func scanDpkg(fsys fs.FS, s Set) {
 // package owns — and returns those paths root-relative (leading slash stripped),
 // skipping blank lines. Split from the filesystem walk so the line parsing is
 // exercisable on raw bytes alone.
-func parseDpkgList(data []byte) []string {
+//
+// A line past maxRecordBytes ends the scan: the paths read up to that point are
+// returned along with the error, because partial ownership data suppresses more
+// duplicate components than none.
+func parseDpkgList(data []byte) ([]string, error) {
 	var out []string
-	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc := newRecordScanner(data)
 	for sc.Scan() {
 		if p := strings.TrimPrefix(strings.TrimSpace(sc.Text()), "/"); p != "" {
 			out = append(out, p)
 		}
 	}
-	return out
+	return out, sc.Err()
 }
 
 // rpmDBPaths are the rpm database locations across rpm storage backends, in the
@@ -154,7 +180,11 @@ func scanChisel(fsys fs.FS, s Set) {
 	if err != nil {
 		return
 	}
-	for _, p := range parseChiselManifest(raw) {
+	paths, err := parseChiselManifest(raw)
+	if err != nil {
+		slog.Warn("chisel manifest truncated; some owned paths will be missing", "err", err)
+	}
+	for _, p := range paths {
 		s[p] = struct{}{}
 	}
 }
@@ -167,12 +197,12 @@ func scanChisel(fsys fs.FS, s Set) {
 // records keep their trailing slash and are inert in Owns, which matches file
 // locations. Split from the filesystem read so the line parsing is exercisable
 // on raw bytes alone.
-func parseChiselManifest(data []byte) []string {
+//
+// Truncation is reported the same way as parseDpkgList: partial records plus
+// the error.
+func parseChiselManifest(data []byte) ([]string, error) {
 	var out []string
-	sc := bufio.NewScanner(bytes.NewReader(data))
-	// A jsonwall line can exceed bufio's 64 KiB default token size in theory;
-	// real manifests keep path records short, but buy headroom cheaply.
-	sc.Buffer(make([]byte, 0, 64*1024), 1024*1024)
+	sc := newRecordScanner(data)
 	for sc.Scan() {
 		var rec struct {
 			Kind string `json:"kind"`
@@ -188,7 +218,7 @@ func parseChiselManifest(data []byte) []string {
 			out = append(out, p)
 		}
 	}
-	return out
+	return out, sc.Err()
 }
 
 // readFirst returns the contents of the first of paths that exists on fsys.
@@ -208,7 +238,11 @@ func scanApk(fsys fs.FS, s Set) {
 	if err != nil {
 		return
 	}
-	for _, p := range parseApkInstalled(data) {
+	paths, err := parseApkInstalled(data)
+	if err != nil {
+		slog.Warn("apk installed database truncated; some owned paths will be missing", "err", err)
+	}
+	for _, p := range paths {
 		s[p] = struct{}{}
 	}
 }
@@ -217,9 +251,12 @@ func scanApk(fsys fs.FS, s Set) {
 // paths. Records list files as an "F:" directory line followed by "R:" file
 // lines relative to it. Split from the filesystem read so the record parsing is
 // exercisable on raw bytes alone.
-func parseApkInstalled(data []byte) []string {
+//
+// Truncation is reported the same way as parseDpkgList: partial records plus
+// the error.
+func parseApkInstalled(data []byte) ([]string, error) {
 	var out []string
-	sc := bufio.NewScanner(bytes.NewReader(data))
+	sc := newRecordScanner(data)
 	dir := ""
 	for sc.Scan() {
 		line := sc.Text()
@@ -238,5 +275,5 @@ func parseApkInstalled(data []byte) []string {
 			}
 		}
 	}
-	return out
+	return out, sc.Err()
 }
